@@ -247,6 +247,7 @@
     gap: 0.6rem;
   }
   .section-title::before { content: '⬥'; font-size: 0.6rem; color: var(--gold); }
+  .section-note { font-size: 0.78rem; color: var(--text-dim); font-style: italic; margin-top: -0.6rem; margin-bottom: 0.8rem; padding-left: 1rem; }
 
   /* ── PODIUMS ── */
   .podiums-grid {
@@ -699,6 +700,7 @@
   <!-- FRIENDLY FIRE -->
   <div class="tab-content" id="tab-ff">
     <div class="section-title">Ranking Acumulado</div>
+    <div class="section-note">Solo daño a aliados en el combate de Gruul</div>
     <table class="ranked-list" id="table-ff"></table>
   </div>
 
@@ -905,7 +907,7 @@ function buildResumen() {
     <div class="stat-card">
       <div class="label">Fuego Amigo Total</div>
       <div class="value">${fmtDmg(totalFF)}</div>
-      <div class="sub">daño a aliados acumulado</div>
+      <div class="sub">daño a aliados en Gruul</div>
     </div>
     <div class="stat-card">
       <div class="label">Rey de la Resaca</div>
@@ -932,7 +934,7 @@ function buildResumen() {
     </div>`;
 
   document.getElementById('podiums').innerHTML =
-    podiumHTML('Podio Friendly Fire', ffPodio, e => fmtDmg(e.val)) +
+    podiumHTML('Podio Friendly Fire (Gruul)', ffPodio, e => fmtDmg(e.val)) +
     podiumHTML('Podio Muertes', deathArr, e => e.val + ' muertes') +
     podiumHTML('Podio Vergüenza', shame, e => (e.score*100).toFixed(0)+'% vergüenza');
 
@@ -1244,7 +1246,7 @@ function openPlayer(name) {
     <div class="profile-meta">${raidsAttended.length} raids · ${portadorCount ? portadorCount + '× portador de la resaca' : 'nunca portador'} · ${firstCount ? firstCount + '× primero en morir' : ''}</div>
     <div class="profile-stats">
       <div class="pstat"><div class="plabel">Raids</div><div class="pval purple">${raidsAttended.length}</div></div>
-      <div class="pstat"><div class="plabel">Fuego Amigo</div><div class="pval">${fmtDmg(totalFF)}</div></div>
+      <div class="pstat"><div class="plabel">Fuego Amigo (Gruul)</div><div class="pval">${fmtDmg(totalFF)}</div></div>
       <div class="pstat"><div class="plabel">Muertes</div><div class="pval red">${totalDeaths}</div></div>
       <div class="pstat"><div class="plabel">Tiempo Muerto</div><div class="pval red">${fmtMs(totalTimeDead)}</div></div>
       <div class="pstat"><div class="plabel">Interrupts</div><div class="pval purple">${totalInts}</div></div>
@@ -1263,7 +1265,7 @@ function openPlayer(name) {
     <table class="raid-table">
       <thead><tr>
         <th>Fecha</th>
-        <th>FF Daño</th>
+        <th>FF Daño (Gruul)</th>
         <th>Muertes</th>
         <th>T. Muerto</th>
         <th>Interrupts</th>
