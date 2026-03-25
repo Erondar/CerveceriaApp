@@ -1045,15 +1045,21 @@ function buildHeaderMeta() {
 
 function buildResumen() {
   const totalFF = DATA.reduce((s,r) => s + r.leaderboard.reduce((ss,e) => ss + e.damage, 0), 0);
-  const portCount = new Map();
-  DATA.forEach(r => { if (r.leaderboard[0]) { const n = r.leaderboard[0].name; portCount.set(n, (portCount.get(n)??0)+1); } });
-  const topPort = [...portCount.entries()].sort((a,b)=>b[1]-a[1])[0];
+  let maxFF = {name: null, damage: 0};
+  DATA.forEach(r => {
+    if (r.leaderboard[0] && r.leaderboard[0].damage > maxFF.damage)
+      maxFF = {name: r.leaderboard[0].name, damage: r.leaderboard[0].damage};
+  });
 
   const totalKills    = DATA.reduce((s,r) => s + (r.bossStats?.totalKills ?? 0), 0);
   const totalWipes    = DATA.reduce((s,r) => s + (r.bossStats?.totalWipes ?? 0), 0);
   const totalTries    = totalKills + totalWipes;
   const globalEff     = totalTries > 0 ? Math.round(totalKills / totalTries * 100) : 0;
   const effColor      = globalEff >= 80 ? 'var(--gold)' : globalEff >= 50 ? 'var(--purple2)' : 'var(--red2)';
+
+  const totalDeaths = DATA.reduce((s,r) => s + (r.deathStats?.deaths ?? []).reduce((ss,e) => ss + e.count, 0), 0);
+
+  const avgDeaths = DATA.length > 0 ? (totalDeaths / DATA.length).toFixed(1) : 0;
 
   document.getElementById('stat-cards').innerHTML = `
     <div class="stat-card">
@@ -1083,8 +1089,18 @@ function buildResumen() {
     </div>
     <div class="stat-card">
       <div class="label">Rey de la Resaca</div>
-      <div class="value red" style="font-size:1.3rem">${topPort ? topPort[0] : '-'}</div>
-      <div class="sub">${topPort ? topPort[1] + ' veces #1 en FF' : ''}</div>
+      <div class="value red" style="font-size:1.3rem">${maxFF.name ?? '-'}</div>
+      <div class="sub">${maxFF.name ? fmtDmg(maxFF.damage) + ' FF en una sola raid' : ''}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Muertes Totales</div>
+      <div class="value">${totalDeaths}</div>
+      <div class="sub">entre todos los jugadores</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Media de Muertes</div>
+      <div class="value">${avgDeaths}</div>
+      <div class="sub">muertes por raid</div>
     </div>
   `;
 
@@ -1288,7 +1304,7 @@ function buildHistorial() {
   const container = document.getElementById('raid-list');
   if (!DATA.length) { container.innerHTML = '<div class="empty-msg">No hay raids registradas.</div>'; return; }
 
-  container.innerHTML = [...DATA].reverse().map((r, i) => {
+  container.innerHTML = [...DATA].map((r, i) => {
     const port    = r.leaderboard[0];
     const fd      = r.deathStats?.firstToDie?.name ?? '—';
     const top3d   = (r.deathStats?.deaths??[]).slice(0,3);
@@ -1657,6 +1673,7 @@ function buildLootResumen() {
       <div class="loot-stat-card"><div class="lsc-val">${totBis}</div><div class="lsc-label">BiS</div></div>
       <div class="loot-stat-card"><div class="lsc-val" style="color:var(--purple2)">${totUpgrade}</div><div class="lsc-label">Upgrade</div></div>
       <div class="loot-stat-card"><div class="lsc-val" style="color:#87ceeb">${totOffspec}</div><div class="lsc-label">Off-Spec</div></div>
+      <div style="width:1px;background:var(--border);margin:0 0.25rem;align-self:stretch"></div>
       <div class="loot-stat-card"><div class="lsc-val" style="color:var(--text-dim)">${totDE}</div><div class="lsc-label">Desenc.</div></div>
       <div class="loot-stat-card"><div class="lsc-val" style="color:var(--text-dim)">${totBank}</div><div class="lsc-label">Banking</div></div>
       <div class="loot-stat-card"><div class="lsc-val" style="color:var(--text-dim)">${totBag}</div><div class="lsc-label">Bolsas</div></div>
