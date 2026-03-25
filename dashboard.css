@@ -432,6 +432,12 @@
   }
   .raid-portador { flex: 1; font-size: 0.9rem; }
   .raid-portador .label { color: var(--text); font-size: 0.82rem; margin-right: 0.4rem; }
+  .raid-time {
+    font-family: 'Cinzel', serif;
+    font-size: 0.82rem;
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
   .raid-arrow {
     color: var(--text-dim);
     transition: transform 0.2s;
