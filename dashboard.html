@@ -687,6 +687,7 @@
     <button class="tab-btn" data-tab="muertes">Muertes</button>
     <button class="tab-btn" data-tab="mecanicas">Mecánicas</button>
     <button class="tab-btn" data-tab="historial">Historial</button>
+    <button class="tab-btn" data-tab="verguenza">Vergüenza</button>
     <button class="tab-btn" data-tab="jugador">Jugador</button>
   </nav>
 
@@ -739,6 +740,14 @@
   <!-- HISTORIAL -->
   <div class="tab-content" id="tab-historial">
     <div id="raid-list"></div>
+  </div>
+
+  <!-- VERGÜENZA -->
+  <div class="tab-content" id="tab-verguenza">
+    <div class="section-title">Ranking de la Vergüenza</div>
+    <div class="section-note">Solo jugadores con al menos un 30% de raids asistidas</div>
+    <div id="shame-explanation"></div>
+    <table class="ranked-list" id="table-verguenza"></table>
   </div>
 
   <!-- JUGADOR -->
@@ -809,6 +818,7 @@ function initDashboard() {
   buildMuertes();
   buildMecanicas();
   buildHistorial();
+  buildVerguenza();
   setupJugador();
 }
 
@@ -997,6 +1007,37 @@ function buildFF() {
       <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
       <td class="bar-cell">${makeBar(e.val/max*100)}</td>
       <td class="val-cell">${fmtDmg(e.val)}</td>
+    </tr>`).join('')}
+  </tbody>`;
+  tbl.querySelectorAll('.player-link').forEach(el => el.addEventListener('click', () => openPlayer(el.dataset.player)));
+}
+
+// ── VERGÜENZA ─────────────────────────────────────────────────────────────────
+
+function buildVerguenza() {
+  const data = calcShame();
+  const max  = data[0]?.score ?? 1;
+
+  document.getElementById('shame-explanation').innerHTML = `
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:1rem 1.2rem;margin-bottom:1.2rem;font-size:0.85rem;color:var(--text-dim);line-height:1.6">
+      <strong style="color:var(--text-bright)">¿Cómo se calcula?</strong><br>
+      Por cada raid, a cada jugador se le asigna un percentil en tres categorías:
+      <strong style="color:var(--gold)">daño a aliados (Gruul)</strong>,
+      <strong style="color:var(--red2)">número de muertes</strong> y
+      <strong style="color:var(--red2)">tiempo muerto</strong>.
+      El percentil indica qué porcentaje de compañeros tuvo un resultado mejor que el tuyo
+      (0% = el menos vergonzoso, 100% = el peor de la raid).
+      La puntuación final es la media de esos percentiles promediada sobre todas las raids asistidas.
+    </div>`;
+
+  const tbl = document.getElementById('table-verguenza');
+  tbl.innerHTML = `<thead><tr><th></th><th>Jugador</th><th class="bar-cell"></th><th>Score</th><th>Raids</th></tr></thead><tbody>
+    ${data.map((e,i) => `<tr>
+      <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
+      <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
+      <td class="bar-cell"><div class="bar-wrap"><div class="bar-fill" style="width:${(e.score/max*100).toFixed(1)}%;background:var(--red2)"></div></div></td>
+      <td class="val-cell" style="color:var(--red2)">${(e.score*100).toFixed(1)}%</td>
+      <td class="td-dim">${e.count}</td>
     </tr>`).join('')}
   </tbody>`;
   tbl.querySelectorAll('.player-link').forEach(el => el.addEventListener('click', () => openPlayer(el.dataset.player)));
