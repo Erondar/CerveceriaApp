@@ -305,6 +305,7 @@
   }
   .record-amount { font-family: 'Cinzel', serif; font-size: 1.6rem; font-weight: 600; color: var(--gold); line-height: 1; margin-bottom: 0.5rem; }
   .record-who { font-size: 0.9rem; color: var(--name); margin-bottom: 0.25rem; }
+  .record-ability { font-size: 0.78rem; color: var(--purple2); font-style: italic; margin-bottom: 0.25rem; }
   .record-date { font-size: 0.78rem; color: var(--text-muted); }
 
   /* ── RANKED LIST ── */
@@ -935,11 +936,13 @@ function buildResumen() {
   const records = calcGlobalRecords();
   const recCard = (icon, label, rec, nameFn, targetFn) => {
     if (!rec) return `<div class="record-card"><div class="record-icon">${icon}</div><div class="record-label">${label}</div><div class="record-val td-dim">Sin datos</div></div>`;
+    const abilityLine = rec.ability ? `<div class="record-ability">${rec.ability}</div>` : '';
     return `<div class="record-card">
       <div class="record-icon">${icon}</div>
       <div class="record-label">${label}</div>
       <div class="record-amount">${fmtDmg(rec.amount)}</div>
       <div class="record-who"><span class="player-link record-link" data-player="${nameFn(rec)}">${nameFn(rec)}</span> → <span class="player-link record-link" data-player="${targetFn(rec)}">${targetFn(rec)}</span></div>
+      ${abilityLine}
       <div class="record-date">${fmtDate(rec.fecha)}</div>
     </div>`;
   };
@@ -1090,6 +1093,7 @@ function buildHistorial() {
             <ul>
               <li>${bh.biggestReceived?.victima ?? '—'}<span>${fmtDmg(bh.biggestReceived?.amount ?? 0)}</span></li>
               <li style="color:var(--text-dim);font-size:.8rem">por ${bh.biggestReceived?.agresor ?? '—'}</li>
+              ${bh.biggestReceived?.ability ? `<li style="color:var(--purple2);font-size:.8rem;font-style:italic">${bh.biggestReceived.ability}</li>` : ''}
             </ul>
           </div>
           <div class="raid-section">
@@ -1097,6 +1101,7 @@ function buildHistorial() {
             <ul>
               <li>${bh.biggestDealt?.heroe ?? '—'}<span>${fmtDmg(bh.biggestDealt?.amount ?? 0)}</span></li>
               <li style="color:var(--text-dim);font-size:.8rem">a ${bh.biggestDealt?.objetivo ?? '—'}</li>
+              ${bh.biggestDealt?.ability ? `<li style="color:var(--purple2);font-size:.8rem;font-style:italic">${bh.biggestDealt.ability}</li>` : ''}
             </ul>
           </div>
           ${bh.biggestHeal ? `<div class="raid-section">
@@ -1104,6 +1109,7 @@ function buildHistorial() {
             <ul>
               <li>${bh.biggestHeal.healer}<span>${fmtDmg(bh.biggestHeal.amount)}</span></li>
               <li style="color:var(--text-dim);font-size:.8rem">a ${bh.biggestHeal.target}</li>
+              ${bh.biggestHeal.ability ? `<li style="color:var(--purple2);font-size:.8rem;font-style:italic">${bh.biggestHeal.ability}</li>` : ''}
             </ul>
           </div>` : ''}` : '';
 
@@ -1240,9 +1246,9 @@ function openPlayer(name) {
     ${hasHitData ? `
     <div class="section-title">Récords Personales</div>
     <div class="records-grid" style="margin-bottom:1.5rem">
-      ${prHit ? `<div class="record-card"><div class="record-icon">⚔️</div><div class="record-label">Mayor golpe dado</div><div class="record-amount">${fmtDmg(prHit.amount)}</div><div class="record-who">→ ${prHit.target}</div><div class="record-date">${fmtDate(prHit.fecha)}</div></div>` : ''}
-      ${prHeal ? `<div class="record-card"><div class="record-icon">💚</div><div class="record-label">Mayor curación</div><div class="record-amount">${fmtDmg(prHeal.amount)}</div><div class="record-who">→ ${prHeal.target}</div><div class="record-date">${fmtDate(prHeal.fecha)}</div></div>` : ''}
-      ${prReceived ? `<div class="record-card"><div class="record-icon">💀</div><div class="record-label">Mayor golpe recibido</div><div class="record-amount">${fmtDmg(prReceived.amount)}</div><div class="record-who">${prReceived.source} → ${name}</div><div class="record-date">${fmtDate(prReceived.fecha)}</div></div>` : ''}
+      ${prHit ? `<div class="record-card"><div class="record-icon">⚔️</div><div class="record-label">Mayor golpe dado</div><div class="record-amount">${fmtDmg(prHit.amount)}</div><div class="record-who">→ ${prHit.target}</div>${prHit.ability ? `<div class="record-ability">${prHit.ability}</div>` : ''}<div class="record-date">${fmtDate(prHit.fecha)}</div></div>` : ''}
+      ${prHeal ? `<div class="record-card"><div class="record-icon">💚</div><div class="record-label">Mayor curación</div><div class="record-amount">${fmtDmg(prHeal.amount)}</div><div class="record-who">→ ${prHeal.target}</div>${prHeal.ability ? `<div class="record-ability">${prHeal.ability}</div>` : ''}<div class="record-date">${fmtDate(prHeal.fecha)}</div></div>` : ''}
+      ${prReceived ? `<div class="record-card"><div class="record-icon">💀</div><div class="record-label">Mayor golpe recibido</div><div class="record-amount">${fmtDmg(prReceived.amount)}</div><div class="record-who">${prReceived.source} → ${name}</div>${prReceived.ability ? `<div class="record-ability">${prReceived.ability}</div>` : ''}<div class="record-date">${fmtDate(prReceived.fecha)}</div></div>` : ''}
     </div>` : ''}
 
     <div class="section-title">Histórico por Raid</div>
@@ -1265,9 +1271,9 @@ function openPlayer(name) {
           <td class="td-purple">${r.int || '<span class="td-dim">0</span>'}</td>
           <td class="td-purple">${r.dis || '<span class="td-dim">0</span>'}</td>
           ${hasHitData ? `
-          <td class="td-gold">${r.hitStats?.biggestHit?.amount ? fmtDmg(r.hitStats.biggestHit.amount) : '<span class="td-dim">—</span>'}</td>
-          <td style="color:var(--purple2)">${r.hitStats?.biggestHeal?.amount ? fmtDmg(r.hitStats.biggestHeal.amount) : '<span class="td-dim">—</span>'}</td>
-          <td class="td-red">${r.hitStats?.biggestReceived?.amount ? fmtDmg(r.hitStats.biggestReceived.amount) : '<span class="td-dim">—</span>'}</td>` : ''}
+          <td class="td-gold" title="${r.hitStats?.biggestHit?.ability ?? ''}">${r.hitStats?.biggestHit?.amount ? fmtDmg(r.hitStats.biggestHit.amount) : '<span class="td-dim">—</span>'}</td>
+          <td style="color:var(--purple2)" title="${r.hitStats?.biggestHeal?.ability ?? ''}">${r.hitStats?.biggestHeal?.amount ? fmtDmg(r.hitStats.biggestHeal.amount) : '<span class="td-dim">—</span>'}</td>
+          <td class="td-red" title="${r.hitStats?.biggestReceived?.ability ?? ''}">${r.hitStats?.biggestReceived?.amount ? fmtDmg(r.hitStats.biggestReceived.amount) : '<span class="td-dim">—</span>'}</td>` : ''}
         </tr>`).join('')}
       </tbody>
     </table>
