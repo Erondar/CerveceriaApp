@@ -903,6 +903,12 @@ function buildResumen() {
   DATA.forEach(r => { if (r.leaderboard[0]) { const n = r.leaderboard[0].name; portCount.set(n, (portCount.get(n)??0)+1); } });
   const topPort = [...portCount.entries()].sort((a,b)=>b[1]-a[1])[0];
 
+  const totalKills    = DATA.reduce((s,r) => s + (r.bossStats?.totalKills ?? 0), 0);
+  const totalWipes    = DATA.reduce((s,r) => s + (r.bossStats?.totalWipes ?? 0), 0);
+  const totalTries    = totalKills + totalWipes;
+  const globalEff     = totalTries > 0 ? Math.round(totalKills / totalTries * 100) : 0;
+  const effColor      = globalEff >= 80 ? 'var(--gold)' : globalEff >= 50 ? 'var(--purple2)' : 'var(--red2)';
+
   document.getElementById('stat-cards').innerHTML = `
     <div class="stat-card">
       <div class="label">Raids Registradas</div>
@@ -913,6 +919,16 @@ function buildResumen() {
       <div class="label">Jugadores</div>
       <div class="value purple">${ALL_PLAYERS.length}</div>
       <div class="sub">han pisado la raid</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Boss Kills</div>
+      <div class="value">${totalKills}</div>
+      <div class="sub">${totalWipes} wipes · ${totalTries} intentos totales</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Efectividad Global</div>
+      <div class="value" style="color:${effColor}">${totalTries > 0 ? globalEff + '%' : '—'}</div>
+      <div class="sub">kills / (kills + wipes)</div>
     </div>
     <div class="stat-card">
       <div class="label">Fuego Amigo Total</div>
@@ -1164,14 +1180,29 @@ function buildHistorial() {
             </ul>
           </div>` : ''}` : '';
 
+    const bs      = r.bossStats;
+    const effVal  = bs && bs.totalTries > 0 ? Math.round(bs.totalKills / bs.totalTries * 100) : null;
+    const effColor = effVal === null ? 'var(--text-dim)' : effVal >= 80 ? 'var(--gold)' : effVal >= 50 ? 'var(--purple2)' : 'var(--red2)';
+    const effLabel = effVal !== null
+      ? `<strong style="color:${effColor}">${effVal}%</strong><span style="color:var(--text-dim);font-size:.8rem;margin-left:.4rem">(${bs.totalKills}K/${bs.totalWipes}W)</span>`
+      : '<strong style="color:var(--text-dim)">—</strong>';
+
     return `<div class="raid-card" id="rcard-${i}">
       <div class="raid-header" onclick="toggleRaid('rcard-${i}')">
         <span class="raid-date">${fmtDate(r.fecha)}</span>
-        <span class="raid-portador"><span class="label">Resaca:</span><strong>${port ? port.name : '—'}</strong>${port ? `<span style="color:var(--text-dim);font-size:.8rem;margin-left:.4rem">(${fmtDmg(port.damage)})</span>` : ''}</span>
+        <span class="raid-portador"><span class="label">Efectividad:</span>${effLabel}</span>
         <span class="raid-arrow">▼</span>
       </div>
       <div class="raid-body">
         <div class="raid-body-grid">
+          <div class="raid-section">
+            <div class="raid-section-title">🍺 Resaca</div>
+            <ul><li>${port ? port.name : '—'}${port ? `<span>${fmtDmg(port.damage)}</span>` : ''}</li></ul>
+          </div>
+          <div class="raid-section">
+            <div class="raid-section-title">🏹 Bosses</div>
+            ${bs ? `<ul>${(bs.bosses ?? []).map(b => `<li>${b.name}<span>${b.kills}K / ${b.wipes}W</span></li>`).join('')}</ul>` : '<span style="color:var(--text-dim);font-style:italic">—</span>'}
+          </div>
           <div class="raid-section">
             <div class="raid-section-title">Muertes Top 3</div>
             ${miniList(top3d, e => e.count+'×')}
