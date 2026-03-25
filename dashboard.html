@@ -1093,7 +1093,14 @@ function buildHistorial() {
               <li>${bh.biggestDealt?.heroe ?? '—'}<span>${fmtDmg(bh.biggestDealt?.amount ?? 0)}</span></li>
               <li style="color:var(--text-dim);font-size:.8rem">a ${bh.biggestDealt?.objetivo ?? '—'}</li>
             </ul>
-          </div>` : '';
+          </div>
+          ${bh.biggestHeal ? `<div class="raid-section">
+            <div class="raid-section-title">💚 Curación más gorda</div>
+            <ul>
+              <li>${bh.biggestHeal.healer}<span>${fmtDmg(bh.biggestHeal.amount)}</span></li>
+              <li style="color:var(--text-dim);font-size:.8rem">a ${bh.biggestHeal.target}</li>
+            </ul>
+          </div>` : ''}` : '';
 
     return `<div class="raid-card" id="rcard-${i}">
       <div class="raid-header" onclick="toggleRaid('rcard-${i}')">
