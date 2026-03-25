@@ -154,11 +154,6 @@ function buildResumen() {
 
   document.getElementById('stat-cards').innerHTML = `
     <div class="stat-card">
-      <div class="label">Raids Registradas</div>
-      <div class="value">${DATA.length}</div>
-      <div class="sub">Maulgar + Gruul + Magtheridon</div>
-    </div>
-    <div class="stat-card">
       <div class="label">Jugadores</div>
       <div class="value purple">${ALL_PLAYERS.length}</div>
       <div class="sub">han pisado la raid</div>
@@ -174,24 +169,9 @@ function buildResumen() {
       <div class="sub">kills / (kills + wipes)</div>
     </div>
     <div class="stat-card">
-      <div class="label">Fuego Amigo Total</div>
-      <div class="value">${fmtDmg(totalFF)}</div>
-      <div class="sub">daño a aliados en Gruul</div>
-    </div>
-    <div class="stat-card">
       <div class="label">Rey de la Resaca</div>
       <div class="value red" style="font-size:1.3rem">${maxFF.name ?? '-'}</div>
       <div class="sub">${maxFF.name ? fmtDmg(maxFF.damage) + ' FF en una sola raid' : ''}</div>
-    </div>
-    <div class="stat-card">
-      <div class="label">Muertes Totales</div>
-      <div class="value">${totalDeaths}</div>
-      <div class="sub">entre todos los jugadores</div>
-    </div>
-    <div class="stat-card">
-      <div class="label">Media de Muertes</div>
-      <div class="value">${avgDeaths}</div>
-      <div class="sub">muertes por raid</div>
     </div>
   `;
 
@@ -266,6 +246,40 @@ function calcGlobalRecords() {
 function buildFF() {
   const data = aggregateMap('leaderboard', 'name');
   const max  = data[0]?.val ?? 1;
+
+  // Stat cards
+  const totalFF    = data.reduce((s, e) => s + e.val, 0);
+  const mediaRaid  = DATA.length > 0 ? totalFF / DATA.length : 0;
+  const raidMaxFF  = DATA.reduce((best, r) => {
+    const sum = r.leaderboard.reduce((s, e) => s + e.damage, 0);
+    return sum > (best.sum ?? 0) ? { sum, fecha: r.fecha } : best;
+  }, {});
+  const uniqueFF   = data.length;
+
+  document.getElementById('ff-stats').innerHTML = `
+    <div class="stat-cards" style="margin-bottom:2rem">
+      <div class="stat-card">
+        <div class="label">FF Total Histórico</div>
+        <div class="value">${fmtDmg(totalFF)}</div>
+        <div class="sub">daño a aliados acumulado</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Media por Raid</div>
+        <div class="value">${fmtDmg(Math.round(mediaRaid))}</div>
+        <div class="sub">daño medio entre todos</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Raid más Caótica</div>
+        <div class="value red" style="font-size:1.3rem">${raidMaxFF.fecha ? fmtDate(raidMaxFF.fecha) : '—'}</div>
+        <div class="sub">${raidMaxFF.sum ? fmtDmg(raidMaxFF.sum) + ' de FF total' : ''}</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Jugadores con FF</div>
+        <div class="value purple">${uniqueFF}</div>
+        <div class="sub">han dañado a un aliado</div>
+      </div>
+    </div>
+  `;
 
   // Table
   const tbl = document.getElementById('table-ff');
