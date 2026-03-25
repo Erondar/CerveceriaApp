@@ -406,6 +406,22 @@ function buildHistorial() {
   const container = document.getElementById('raid-list');
   if (!DATA.length) { container.innerHTML = '<div class="empty-msg">No hay raids registradas.</div>'; return; }
 
+  // Mejores tiempos por columna para resaltarlos
+  const minTime = (fn) => { const vals = DATA.map(fn).filter(Boolean); return vals.length ? Math.min(...vals) : null; };
+  const bestDuration  = minTime(r => r.bossStats?.totalRaidTimeMs || null);
+  const bestByBoss    = {
+    'High King Maulgar':      minTime(r => (r.bossStats?.bosses ?? []).find(b => b.name === 'High King Maulgar')?.killTimeMs || null),
+    'Gruul the Dragonkiller': minTime(r => (r.bossStats?.bosses ?? []).find(b => b.name === 'Gruul the Dragonkiller')?.killTimeMs || null),
+    'Magtheridon':            minTime(r => (r.bossStats?.bosses ?? []).find(b => b.name === 'Magtheridon')?.killTimeMs || null),
+  };
+
+  const timeCell = (ms, best) => {
+    if (!ms) return '<span class="td-dim">—</span>';
+    return ms === best
+      ? `<span class="time-best">★ ${fmtMs(ms)}</span>`
+      : `<span class="time-normal">${fmtMs(ms)}</span>`;
+  };
+
   const rows = [...DATA].map(r => {
     const bs          = r.bossStats;
     const port        = r.leaderboard[0];
@@ -414,8 +430,7 @@ function buildHistorial() {
     const totalDeaths = (r.deathStats?.deaths ?? []).reduce((s, e) => s + e.count, 0);
     const effVal      = bs?.totalTries > 0 ? Math.round(bs.totalKills / bs.totalTries * 100) : null;
     const effColor    = effVal === null ? 'var(--text-dim)' : effVal >= 80 ? 'var(--gold)' : effVal >= 50 ? 'var(--purple2)' : 'var(--red2)';
-    const duration    = bs?.totalRaidTimeMs > 0 ? fmtMs(bs.totalRaidTimeMs) : '—';
-    const bossTime    = name => { const b = (bs?.bosses ?? []).find(b => b.name === name); return b?.killTimeMs ? fmtMs(b.killTimeMs) : '<span class="td-dim">—</span>'; };
+    const bossKillTime = name => (bs?.bosses ?? []).find(b => b.name === name)?.killTimeMs || null;
 
     const top3ff  = r.leaderboard.slice(0, 3);
     const top3d   = (r.deathStats?.deaths ?? []).slice(0, 3);
@@ -456,13 +471,13 @@ function buildHistorial() {
     return `
       <tr class="historial-row">
         <td class="td-gold">${fmtDate(r.fecha)}</td>
-        <td class="td-gold">${duration}</td>
+        <td>${timeCell(bs?.totalRaidTimeMs || null, bestDuration)}</td>
         <td>${effVal !== null
           ? `<strong style="color:${effColor}">${effVal}%</strong> <span class="td-dim">(${bs.totalKills}K/${bs.totalWipes}W)</span>`
           : '<span class="td-dim">—</span>'}</td>
-        <td class="td-gold">${bossTime('High King Maulgar')}</td>
-        <td class="td-gold">${bossTime('Gruul the Dragonkiller')}</td>
-        <td class="td-gold">${bossTime('Magtheridon')}</td>
+        <td>${timeCell(bossKillTime('High King Maulgar'),      bestByBoss['High King Maulgar'])}</td>
+        <td>${timeCell(bossKillTime('Gruul the Dragonkiller'), bestByBoss['Gruul the Dragonkiller'])}</td>
+        <td>${timeCell(bossKillTime('Magtheridon'),            bestByBoss['Magtheridon'])}</td>
         <td class="td-red" style="text-align:center">${totalDeaths || '<span class="td-dim">0</span>'}</td>
         <td style="color:var(--name)">${fd}</td>
         <td style="text-align:right"><span class="h-arrow">▼</span></td>
