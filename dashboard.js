@@ -55,6 +55,7 @@ function initDashboard() {
   buildMecanicas();
   buildHistorial();
   buildVerguenza();
+  buildTimeRecords();
   setupJugador();
 }
 
@@ -429,7 +430,9 @@ function buildHistorial() {
             </ul>
           </div>` : ''}` : '';
 
-    const bs      = r.bossStats;
+    const bs           = r.bossStats;
+    const raidTimeLabel = bs?.totalRaidTimeMs > 0
+      ? `<span class="raid-time">⏱ ${fmtMs(bs.totalRaidTimeMs)}</span>` : '';
     const effVal  = bs && bs.totalTries > 0 ? Math.round(bs.totalKills / bs.totalTries * 100) : null;
     const effColor = effVal === null ? 'var(--text-dim)' : effVal >= 80 ? 'var(--gold)' : effVal >= 50 ? 'var(--purple2)' : 'var(--red2)';
     const effLabel = effVal !== null
@@ -440,6 +443,7 @@ function buildHistorial() {
       <div class="raid-header" onclick="toggleRaid('rcard-${i}')">
         <span class="raid-date">${fmtDate(r.fecha)}</span>
         <span class="raid-portador"><span class="label">Efectividad:</span>${effLabel}</span>
+        ${raidTimeLabel}
         <span class="raid-arrow">▼</span>
       </div>
       <div class="raid-body">
@@ -450,7 +454,7 @@ function buildHistorial() {
           </div>
           <div class="raid-section">
             <div class="raid-section-title">🏹 Bosses</div>
-            ${bs ? `<ul>${(bs.bosses ?? []).map(b => `<li>${b.name}<span>${b.kills}K / ${b.wipes}W</span></li>`).join('')}</ul>` : '<span style="color:var(--text-dim);font-style:italic">—</span>'}
+            ${bs ? `<ul>${(bs.bosses ?? []).map(b => `<li>${b.name}<span>${b.kills}K / ${b.wipes}W${b.killTimeMs ? ' · ' + fmtMs(b.killTimeMs) : ''}</span></li>`).join('')}</ul>` : '<span style="color:var(--text-dim);font-style:italic">—</span>'}
           </div>
           <div class="raid-section">
             <div class="raid-section-title">Muertes Top 3</div>
@@ -482,6 +486,50 @@ function buildHistorial() {
 
 function toggleRaid(id) {
   document.getElementById(id).classList.toggle('open');
+}
+
+// ── RÉCORDS DE TIEMPO ─────────────────────────────────────────────────────────
+
+function buildTimeRecords() {
+  const withTime = DATA.filter(r => r.bossStats?.totalRaidTimeMs > 0);
+  if (!withTime.length) return;
+
+  const fastest = withTime.reduce((a, b) => a.bossStats.totalRaidTimeMs < b.bossStats.totalRaidTimeMs ? a : b);
+  const slowest = withTime.reduce((a, b) => a.bossStats.totalRaidTimeMs > b.bossStats.totalRaidTimeMs ? a : b);
+
+  const BOSS_LABELS = {
+    'High King Maulgar':     { label: 'Kill más rápido · Maulgar',      icon: '👑' },
+    'Gruul the Dragonkiller':{ label: 'Kill más rápido · Gruul',        icon: '🐉' },
+    'Magtheridon':           { label: 'Kill más rápido · Magtheridon',  icon: '💀' },
+  };
+
+  const fastestByBoss = Object.entries(BOSS_LABELS).map(([name, { label, icon }]) => {
+    let best = null;
+    for (const r of withTime) {
+      const b = (r.bossStats.bosses ?? []).find(b => b.name === name);
+      if (b?.killTimeMs && (!best || b.killTimeMs < best.killTimeMs))
+        best = { killTimeMs: b.killTimeMs, fecha: r.fecha };
+    }
+    return best ? { label, icon, killTimeMs: best.killTimeMs, fecha: best.fecha } : null;
+  }).filter(Boolean);
+
+  const timeCard = (icon, label, ms, fecha) => `
+    <div class="record-card">
+      <div class="record-icon">${icon}</div>
+      <div class="record-label">${label}</div>
+      <div class="record-amount">${fmtMs(ms)}</div>
+      <div class="record-date">${fmtDate(fecha)}</div>
+    </div>`;
+
+  const el = document.getElementById('time-records');
+  el.innerHTML = `
+    <div class="section-title" style="margin-top:2rem">Récords de Tiempo</div>
+    <div class="records-grid">
+      ${timeCard('⚡', 'Raid más rápida', fastest.bossStats.totalRaidTimeMs, fastest.fecha)}
+      ${timeCard('🐢', 'Raid más lenta',  slowest.bossStats.totalRaidTimeMs, slowest.fecha)}
+      ${fastestByBoss.map(b => timeCard(b.icon, b.label, b.killTimeMs, b.fecha)).join('')}
+    </div>
+  `;
 }
 
 // ── JUGADOR ───────────────────────────────────────────────────────────────────
