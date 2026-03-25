@@ -169,16 +169,18 @@
     border: none;
     border-bottom: 2px solid transparent;
     color: var(--text);
-    font-family: 'Cinzel', serif;
-    font-size: 0.78rem;
-    letter-spacing: 0.12em;
+    font-family: 'Barlow', system-ui, sans-serif;
+    font-size: 0.82rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
     cursor: pointer;
     transition: color 0.2s, border-color 0.2s;
     white-space: nowrap;
+    -webkit-font-smoothing: antialiased;
   }
   .tab-btn:hover { color: var(--text-bright); }
-  .tab-btn.active { color: var(--text-bright); font-weight: 700; border-bottom-color: var(--gold); border-bottom-width: 3px; }
+  .tab-btn.active { color: var(--text-bright); font-family: 'Barlow', system-ui, sans-serif; font-weight: 700; border-bottom-color: var(--gold); border-bottom-width: 3px; }
 
   /* ── CONTENT ── */
   .tab-content { display: none; padding: 2rem; max-width: 1100px; margin: 0 auto; }
@@ -448,11 +450,12 @@
   }
   .raid-section { font-size: 0.85rem; }
   .raid-section-title {
-    font-family: 'Cinzel', serif;
-    font-size: 0.65rem;
-    letter-spacing: 0.15em;
+    font-family: 'Barlow', system-ui, sans-serif;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: var(--gold2);
+    color: var(--text-bright);
     margin-bottom: 0.5rem;
     padding-bottom: 0.25rem;
     border-bottom: 1px solid var(--border);
