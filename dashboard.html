@@ -182,6 +182,13 @@
   .tab-btn:hover { color: var(--text-bright); }
   .tab-btn.active { color: var(--text-bright); font-family: 'Barlow', system-ui, sans-serif; font-weight: 700; border-bottom-color: var(--gold); border-bottom-width: 3px; }
 
+  .nav-separator {
+    width: 1px;
+    background: var(--border2);
+    margin: 0.45rem 0.6rem;
+    flex-shrink: 0;
+  }
+
   /* ── CONTENT ── */
   .tab-content { display: none; padding: 2rem; max-width: 1100px; margin: 0 auto; }
   .tab-content.active { display: block; }
@@ -655,7 +662,133 @@
   ::-webkit-scrollbar-track { background: var(--bg); }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
   ::-webkit-scrollbar-thumb:hover { background: var(--gold-dim); }
+
+  /* ── LOOT ── */
+  .loot-select {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.7rem 1rem;
+    color: var(--text-bright);
+    font-family: 'Barlow', system-ui, sans-serif;
+    font-size: 1rem;
+    outline: none;
+    cursor: pointer;
+    width: 100%;
+    max-width: 320px;
+    margin-bottom: 1.5rem;
+    transition: border-color 0.2s;
+  }
+  .loot-select:focus { border-color: var(--gold-dim); }
+
+  .loot-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin-bottom: 1.5rem;
+  }
+  .loot-chip {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.6rem 1.1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+    min-width: 80px;
+  }
+  .loot-chip .chip-val {
+    font-family: 'Cinzel', serif;
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: var(--gold);
+    line-height: 1;
+  }
+  .loot-chip .chip-val.purple { color: var(--purple2); }
+  .loot-chip .chip-val.blue   { color: #87ceeb; }
+  .loot-chip .chip-val.dim    { color: var(--text-dim); }
+  .loot-chip .chip-label {
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+
+  .response-badge {
+    display: inline-block;
+    font-family: 'Cinzel', serif;
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    padding: 0.15rem 0.5rem;
+    border-radius: 2px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .response-badge.bis     { background: rgba(240,200,74,0.12);  border: 1px solid var(--gold-dim); color: var(--gold); }
+  .response-badge.upgrade { background: rgba(138,92,184,0.15);  border: 1px solid var(--purple);   color: var(--purple2); }
+  .response-badge.offspec { background: rgba(70,130,200,0.15);  border: 1px solid #3a6a9a;         color: #87ceeb; }
+  .response-badge.other   { background: rgba(255,255,255,0.04); border: 1px solid var(--border);   color: var(--text-dim); }
+
+  .item-icon {
+    width: 18px;
+    height: 18px;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 2px;
+    vertical-align: middle;
+    margin-right: 0.35rem;
+    flex-shrink: 0;
+  }
+  .item-link {
+    color: var(--text-bright);
+    text-decoration: none;
+    transition: color 0.15s;
+    vertical-align: middle;
+  }
+  .item-link:hover { color: var(--gold2); }
+
+  .loot-stat-cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1.8rem;
+  }
+  .loot-stat-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.75rem 1.2rem;
+    text-align: center;
+    min-width: 90px;
+  }
+  .lsc-val {
+    font-family: 'Cinzel', serif;
+    font-size: 1.6rem;
+    font-weight: 600;
+    color: var(--gold);
+    line-height: 1;
+  }
+  .lsc-label {
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-top: 0.3rem;
+  }
+  .loot-check {
+    color: var(--gold);
+    font-size: 0.75rem;
+  }
+  .loot-loading {
+    text-align: center;
+    color: var(--text-dim);
+    font-style: italic;
+    padding: 3rem;
+  }
 </style>
+<script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: false};</script>
+<script src="https://wow.zamimg.com/widgets/power.js"></script>
 </head>
 <body>
 
@@ -689,6 +822,9 @@
     <button class="tab-btn" data-tab="historial">Historial</button>
     <button class="tab-btn" data-tab="verguenza">Vergüenza</button>
     <button class="tab-btn" data-tab="jugador">Jugador</button>
+    <div class="nav-separator"></div>
+    <button class="tab-btn" data-tab="loot-resumen">Loot — Resumen</button>
+    <button class="tab-btn" data-tab="loot-registro">Loot — Registro</button>
   </nav>
 
   <!-- RESUMEN -->
@@ -758,6 +894,16 @@
     </div>
     <div id="player-profile"></div>
     <div id="player-empty" class="empty-msg">Escribe un nombre para ver el perfil del jugador.</div>
+  </div>
+
+  <!-- LOOT RESUMEN -->
+  <div class="tab-content" id="tab-loot-resumen">
+    <div id="loot-resumen-inner"><div class="loot-loading">Cargando datos de loot...</div></div>
+  </div>
+
+  <!-- LOOT REGISTRO -->
+  <div class="tab-content" id="tab-loot-registro">
+    <div id="loot-registro-inner"><div class="loot-loading">Cargando datos de loot...</div></div>
   </div>
 </div>
 
@@ -1362,6 +1508,282 @@ function openPlayer(name) {
   `;
 }
 
+// ── LOOT ──────────────────────────────────────────────────────────────────────
+
+const LOOT_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1aYgN7vk6tP_XFiwPlUQvI2xgEPzIv73PmyLmyhJ9jCI/gviz/tq?sheet=Data%20F1';
+const ASSIGNED     = new Set(['BiS', 'Upgrade', 'Off-Spec']);
+const ICON_MAP     = {};   // itemID (string) → iconName (lowercase)
+const SHEET_BASE   = 'https://docs.google.com/spreadsheets/d/1aYgN7vk6tP_XFiwPlUQvI2xgEPzIv73PmyLmyhJ9jCI/gviz/tq?sheet=';
+
+function stripBrackets(s) {
+  if (!s) return '';
+  return (s.startsWith('[') && s.endsWith(']')) ? s.slice(1, -1) : s;
+}
+
+function itemIcon(id) {
+  if (!id) return '';
+  const icon = ICON_MAP[String(id)];
+  const src  = icon ? `https://wow.zamimg.com/images/wow/icons/small/${icon}.jpg` : '';
+  return `<img class="item-icon" data-itemid="${id}"${src ? ` src="${src}"` : ''} alt="">`;
+}
+
+async function fetchMissingIcons() {
+  const imgs = [...document.querySelectorAll('#loot-items-table .item-icon[data-itemid]:not([src])')];
+  if (!imgs.length) return;
+  const ids = [...new Set(imgs.map(img => img.dataset.itemid))];
+  await Promise.all(ids.map(async id => {
+    if (ICON_MAP[id] !== undefined) return;
+    try {
+      const res = await fetch(`https://nether.wowhead.com/tbc/tooltip/item/${id}?locale=0`);
+      const d   = await res.json();
+      ICON_MAP[id] = d.icon ? d.icon.toLowerCase() : null;
+    } catch { ICON_MAP[id] = null; }
+  }));
+  document.querySelectorAll('#loot-items-table .item-icon[data-itemid]').forEach(img => {
+    const icon = ICON_MAP[img.dataset.itemid];
+    if (icon) img.src = `https://wow.zamimg.com/images/wow/icons/small/${icon}.jpg`;
+  });
+}
+
+let lootRows   = null;
+let lootLoaded = false;
+let _dataReady = false;
+let _iconsReady = false;
+
+function _checkLootReady() {
+  if (!_dataReady || !_iconsReady) return;
+  lootLoaded = true;
+  buildLootResumen();
+  buildLootRegistroShell();
+}
+
+function fetchLootData() {
+  if (lootLoaded) return;
+
+  // ── Carga Data F1 ──
+  window.__lootCallback = function(json) {
+    delete window.__lootCallback;
+    try {
+      const cols = json.table.cols;
+      const idx  = {};
+      cols.forEach((c, i) => { if (c.label) idx[c.label] = i; });
+      const get = (row, label) => {
+        const i = idx[label];
+        return (i !== undefined && row.c[i]) ? row.c[i].v : null;
+      };
+      lootRows = (json.table.rows || []).filter(r => r && r.c).map(row => {
+        const rawDate = get(row, 'date');
+        let dateStr = '';
+        if (typeof rawDate === 'string' && rawDate.startsWith('Date(')) {
+          const [y, m, d] = rawDate.slice(5, -1).split(',').map(Number);
+          dateStr = `${y}-${String(m + 1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        }
+        return {
+          nombre:   get(row, 'Nombre'),
+          date:     dateStr,
+          item:     get(row, 'item'),
+          itemID:   get(row, 'itemID'),
+          response: get(row, 'response'),
+          boss:     get(row, 'boss'),
+        };
+      }).filter(r => r.nombre && r.item);
+    } catch(e) {
+      document.getElementById('loot-resumen-inner').innerHTML =
+        `<div class="loot-loading">Error al procesar loot: ${e.message}</div>`;
+    }
+    _dataReady = true;
+    _checkLootReady();
+  };
+  const s1 = document.createElement('script');
+  s1.src = LOOT_SHEET_URL + '&tqx=responseHandler:__lootCallback';
+  s1.onerror = () => {
+    document.getElementById('loot-resumen-inner').innerHTML =
+      '<div class="loot-loading">No se pudieron cargar los datos. Comprueba que el sheet es público.</div>';
+    _dataReady = true; _checkLootReady();
+  };
+  document.head.appendChild(s1);
+
+  // ── Carga IconCache ──
+  window.__iconCacheCallback = function(json) {
+    delete window.__iconCacheCallback;
+    try {
+      const cols = json.table.cols;
+      const idx  = {};
+      cols.forEach((c, i) => { if (c.label) idx[c.label] = i; });
+      (json.table.rows || []).filter(r => r && r.c).forEach(row => {
+        const id   = row.c[idx['itemID']]?.v;
+        const icon = row.c[idx['iconName']]?.v;
+        if (id && icon) ICON_MAP[String(id)] = String(icon).toLowerCase();
+      });
+    } catch(_) {}
+    _iconsReady = true;
+    _checkLootReady();
+  };
+  const s2 = document.createElement('script');
+  s2.src = SHEET_BASE + 'IconCache&tqx=responseHandler:__iconCacheCallback';
+  s2.onerror = () => { _iconsReady = true; _checkLootReady(); };
+  document.head.appendChild(s2);
+}
+
+const BAG_ID   = '34845';
+const MOUNT_ID = '30480';
+
+function buildLootResumen() {
+  const byPlayer = new Map();
+  let totDE = 0, totBank = 0, totBag = 0, totMount = 0;
+  let totBis = 0, totUpgrade = 0, totOffspec = 0;
+
+  lootRows.forEach(r => {
+    if (!byPlayer.has(r.nombre)) byPlayer.set(r.nombre, {bis:0, upgrade:0, offspec:0, total:0, bag:false, mount:false});
+    const p   = byPlayer.get(r.nombre);
+    const id  = String(r.itemID);
+    const res = r.response;
+    if      (res === 'BiS')       { p.bis++;     p.total++; totBis++; }
+    else if (res === 'Upgrade')   { p.upgrade++; p.total++; totUpgrade++; }
+    else if (res === 'Off-Spec')  { p.offspec++; p.total++; totOffspec++; }
+    else if (res === 'Disenchant') totDE++;
+    else if (res === 'Banking')    totBank++;
+    if (id === BAG_ID)   { p.bag   = true; totBag++; }
+    if (id === MOUNT_ID) { p.mount = true; totMount++; }
+  });
+
+  const totAssigned = totBis + totUpgrade + totOffspec;
+  const rows    = [...byPlayer.entries()].map(([name, s]) => ({name, ...s})).sort((a,b) => b.bis - a.bis || b.total - a.total);
+  const maxTotal = rows[0]?.total || 1;
+
+  document.getElementById('loot-resumen-inner').innerHTML = `
+    <div class="loot-stat-cards">
+      <div class="loot-stat-card"><div class="lsc-val" style="color:var(--text-bright)">${totAssigned}</div><div class="lsc-label">Repartidos</div></div>
+      <div class="loot-stat-card"><div class="lsc-val">${totBis}</div><div class="lsc-label">BiS</div></div>
+      <div class="loot-stat-card"><div class="lsc-val" style="color:var(--purple2)">${totUpgrade}</div><div class="lsc-label">Upgrade</div></div>
+      <div class="loot-stat-card"><div class="lsc-val" style="color:#87ceeb">${totOffspec}</div><div class="lsc-label">Off-Spec</div></div>
+      <div class="loot-stat-card"><div class="lsc-val" style="color:var(--text-dim)">${totDE}</div><div class="lsc-label">Desenc.</div></div>
+      <div class="loot-stat-card"><div class="lsc-val" style="color:var(--text-dim)">${totBank}</div><div class="lsc-label">Banking</div></div>
+      <div class="loot-stat-card"><div class="lsc-val" style="color:var(--text-dim)">${totBag}</div><div class="lsc-label">Bolsas</div></div>
+      <div class="loot-stat-card"><div class="lsc-val" style="color:var(--text-dim)">${totMount}</div><div class="lsc-label">Monturas</div></div>
+    </div>
+    <div class="section-title">Por Jugador</div>
+    <table class="ranked-list">
+      <thead><tr>
+        <th>Jugador</th>
+        <th style="text-align:right">BiS</th>
+        <th style="text-align:right">Upgrade</th>
+        <th style="text-align:right">Off-Spec</th>
+        <th style="text-align:right">Total</th>
+        <th class="bar-cell"></th>
+        <th style="text-align:center" title="Bolsa de Karazhan">Bolsa</th>
+        <th style="text-align:center" title="Montura">Montura</th>
+      </tr></thead>
+      <tbody>
+        ${rows.map((r, i) => `<tr>
+          <td class="player-link" style="cursor:pointer" onclick="goToLootRegistro('${r.name}')">${r.name}</td>
+          <td class="val-cell">${r.bis    || '<span class="td-dim">—</span>'}</td>
+          <td class="val-cell purple">${r.upgrade || '<span class="td-dim">—</span>'}</td>
+          <td style="color:#87ceeb;font-family:'Cinzel',serif;font-size:.9rem;font-weight:600;text-align:right">${r.offspec || '<span class="td-dim">—</span>'}</td>
+          <td style="color:var(--text-bright);font-family:'Cinzel',serif;font-size:.9rem;font-weight:600;text-align:right">${r.total || '—'}</td>
+          <td class="bar-cell">${makeBar(Math.round(r.total / maxTotal * 100))}</td>
+          <td style="text-align:center">${r.bag   ? '<span class="loot-check">✦</span>' : '<span class="td-dim">—</span>'}</td>
+          <td style="text-align:center">${r.mount ? '<span class="loot-check">✦</span>' : '<span class="td-dim">—</span>'}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function buildLootRegistroShell() {
+  const players = [...new Set(lootRows.map(r => r.nombre))].sort();
+  document.getElementById('loot-registro-inner').innerHTML = `
+    <div class="section-title">Registro de Loot · Fase 1</div>
+    <select class="loot-select" id="loot-player-select">
+      <option value="">— Selecciona un jugador —</option>
+      ${players.map(p => `<option value="${p}">${p}</option>`).join('')}
+    </select>
+    <div id="loot-player-detail"></div>
+  `;
+  document.getElementById('loot-player-select').addEventListener('change', e => renderLootPlayer(e.target.value));
+}
+
+function renderLootPlayer(nombre) {
+  const el = document.getElementById('loot-player-detail');
+  if (!nombre) { el.innerHTML = ''; return; }
+
+  const allPlayerRows = lootRows.filter(r => r.nombre === nombre);
+  const hasBag   = allPlayerRows.some(r => String(r.itemID) === BAG_ID);
+  const hasMount = allPlayerRows.some(r => String(r.itemID) === MOUNT_ID);
+  const bagRow   = allPlayerRows.find(r => String(r.itemID) === BAG_ID);
+  const mountRow = allPlayerRows.find(r => String(r.itemID) === MOUNT_ID);
+
+  const items = allPlayerRows
+    .filter(r => ASSIGNED.has(r.response))
+    .sort((a,b) => b.date.localeCompare(a.date));
+
+  const counts = {};
+  items.forEach(r => { counts[r.response] = (counts[r.response] || 0) + 1; });
+
+  const chipColor = { 'BiS': '', 'Upgrade': 'purple', 'Off-Spec': 'blue' };
+
+  el.innerHTML = `
+    <div class="loot-chips">
+      <div class="loot-chip">
+        <div class="chip-val" style="color:var(--text-bright)">${items.length}</div>
+        <div class="chip-label">Total</div>
+      </div>
+      ${['BiS','Upgrade','Off-Spec'].map(k => `<div class="loot-chip">
+        <div class="chip-val ${chipColor[k] || ''}">${counts[k] || 0}</div>
+        <div class="chip-label">${k}</div>
+      </div>`).join('')}
+      ${hasBag ? `<div class="loot-chip" style="border-color:var(--gold-dim)">
+        <div class="chip-val">${bagRow?.itemID
+          ? `<a href="https://www.wowhead.com/tbc/item=${bagRow.itemID}" style="color:var(--gold);text-decoration:none">${stripBrackets(bagRow.item)}</a>`
+          : '✦'}</div>
+        <div class="chip-label">Bolsa</div>
+      </div>` : ''}
+      ${hasMount ? `<div class="loot-chip" style="border-color:var(--gold-dim)">
+        <div class="chip-val">${mountRow?.itemID
+          ? `<a href="https://www.wowhead.com/tbc/item=${mountRow.itemID}" style="color:var(--gold);text-decoration:none">${stripBrackets(mountRow.item)}</a>`
+          : '✦'}</div>
+        <div class="chip-label">Montura</div>
+      </div>` : ''}
+    </div>
+    <table class="ranked-list" id="loot-items-table">
+      <thead><tr>
+        <th>Fecha</th>
+        <th>Item</th>
+        <th>Boss</th>
+        <th>Tipo</th>
+      </tr></thead>
+      <tbody>
+        ${items.map(r => `<tr>
+          <td class="td-gold" style="white-space:nowrap">${r.date ? fmtDate(r.date) : '—'}</td>
+          <td style="white-space:nowrap">${r.itemID
+            ? `<a class="item-link" href="https://www.wowhead.com/tbc/item=${r.itemID}">${itemIcon(r.itemID)}${stripBrackets(r.item)}</a>`
+            : stripBrackets(r.item)}</td>
+          <td class="td-dim" style="font-size:.85rem">${r.boss || '—'}</td>
+          <td>${lootBadge(r.response)}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  `;
+
+  fetchMissingIcons();
+}
+
+function goToLootRegistro(nombre) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  const btn = document.querySelector('.tab-btn[data-tab="loot-registro"]');
+  btn.classList.add('active');
+  document.getElementById('tab-loot-registro').classList.add('active');
+  const sel = document.getElementById('loot-player-select');
+  if (sel) { sel.value = nombre; renderLootPlayer(nombre); }
+}
+
+function lootBadge(resp) {
+  if (!resp) return '<span class="response-badge other">—</span>';
+  const cls = resp === 'BiS' ? 'bis' : resp === 'Upgrade' ? 'upgrade' : resp === 'Off-Spec' ? 'offspec' : 'other';
+  return `<span class="response-badge ${cls}">${resp}</span>`;
+}
+
 // ── TAB NAVIGATION ────────────────────────────────────────────────────────────
 
 document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -1370,6 +1792,9 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    if ((btn.dataset.tab === 'loot-resumen' || btn.dataset.tab === 'loot-registro') && !lootLoaded) {
+      fetchLootData();
+    }
   });
 });
 </script>
