@@ -428,8 +428,8 @@
   }
   .historial-row:hover td { background: rgba(226,188,92,0.06); }
   .historial-row.open td { background: rgba(226,188,92,0.04); border-bottom-color: transparent; }
-  .time-normal { font-family: 'Cinzel', serif; font-size: 0.82rem; color: var(--text); }
-  .time-best   { font-family: 'Cinzel', serif; font-size: 0.82rem; color: var(--purple2); font-weight: 600; }
+  .time-normal { color: var(--text-dim); font-size: 0.9rem; }
+  .time-best   { color: var(--text-bright); font-weight: 600; font-size: 0.9rem; }
   .h-arrow { display: inline-block; transition: transform 0.2s; color: var(--text-dim); font-size: 0.7rem; }
   .historial-row.open .h-arrow { transform: rotate(180deg); }
   .historial-detail { display: none; }
