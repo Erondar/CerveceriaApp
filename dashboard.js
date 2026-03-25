@@ -1,0 +1,903 @@
+let DATA = [];
+let ALL_PLAYERS = [];
+
+// ── FILE LOADING ──────────────────────────────────────────────────────────────
+
+const dropZone  = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+
+// Intento automático: si el bot generó historial.js en la misma carpeta,
+// lo habrá inyectado como window.__HISTORIAL__ via <script src="historial.js">
+if (Array.isArray(window.__HISTORIAL__)) {
+  DATA = window.__HISTORIAL__;
+  document.addEventListener('DOMContentLoaded', initDashboard);
+}
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) readFile(file);
+});
+fileInput.addEventListener('change', e => { if (e.target.files[0]) readFile(e.target.files[0]); });
+
+function readFile(file) {
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      DATA = JSON.parse(ev.target.result);
+      if (!Array.isArray(DATA)) throw new Error('Formato inválido');
+      initDashboard();
+    } catch(err) {
+      alert('Error al leer el archivo: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+
+function initDashboard() {
+  document.getElementById('loader').classList.add('hidden');
+  document.getElementById('app').classList.add('visible');
+
+  // Collect all players
+  const playerSet = new Set();
+  DATA.forEach(r => (r.roster ?? []).forEach(n => playerSet.add(n)));
+  ALL_PLAYERS = Array.from(playerSet).sort();
+
+  buildHeaderMeta();
+  buildResumen();
+  buildFF();
+  buildMuertes();
+  buildMecanicas();
+  buildHistorial();
+  buildVerguenza();
+  setupJugador();
+}
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+
+function fmtDmg(n) {
+  if (n >= 1_000_000) return (n/1_000_000).toFixed(1) + 'M';
+  if (n >= 1_000)     return (n/1_000).toFixed(1) + 'k';
+  return String(n);
+}
+
+function fmtMs(ms) {
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  const rem = s % 60;
+  return `${m}m ${String(rem).padStart(2,'0')}s`;
+}
+
+function fmtDate(d) {
+  const [y, mo, day] = d.split('-');
+  return `${day}/${mo}/${y}`;
+}
+
+function rankClass(i) {
+  return i === 0 ? 'top1' : i === 1 ? 'top2' : i === 2 ? 'top3' : '';
+}
+function medalEmoji(i) {
+  return i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}.`;
+}
+
+function makeBar(pct, cls='') {
+  return `<div class="bar-wrap"><div class="bar-fill ${cls}" style="width:${pct}%"></div></div>`;
+}
+
+function aggregateMap(field, key) {
+  const m = new Map();
+  DATA.forEach(r => {
+    (r[field] ?? []).forEach(e => {
+      m.set(e[key] ?? e.name, (m.get(e[key] ?? e.name) ?? 0) + (e.damage ?? e.count ?? e.total ?? e.ms ?? 0));
+    });
+  });
+  return Array.from(m.entries()).map(([name,val]) => ({name,val})).sort((a,b) => b.val - a.val);
+}
+
+function calcShame() {
+  const scores = new Map();
+  DATA.forEach(raid => {
+    const participants = raid.roster ? new Set(raid.roster)
+      : new Set([...raid.leaderboard.map(e=>e.name), ...(raid.deathStats?.deaths??[]).map(e=>e.name), ...(raid.deathStats?.timeDead??[]).map(e=>e.name)]);
+    const n = participants.size;
+    if (n <= 1) return;
+    const pct = (list, name) => {
+      const idx = list.findIndex(e => e.name === name);
+      return idx === -1 ? 0 : (n - 1 - idx) / (n - 1);
+    };
+    for (const name of participants) {
+      const avg = (pct(raid.leaderboard, name) + pct(raid.deathStats?.deaths??[], name) + pct(raid.deathStats?.timeDead??[], name)) / 3;
+      const curr = scores.get(name) ?? {total:0, count:0};
+      scores.set(name, {total: curr.total + avg, count: curr.count + 1});
+    }
+  });
+  const minRaids = Math.max(1, Math.ceil(DATA.length * 0.3));
+  return Array.from(scores.entries())
+    .filter(([,v]) => v.count >= minRaids)
+    .map(([name,{total,count}]) => ({name, score: total/count, count}))
+    .sort((a,b) => b.score - a.score);
+}
+
+// ── HEADER META ───────────────────────────────────────────────────────────────
+
+function buildHeaderMeta() {
+  const lastDate = DATA.length ? fmtDate(DATA[DATA.length-1].fecha) : '-';
+  document.getElementById('header-meta').innerHTML =
+    `<span>${DATA.length}</span> raids registradas · Última: <span>${lastDate}</span> · <span>${ALL_PLAYERS.length}</span> jugadores en total`;
+}
+
+// ── RESUMEN ───────────────────────────────────────────────────────────────────
+
+function buildResumen() {
+  const totalFF = DATA.reduce((s,r) => s + r.leaderboard.reduce((ss,e) => ss + e.damage, 0), 0);
+  let maxFF = {name: null, damage: 0};
+  DATA.forEach(r => {
+    if (r.leaderboard[0] && r.leaderboard[0].damage > maxFF.damage)
+      maxFF = {name: r.leaderboard[0].name, damage: r.leaderboard[0].damage};
+  });
+
+  const totalKills    = DATA.reduce((s,r) => s + (r.bossStats?.totalKills ?? 0), 0);
+  const totalWipes    = DATA.reduce((s,r) => s + (r.bossStats?.totalWipes ?? 0), 0);
+  const totalTries    = totalKills + totalWipes;
+  const globalEff     = totalTries > 0 ? Math.round(totalKills / totalTries * 100) : 0;
+  const effColor      = globalEff >= 80 ? 'var(--gold)' : globalEff >= 50 ? 'var(--purple2)' : 'var(--red2)';
+
+  const totalDeaths = DATA.reduce((s,r) => s + (r.deathStats?.deaths ?? []).reduce((ss,e) => ss + e.count, 0), 0);
+
+  const avgDeaths = DATA.length > 0 ? (totalDeaths / DATA.length).toFixed(1) : 0;
+
+  document.getElementById('stat-cards').innerHTML = `
+    <div class="stat-card">
+      <div class="label">Raids Registradas</div>
+      <div class="value">${DATA.length}</div>
+      <div class="sub">Maulgar + Gruul + Magtheridon</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Jugadores</div>
+      <div class="value purple">${ALL_PLAYERS.length}</div>
+      <div class="sub">han pisado la raid</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Boss Kills</div>
+      <div class="value">${totalKills}</div>
+      <div class="sub">${totalWipes} wipes · ${totalTries} intentos totales</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Efectividad Global</div>
+      <div class="value" style="color:${effColor}">${totalTries > 0 ? globalEff + '%' : '—'}</div>
+      <div class="sub">kills / (kills + wipes)</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Fuego Amigo Total</div>
+      <div class="value">${fmtDmg(totalFF)}</div>
+      <div class="sub">daño a aliados en Gruul</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Rey de la Resaca</div>
+      <div class="value red" style="font-size:1.3rem">${maxFF.name ?? '-'}</div>
+      <div class="sub">${maxFF.name ? fmtDmg(maxFF.damage) + ' FF en una sola raid' : ''}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Muertes Totales</div>
+      <div class="value">${totalDeaths}</div>
+      <div class="sub">entre todos los jugadores</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Media de Muertes</div>
+      <div class="value">${avgDeaths}</div>
+      <div class="sub">muertes por raid</div>
+    </div>
+  `;
+
+  const ffPodio    = aggregateMap('leaderboard', 'name').slice(0,3);
+  const dMap = new Map();
+  DATA.forEach(r => (r.deathStats?.deaths??[]).forEach(e => dMap.set(e.name,(dMap.get(e.name)??0)+e.count)));
+  const deathArr = [...dMap.entries()].map(([name,val])=>({name,val})).sort((a,b)=>b.val-a.val).slice(0,3);
+  const shame = calcShame().slice(0,3);
+
+  const podiumHTML = (title, arr, valFn) => `
+    <div class="podium-card">
+      <div class="podium-title">${title}</div>
+      ${arr.map((e,i) => `<div class="podium-entry">
+        <span class="medal">${medalEmoji(i)}</span>
+        <span class="podium-name player-link" data-player="${e.name}">${e.name}</span>
+        <span class="podium-val">${valFn(e)}</span>
+      </div>`).join('')}
+    </div>`;
+
+  document.getElementById('podiums').innerHTML =
+    podiumHTML('Podio Friendly Fire (Gruul)', ffPodio, e => fmtDmg(e.val)) +
+    podiumHTML('Podio Muertes', deathArr, e => e.val + ' muertes') +
+    podiumHTML('Podio Vergüenza', shame, e => (e.score*100).toFixed(0)+'% vergüenza');
+
+  document.querySelectorAll('.player-link').forEach(el => {
+    el.addEventListener('click', () => openPlayer(el.dataset.player));
+  });
+
+  // Global records
+  const records = calcGlobalRecords();
+  const recCard = (icon, label, rec, nameFn, targetFn) => {
+    if (!rec) return `<div class="record-card"><div class="record-icon">${icon}</div><div class="record-label">${label}</div><div class="record-val td-dim">Sin datos</div></div>`;
+    const abilityLine = rec.ability ? `<div class="record-ability">${rec.ability}</div>` : '';
+    return `<div class="record-card">
+      <div class="record-icon">${icon}</div>
+      <div class="record-label">${label}</div>
+      <div class="record-amount">${fmtDmg(rec.amount)}</div>
+      <div class="record-who"><span class="player-link record-link" data-player="${nameFn(rec)}">${nameFn(rec)}</span> → <span class="player-link record-link" data-player="${targetFn(rec)}">${targetFn(rec)}</span></div>
+      ${abilityLine}
+      <div class="record-date">${fmtDate(rec.fecha)}</div>
+    </div>`;
+  };
+  const recEl = document.getElementById('global-records');
+  recEl.innerHTML = `
+    <div class="section-title" style="margin-top:2rem">Récords Históricos</div>
+    <div class="records-grid">
+      ${recCard('⚔️', 'Golpe más fuerte', records.biggestHit, r => r.heroe, r => r.objetivo)}
+      ${recCard('💚', 'Curación más gorda', records.biggestHeal, r => r.healer, r => r.target)}
+      ${recCard('💀', 'Golpe más bestia recibido', records.biggestReceived, r => r.agresor, r => r.victima)}
+    </div>
+  `;
+  recEl.querySelectorAll('.record-link').forEach(el => el.addEventListener('click', () => openPlayer(el.dataset.player)));
+}
+
+function calcGlobalRecords() {
+  let biggestHit = null, biggestHeal = null, biggestReceived = null;
+  for (const raid of DATA) {
+    const bh = raid.biggestHits;
+    if (!bh) continue;
+    if (bh.biggestDealt?.amount > 0 && (!biggestHit || bh.biggestDealt.amount > biggestHit.amount))
+      biggestHit = { ...bh.biggestDealt, fecha: raid.fecha };
+    if (bh.biggestHeal?.amount > 0 && (!biggestHeal || bh.biggestHeal.amount > biggestHeal.amount))
+      biggestHeal = { ...bh.biggestHeal, fecha: raid.fecha };
+    if (bh.biggestReceived?.amount > 0 && (!biggestReceived || bh.biggestReceived.amount > biggestReceived.amount))
+      biggestReceived = { ...bh.biggestReceived, fecha: raid.fecha };
+  }
+  return { biggestHit, biggestHeal, biggestReceived };
+}
+
+// ── FRIENDLY FIRE ─────────────────────────────────────────────────────────────
+
+function buildFF() {
+  const data = aggregateMap('leaderboard', 'name');
+  const max  = data[0]?.val ?? 1;
+
+  // Table
+  const tbl = document.getElementById('table-ff');
+  tbl.innerHTML = `<thead><tr><th></th><th>Jugador</th><th class="bar-cell"></th><th>Daño</th></tr></thead><tbody>
+    ${data.map((e,i) => `<tr>
+      <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
+      <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
+      <td class="bar-cell">${makeBar(e.val/max*100)}</td>
+      <td class="val-cell">${fmtDmg(e.val)}</td>
+    </tr>`).join('')}
+  </tbody>`;
+  tbl.querySelectorAll('.player-link').forEach(el => el.addEventListener('click', () => openPlayer(el.dataset.player)));
+}
+
+// ── VERGÜENZA ─────────────────────────────────────────────────────────────────
+
+function buildVerguenza() {
+  const data = calcShame();
+  const max  = data[0]?.score ?? 1;
+
+  document.getElementById('shame-explanation').innerHTML = `
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:1rem 1.2rem;margin-bottom:1.2rem;font-size:0.85rem;color:var(--text-dim);line-height:1.6">
+      <strong style="color:var(--text-bright)">¿Cómo se calcula?</strong><br>
+      Por cada raid, a cada jugador se le asigna un percentil en tres categorías:
+      <strong style="color:var(--gold)">daño a aliados (Gruul)</strong>,
+      <strong style="color:var(--red2)">número de muertes</strong> y
+      <strong style="color:var(--red2)">tiempo muerto</strong>.
+      El percentil indica qué porcentaje de compañeros tuvo un resultado mejor que el tuyo
+      (0% = el menos vergonzoso, 100% = el peor de la raid).
+      La puntuación final es la media de esos percentiles promediada sobre todas las raids asistidas.
+    </div>`;
+
+  const tbl = document.getElementById('table-verguenza');
+  tbl.innerHTML = `<thead><tr><th></th><th>Jugador</th><th class="bar-cell"></th><th>Score</th><th>Raids</th></tr></thead><tbody>
+    ${data.map((e,i) => `<tr>
+      <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
+      <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
+      <td class="bar-cell"><div class="bar-wrap"><div class="bar-fill" style="width:${(e.score/max*100).toFixed(1)}%;background:var(--red2)"></div></div></td>
+      <td class="val-cell" style="color:var(--red2)">${(e.score*100).toFixed(1)}%</td>
+      <td class="td-dim">${e.count}</td>
+    </tr>`).join('')}
+  </tbody>`;
+  tbl.querySelectorAll('.player-link').forEach(el => el.addEventListener('click', () => openPlayer(el.dataset.player)));
+}
+
+// ── MUERTES ───────────────────────────────────────────────────────────────────
+
+function buildMuertes() {
+  const dMap = new Map(), tMap = new Map(), fMap = new Map();
+  DATA.forEach(r => {
+    (r.deathStats?.deaths??[]).forEach(e => dMap.set(e.name,(dMap.get(e.name)??0)+e.count));
+    (r.deathStats?.timeDead??[]).forEach(e => tMap.set(e.name,(tMap.get(e.name)??0)+e.ms));
+    const f = r.deathStats?.firstToDie?.name;
+    if (f) fMap.set(f,(fMap.get(f)??0)+1);
+  });
+
+  const deaths = [...dMap.entries()].map(([name,val])=>({name,val})).sort((a,b)=>b.val-a.val);
+  const tdead  = [...tMap.entries()].map(([name,val])=>({name,val})).sort((a,b)=>b.val-a.val);
+  const first  = [...fMap.entries()].map(([name,val])=>({name,val})).sort((a,b)=>b.val-a.val);
+
+  const maxF = first[0]?.val  ?? 1;
+
+  const mkTable = (id, arr, valFn, cls) => {
+    const el = document.getElementById(id);
+    el.innerHTML = `<thead><tr><th></th><th>Jugador</th><th class="bar-cell"></th><th>Total</th></tr></thead><tbody>
+      ${arr.map((e,i)=>`<tr>
+        <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
+        <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
+        <td class="bar-cell">${makeBar(e.val/Math.max(...arr.map(x=>x.val))*100, cls)}</td>
+        <td class="val-cell ${cls}">${valFn(e)}</td>
+      </tr>`).join('')}
+    </tbody>`;
+    el.querySelectorAll('.player-link').forEach(el2 => el2.addEventListener('click', () => openPlayer(el2.dataset.player)));
+  };
+
+  mkTable('table-deaths',  deaths, e => e.val + ' ×', 'red');
+  mkTable('table-timedead',tdead,  e => fmtMs(e.val), 'purple');
+
+  const fd = document.getElementById('table-firstdie');
+  fd.innerHTML = `<thead><tr><th></th><th>Jugador</th><th class="bar-cell"></th><th>Veces</th></tr></thead><tbody>
+    ${first.map((e,i)=>`<tr>
+      <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
+      <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
+      <td class="bar-cell">${makeBar(e.val/maxF*100,'red')}</td>
+      <td class="val-cell red">${e.val} ×</td>
+    </tr>`).join('')}
+  </tbody>`;
+  fd.querySelectorAll('.player-link').forEach(el => el.addEventListener('click', () => openPlayer(el.dataset.player)));
+}
+
+// ── MECÁNICAS ─────────────────────────────────────────────────────────────────
+
+function buildMecanicas() {
+  const intMap = new Map(), disMap = new Map();
+  DATA.forEach(r => {
+    (r.interrupts??[]).forEach(e => intMap.set(e.name,(intMap.get(e.name)??0)+e.total));
+    (r.dispels??[]).forEach(e => disMap.set(e.name,(disMap.get(e.name)??0)+e.total));
+  });
+
+  const ints = [...intMap.entries()].map(([name,val])=>({name,val})).sort((a,b)=>b.val-a.val);
+  const disp = [...disMap.entries()].map(([name,val])=>({name,val})).sort((a,b)=>b.val-a.val);
+
+  const mkTable = (id, arr) => {
+    const el = document.getElementById(id);
+    if (!arr.length) { el.innerHTML = '<tr><td colspan="4" class="empty-msg">Sin datos</td></tr>'; return; }
+    const maxV = arr[0].val;
+    el.innerHTML = `<thead><tr><th></th><th>Jugador</th><th class="bar-cell"></th><th>Total</th></tr></thead><tbody>
+      ${arr.map((e,i)=>`<tr>
+        <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
+        <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
+        <td class="bar-cell">${makeBar(e.val/maxV*100,'purple')}</td>
+        <td class="val-cell purple">${e.val}</td>
+      </tr>`).join('')}
+    </tbody>`;
+    el.querySelectorAll('.player-link').forEach(el2 => el2.addEventListener('click', () => openPlayer(el2.dataset.player)));
+  };
+  mkTable('table-interrupts', ints);
+  mkTable('table-dispels', disp);
+}
+
+// ── HISTORIAL ─────────────────────────────────────────────────────────────────
+
+function buildHistorial() {
+  const container = document.getElementById('raid-list');
+  if (!DATA.length) { container.innerHTML = '<div class="empty-msg">No hay raids registradas.</div>'; return; }
+
+  container.innerHTML = [...DATA].map((r, i) => {
+    const port    = r.leaderboard[0];
+    const fd      = r.deathStats?.firstToDie?.name ?? '—';
+    const top3d   = (r.deathStats?.deaths??[]).slice(0,3);
+    const top3int = (r.interrupts??[]).slice(0,3);
+    const top3dis = (r.dispels??[]).slice(0,3);
+    const bh      = r.biggestHits;
+
+    const miniList = (arr, valFn) => arr.length
+      ? `<ul>${arr.map(e=>`<li>${e.name}<span>${valFn(e)}</span></li>`).join('')}</ul>`
+      : '<span style="color:var(--text-dim);font-style:italic">—</span>';
+
+    const hitsHtml = bh ? `
+          <div class="raid-section">
+            <div class="raid-section-title">💥 Golpe más fuerte recibido</div>
+            <ul>
+              <li>${bh.biggestReceived?.victima ?? '—'}<span>${fmtDmg(bh.biggestReceived?.amount ?? 0)}</span></li>
+              <li style="color:var(--text-dim);font-size:.8rem">por ${bh.biggestReceived?.agresor ?? '—'}</li>
+              ${bh.biggestReceived?.ability ? `<li style="color:var(--purple2);font-size:.8rem;font-style:italic">${bh.biggestReceived.ability}</li>` : ''}
+            </ul>
+          </div>
+          <div class="raid-section">
+            <div class="raid-section-title">⚔️ Golpe más fuerte dado</div>
+            <ul>
+              <li>${bh.biggestDealt?.heroe ?? '—'}<span>${fmtDmg(bh.biggestDealt?.amount ?? 0)}</span></li>
+              <li style="color:var(--text-dim);font-size:.8rem">a ${bh.biggestDealt?.objetivo ?? '—'}</li>
+              ${bh.biggestDealt?.ability ? `<li style="color:var(--purple2);font-size:.8rem;font-style:italic">${bh.biggestDealt.ability}</li>` : ''}
+            </ul>
+          </div>
+          ${bh.biggestHeal ? `<div class="raid-section">
+            <div class="raid-section-title">💚 Curación más gorda</div>
+            <ul>
+              <li>${bh.biggestHeal.healer}<span>${fmtDmg(bh.biggestHeal.amount)}</span></li>
+              <li style="color:var(--text-dim);font-size:.8rem">a ${bh.biggestHeal.target}</li>
+              ${bh.biggestHeal.ability ? `<li style="color:var(--purple2);font-size:.8rem;font-style:italic">${bh.biggestHeal.ability}</li>` : ''}
+            </ul>
+          </div>` : ''}` : '';
+
+    const bs      = r.bossStats;
+    const effVal  = bs && bs.totalTries > 0 ? Math.round(bs.totalKills / bs.totalTries * 100) : null;
+    const effColor = effVal === null ? 'var(--text-dim)' : effVal >= 80 ? 'var(--gold)' : effVal >= 50 ? 'var(--purple2)' : 'var(--red2)';
+    const effLabel = effVal !== null
+      ? `<strong style="color:${effColor}">${effVal}%</strong><span style="color:var(--text-dim);font-size:.8rem;margin-left:.4rem">(${bs.totalKills}K/${bs.totalWipes}W)</span>`
+      : '<strong style="color:var(--text-dim)">—</strong>';
+
+    return `<div class="raid-card" id="rcard-${i}">
+      <div class="raid-header" onclick="toggleRaid('rcard-${i}')">
+        <span class="raid-date">${fmtDate(r.fecha)}</span>
+        <span class="raid-portador"><span class="label">Efectividad:</span>${effLabel}</span>
+        <span class="raid-arrow">▼</span>
+      </div>
+      <div class="raid-body">
+        <div class="raid-body-grid">
+          <div class="raid-section">
+            <div class="raid-section-title">🍺 Resaca</div>
+            <ul><li>${port ? port.name : '—'}${port ? `<span>${fmtDmg(port.damage)}</span>` : ''}</li></ul>
+          </div>
+          <div class="raid-section">
+            <div class="raid-section-title">🏹 Bosses</div>
+            ${bs ? `<ul>${(bs.bosses ?? []).map(b => `<li>${b.name}<span>${b.kills}K / ${b.wipes}W</span></li>`).join('')}</ul>` : '<span style="color:var(--text-dim);font-style:italic">—</span>'}
+          </div>
+          <div class="raid-section">
+            <div class="raid-section-title">Muertes Top 3</div>
+            ${miniList(top3d, e => e.count+'×')}
+          </div>
+          <div class="raid-section">
+            <div class="raid-section-title">Primero en Morir</div>
+            <ul><li>${fd}</li></ul>
+          </div>
+          <div class="raid-section">
+            <div class="raid-section-title">Interrupts Top 3</div>
+            ${miniList(top3int, e => e.total)}
+          </div>
+          <div class="raid-section">
+            <div class="raid-section-title">Dispels Top 3</div>
+            ${miniList(top3dis, e => e.total)}
+          </div>
+          ${hitsHtml}
+          <div class="raid-section">
+            <div class="raid-section-title">Roster</div>
+            <span style="color:var(--text-dim);font-size:.8rem">${(r.roster??[]).join(', ') || '—'}</span>
+          </div>
+        </div>
+        <a class="raid-link" href="https://fresh.warcraftlogs.com/reports/${r.report}" target="_blank">↗ Ver en WarcraftLogs</a>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleRaid(id) {
+  document.getElementById(id).classList.toggle('open');
+}
+
+// ── JUGADOR ───────────────────────────────────────────────────────────────────
+
+function setupJugador() {
+  const input = document.getElementById('player-search');
+  const sugg  = document.getElementById('player-suggestions');
+
+  input.addEventListener('input', () => {
+    const q = input.value.trim().toLowerCase();
+    if (!q) { sugg.classList.remove('visible'); return; }
+    const matches = ALL_PLAYERS.filter(p => p.toLowerCase().includes(q)).slice(0, 12);
+    if (!matches.length) { sugg.classList.remove('visible'); return; }
+    sugg.innerHTML = matches.map(p => `<div class="suggestion-item" data-player="${p}">${p}</div>`).join('');
+    sugg.classList.add('visible');
+    sugg.querySelectorAll('.suggestion-item').forEach(el => {
+      el.addEventListener('click', () => {
+        input.value = el.dataset.player;
+        sugg.classList.remove('visible');
+        openPlayer(el.dataset.player);
+      });
+    });
+  });
+
+  document.addEventListener('click', e => { if (!input.contains(e.target) && !sugg.contains(e.target)) sugg.classList.remove('visible'); });
+}
+
+function openPlayer(name) {
+  // Switch to jugador tab
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === 'jugador'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === 'tab-jugador'));
+
+  document.getElementById('player-search').value = name;
+  document.getElementById('player-suggestions').classList.remove('visible');
+  document.getElementById('player-empty').style.display = 'none';
+
+  const raidsAttended = DATA.filter(r => (r.roster ?? [...r.leaderboard.map(e=>e.name), ...(r.deathStats?.deaths??[]).map(e=>e.name)]).includes(name));
+
+  let totalFF = 0, totalDeaths = 0, totalTimeDead = 0, totalInts = 0, totalDisp = 0, portadorCount = 0, firstCount = 0;
+
+  const rows = raidsAttended.map(r => {
+    const ffEntry  = r.leaderboard.find(e => e.name === name);
+    const dEntry   = r.deathStats?.deaths?.find(e => e.name === name);
+    const tEntry   = r.deathStats?.timeDead?.find(e => e.name === name);
+    const intEntry = r.interrupts?.find(e => e.name === name);
+    const disEntry = r.dispels?.find(e => e.name === name);
+    const isPort   = r.leaderboard[0]?.name === name;
+    const isFirst  = r.deathStats?.firstToDie?.name === name;
+    const hitStats = r.playerHitStats?.[name] ?? null;
+
+    const ff  = ffEntry?.damage ?? 0;
+    const d   = dEntry?.count ?? 0;
+    const td  = tEntry?.ms ?? 0;
+    const int = intEntry?.total ?? 0;
+    const dis = disEntry?.total ?? 0;
+
+    totalFF += ff; totalDeaths += d; totalTimeDead += td; totalInts += int; totalDisp += dis;
+    if (isPort) portadorCount++;
+    if (isFirst) firstCount++;
+
+    return { fecha: r.fecha, report: r.report, ff, d, td, int, dis, isPort, isFirst, hitStats };
+  });
+
+  // Personal records from playerHitStats
+  let prHit = null, prHeal = null, prReceived = null;
+  for (const r of rows) {
+    const h = r.hitStats;
+    if (!h) continue;
+    if (h.biggestHit?.amount > 0 && (!prHit || h.biggestHit.amount > prHit.amount))
+      prHit = { ...h.biggestHit, fecha: r.fecha };
+    if (h.biggestHeal?.amount > 0 && (!prHeal || h.biggestHeal.amount > prHeal.amount))
+      prHeal = { ...h.biggestHeal, fecha: r.fecha };
+    if (h.biggestReceived?.amount > 0 && (!prReceived || h.biggestReceived.amount > prReceived.amount))
+      prReceived = { ...h.biggestReceived, fecha: r.fecha };
+  }
+
+  const hasHitData = rows.some(r => r.hitStats);
+
+  const profile = document.getElementById('player-profile');
+  profile.className = 'visible';
+  profile.innerHTML = `
+    <div class="profile-name">${name}</div>
+    <div class="profile-meta">${raidsAttended.length} raids · ${portadorCount ? portadorCount + '× portador de la resaca' : 'nunca portador'} · ${firstCount ? firstCount + '× primero en morir' : ''}</div>
+    <div class="profile-stats">
+      <div class="pstat"><div class="plabel">Raids</div><div class="pval purple">${raidsAttended.length}</div></div>
+      <div class="pstat"><div class="plabel">Fuego Amigo (Gruul)</div><div class="pval">${fmtDmg(totalFF)}</div></div>
+      <div class="pstat"><div class="plabel">Muertes</div><div class="pval red">${totalDeaths}</div></div>
+      <div class="pstat"><div class="plabel">Tiempo Muerto</div><div class="pval red">${fmtMs(totalTimeDead)}</div></div>
+      <div class="pstat"><div class="plabel">Interrupts</div><div class="pval purple">${totalInts}</div></div>
+      <div class="pstat"><div class="plabel">Dispels</div><div class="pval purple">${totalDisp}</div></div>
+    </div>
+
+    ${hasHitData ? `
+    <div class="section-title">Récords Personales</div>
+    <div class="records-grid" style="margin-bottom:1.5rem">
+      ${prHit ? `<div class="record-card"><div class="record-icon">⚔️</div><div class="record-label">Mayor golpe dado</div><div class="record-amount">${fmtDmg(prHit.amount)}</div><div class="record-who">${name} → ${prHit.target}</div>${prHit.ability ? `<div class="record-ability">${prHit.ability}</div>` : ''}<div class="record-date">${fmtDate(prHit.fecha)}</div></div>` : ''}
+      ${prHeal ? `<div class="record-card"><div class="record-icon">💚</div><div class="record-label">Mayor curación</div><div class="record-amount">${fmtDmg(prHeal.amount)}</div><div class="record-who">${name} → ${prHeal.target}</div>${prHeal.ability ? `<div class="record-ability">${prHeal.ability}</div>` : ''}<div class="record-date">${fmtDate(prHeal.fecha)}</div></div>` : ''}
+      ${prReceived ? `<div class="record-card"><div class="record-icon">💀</div><div class="record-label">Mayor golpe recibido</div><div class="record-amount">${fmtDmg(prReceived.amount)}</div><div class="record-who">${prReceived.source} → ${name}</div>${prReceived.ability ? `<div class="record-ability">${prReceived.ability}</div>` : ''}<div class="record-date">${fmtDate(prReceived.fecha)}</div></div>` : ''}
+    </div>` : ''}
+
+    <div class="section-title">Histórico por Raid</div>
+    <table class="raid-table">
+      <thead><tr>
+        <th>Fecha</th>
+        <th>FF Daño (Gruul)</th>
+        <th>Muertes</th>
+        <th>T. Muerto</th>
+        <th>Interrupts</th>
+        <th>Dispels</th>
+        ${hasHitData ? '<th>Mayor Golpe</th><th>Mayor Cura</th><th>Mayor Recibido</th>' : ''}
+      </tr></thead>
+      <tbody>
+        ${rows.map(r => `<tr>
+          <td class="td-gold">${fmtDate(r.fecha)}</td>
+          <td class="td-gold">${r.ff ? fmtDmg(r.ff) : '<span class="td-dim">—</span>'} ${r.isPort ? '<span class="shame-badge">resaca</span>' : ''}</td>
+          <td class="td-red">${r.d || '<span class="td-dim">0</span>'} ${r.isFirst ? '<span class="shame-badge">1º</span>' : ''}</td>
+          <td class="td-red">${r.td ? fmtMs(r.td) : '<span class="td-dim">—</span>'}</td>
+          <td class="td-purple">${r.int || '<span class="td-dim">0</span>'}</td>
+          <td class="td-purple">${r.dis || '<span class="td-dim">0</span>'}</td>
+          ${hasHitData ? `
+          <td class="td-gold" title="${r.hitStats?.biggestHit?.ability ?? ''}">${r.hitStats?.biggestHit?.amount ? fmtDmg(r.hitStats.biggestHit.amount) : '<span class="td-dim">—</span>'}</td>
+          <td style="color:var(--purple2)" title="${r.hitStats?.biggestHeal?.ability ?? ''}">${r.hitStats?.biggestHeal?.amount ? fmtDmg(r.hitStats.biggestHeal.amount) : '<span class="td-dim">—</span>'}</td>
+          <td class="td-red" title="${r.hitStats?.biggestReceived?.ability ?? ''}">${r.hitStats?.biggestReceived?.amount ? fmtDmg(r.hitStats.biggestReceived.amount) : '<span class="td-dim">—</span>'}</td>` : ''}
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+// ── LOOT ──────────────────────────────────────────────────────────────────────
+
+const LOOT_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1aYgN7vk6tP_XFiwPlUQvI2xgEPzIv73PmyLmyhJ9jCI/gviz/tq?sheet=Data%20F1';
+const ASSIGNED     = new Set(['BiS', 'Upgrade', 'Off-Spec']);
+const ICON_MAP     = {};   // itemID (string) → iconName (lowercase)
+const SHEET_BASE   = 'https://docs.google.com/spreadsheets/d/1aYgN7vk6tP_XFiwPlUQvI2xgEPzIv73PmyLmyhJ9jCI/gviz/tq?sheet=';
+
+function stripBrackets(s) {
+  if (!s) return '';
+  return (s.startsWith('[') && s.endsWith(']')) ? s.slice(1, -1) : s;
+}
+
+function itemIcon(id) {
+  if (!id) return '';
+  const icon = ICON_MAP[String(id)];
+  const src  = icon ? `https://wow.zamimg.com/images/wow/icons/small/${icon}.jpg` : '';
+  return `<img class="item-icon" data-itemid="${id}"${src ? ` src="${src}"` : ''} alt="">`;
+}
+
+async function fetchMissingIcons() {
+  const imgs = [...document.querySelectorAll('#loot-items-table .item-icon[data-itemid]:not([src])')];
+  if (!imgs.length) return;
+  const ids = [...new Set(imgs.map(img => img.dataset.itemid))];
+  await Promise.all(ids.map(async id => {
+    if (ICON_MAP[id] !== undefined) return;
+    try {
+      const res = await fetch(`https://nether.wowhead.com/tbc/tooltip/item/${id}?locale=0`);
+      const d   = await res.json();
+      ICON_MAP[id] = d.icon ? d.icon.toLowerCase() : null;
+    } catch { ICON_MAP[id] = null; }
+  }));
+  document.querySelectorAll('#loot-items-table .item-icon[data-itemid]').forEach(img => {
+    const icon = ICON_MAP[img.dataset.itemid];
+    if (icon) img.src = `https://wow.zamimg.com/images/wow/icons/small/${icon}.jpg`;
+  });
+}
+
+let lootRows   = null;
+let lootLoaded = false;
+let _dataReady = false;
+let _iconsReady = false;
+
+function _checkLootReady() {
+  if (!_dataReady || !_iconsReady) return;
+  lootLoaded = true;
+  buildLootResumen();
+  buildLootRegistroShell();
+}
+
+function fetchLootData() {
+  if (lootLoaded) return;
+
+  // ── Carga Data F1 ──
+  window.__lootCallback = function(json) {
+    delete window.__lootCallback;
+    try {
+      const cols = json.table.cols;
+      const idx  = {};
+      cols.forEach((c, i) => { if (c.label) idx[c.label] = i; });
+      const get = (row, label) => {
+        const i = idx[label];
+        return (i !== undefined && row.c[i]) ? row.c[i].v : null;
+      };
+      lootRows = (json.table.rows || []).filter(r => r && r.c).map(row => {
+        const rawDate = get(row, 'date');
+        let dateStr = '';
+        if (typeof rawDate === 'string' && rawDate.startsWith('Date(')) {
+          const [y, m, d] = rawDate.slice(5, -1).split(',').map(Number);
+          dateStr = `${y}-${String(m + 1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        }
+        return {
+          nombre:   get(row, 'Nombre'),
+          date:     dateStr,
+          item:     get(row, 'item'),
+          itemID:   get(row, 'itemID'),
+          response: get(row, 'response'),
+          boss:     get(row, 'boss'),
+        };
+      }).filter(r => r.nombre && r.item);
+    } catch(e) {
+      document.getElementById('loot-resumen-inner').innerHTML =
+        `<div class="loot-loading">Error al procesar loot: ${e.message}</div>`;
+    }
+    _dataReady = true;
+    _checkLootReady();
+  };
+  const s1 = document.createElement('script');
+  s1.src = LOOT_SHEET_URL + '&tqx=responseHandler:__lootCallback';
+  s1.onerror = () => {
+    document.getElementById('loot-resumen-inner').innerHTML =
+      '<div class="loot-loading">No se pudieron cargar los datos. Comprueba que el sheet es público.</div>';
+    _dataReady = true; _checkLootReady();
+  };
+  document.head.appendChild(s1);
+
+  // ── Carga IconCache ──
+  window.__iconCacheCallback = function(json) {
+    delete window.__iconCacheCallback;
+    try {
+      const cols = json.table.cols;
+      const idx  = {};
+      cols.forEach((c, i) => { if (c.label) idx[c.label] = i; });
+      (json.table.rows || []).filter(r => r && r.c).forEach(row => {
+        const id   = row.c[idx['itemID']]?.v;
+        const icon = row.c[idx['iconName']]?.v;
+        if (id && icon) ICON_MAP[String(id)] = String(icon).toLowerCase();
+      });
+    } catch(_) {}
+    _iconsReady = true;
+    _checkLootReady();
+  };
+  const s2 = document.createElement('script');
+  s2.src = SHEET_BASE + 'IconCache&tqx=responseHandler:__iconCacheCallback';
+  s2.onerror = () => { _iconsReady = true; _checkLootReady(); };
+  document.head.appendChild(s2);
+}
+
+const BAG_ID   = '34845';
+const MOUNT_ID = '30480';
+
+function buildLootResumen() {
+  const byPlayer = new Map();
+  let totDE = 0, totBank = 0, totBag = 0, totMount = 0;
+  let totBis = 0, totUpgrade = 0, totOffspec = 0;
+
+  lootRows.forEach(r => {
+    if (!byPlayer.has(r.nombre)) byPlayer.set(r.nombre, {bis:0, upgrade:0, offspec:0, total:0, bag:false, mount:false});
+    const p   = byPlayer.get(r.nombre);
+    const id  = String(r.itemID);
+    const res = r.response;
+    if      (res === 'BiS')       { p.bis++;     p.total++; totBis++; }
+    else if (res === 'Upgrade')   { p.upgrade++; p.total++; totUpgrade++; }
+    else if (res === 'Off-Spec')  { p.offspec++; p.total++; totOffspec++; }
+    else if (res === 'Disenchant') totDE++;
+    else if (res === 'Banking')    totBank++;
+    if (id === BAG_ID)   { p.bag   = true; totBag++; }
+    if (id === MOUNT_ID) { p.mount = true; totMount++; }
+  });
+
+  const totAssigned = totBis + totUpgrade + totOffspec;
+  const rows    = [...byPlayer.entries()].map(([name, s]) => ({name, ...s})).sort((a,b) => b.bis - a.bis || b.total - a.total);
+  const maxTotal = rows[0]?.total || 1;
+
+  document.getElementById('loot-resumen-inner').innerHTML = `
+    <div class="loot-stat-cards">
+      <div class="loot-stat-card"><div class="lsc-val" style="color:var(--text-bright)">${totAssigned}</div><div class="lsc-label">Repartidos</div></div>
+      <div class="loot-stat-card"><div class="lsc-val">${totBis}</div><div class="lsc-label">BiS</div></div>
+      <div class="loot-stat-card"><div class="lsc-val" style="color:var(--purple2)">${totUpgrade}</div><div class="lsc-label">Upgrade</div></div>
+      <div class="loot-stat-card"><div class="lsc-val" style="color:#87ceeb">${totOffspec}</div><div class="lsc-label">Off-Spec</div></div>
+      <div style="width:1px;background:var(--border);margin:0 0.25rem;align-self:stretch"></div>
+      <div class="loot-stat-card"><div class="lsc-val" style="color:var(--text-dim)">${totDE}</div><div class="lsc-label">Desenc.</div></div>
+      <div class="loot-stat-card"><div class="lsc-val" style="color:var(--text-dim)">${totBank}</div><div class="lsc-label">Banking</div></div>
+      <div class="loot-stat-card"><div class="lsc-val" style="color:var(--text-dim)">${totBag}</div><div class="lsc-label">Bolsas</div></div>
+      <div class="loot-stat-card"><div class="lsc-val" style="color:var(--text-dim)">${totMount}</div><div class="lsc-label">Monturas</div></div>
+    </div>
+    <div class="section-title">Por Jugador</div>
+    <table class="ranked-list">
+      <thead><tr>
+        <th>Jugador</th>
+        <th style="text-align:right">BiS</th>
+        <th style="text-align:right">Upgrade</th>
+        <th style="text-align:right">Off-Spec</th>
+        <th style="text-align:right">Total</th>
+        <th class="bar-cell"></th>
+        <th style="text-align:center" title="Bolsa de Karazhan">Bolsa</th>
+        <th style="text-align:center" title="Montura">Montura</th>
+      </tr></thead>
+      <tbody>
+        ${rows.map((r, i) => `<tr>
+          <td class="player-link" style="cursor:pointer" onclick="goToLootRegistro('${r.name}')">${r.name}</td>
+          <td class="val-cell">${r.bis    || '<span class="td-dim">—</span>'}</td>
+          <td class="val-cell purple">${r.upgrade || '<span class="td-dim">—</span>'}</td>
+          <td style="color:#87ceeb;font-family:'Cinzel',serif;font-size:.9rem;font-weight:600;text-align:right">${r.offspec || '<span class="td-dim">—</span>'}</td>
+          <td style="color:var(--text-bright);font-family:'Cinzel',serif;font-size:.9rem;font-weight:600;text-align:right">${r.total || '—'}</td>
+          <td class="bar-cell">${makeBar(Math.round(r.total / maxTotal * 100))}</td>
+          <td style="text-align:center">${r.bag   ? '<span class="loot-check">✦</span>' : '<span class="td-dim">—</span>'}</td>
+          <td style="text-align:center">${r.mount ? '<span class="loot-check">✦</span>' : '<span class="td-dim">—</span>'}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function buildLootRegistroShell() {
+  const players = [...new Set(lootRows.map(r => r.nombre))].sort();
+  document.getElementById('loot-registro-inner').innerHTML = `
+    <div class="section-title">Registro de Loot · Fase 1</div>
+    <select class="loot-select" id="loot-player-select">
+      <option value="">— Selecciona un jugador —</option>
+      ${players.map(p => `<option value="${p}">${p}</option>`).join('')}
+    </select>
+    <div id="loot-player-detail"></div>
+  `;
+  document.getElementById('loot-player-select').addEventListener('change', e => renderLootPlayer(e.target.value));
+}
+
+function renderLootPlayer(nombre) {
+  const el = document.getElementById('loot-player-detail');
+  if (!nombre) { el.innerHTML = ''; return; }
+
+  const allPlayerRows = lootRows.filter(r => r.nombre === nombre);
+  const hasBag   = allPlayerRows.some(r => String(r.itemID) === BAG_ID);
+  const hasMount = allPlayerRows.some(r => String(r.itemID) === MOUNT_ID);
+  const bagRow   = allPlayerRows.find(r => String(r.itemID) === BAG_ID);
+  const mountRow = allPlayerRows.find(r => String(r.itemID) === MOUNT_ID);
+
+  const items = allPlayerRows
+    .filter(r => ASSIGNED.has(r.response))
+    .sort((a,b) => b.date.localeCompare(a.date));
+
+  const counts = {};
+  items.forEach(r => { counts[r.response] = (counts[r.response] || 0) + 1; });
+
+  const chipColor = { 'BiS': '', 'Upgrade': 'purple', 'Off-Spec': 'blue' };
+
+  el.innerHTML = `
+    <div class="loot-chips">
+      <div class="loot-chip">
+        <div class="chip-val" style="color:var(--text-bright)">${items.length}</div>
+        <div class="chip-label">Total</div>
+      </div>
+      ${['BiS','Upgrade','Off-Spec'].map(k => `<div class="loot-chip">
+        <div class="chip-val ${chipColor[k] || ''}">${counts[k] || 0}</div>
+        <div class="chip-label">${k}</div>
+      </div>`).join('')}
+      ${hasBag ? `<div class="loot-chip" style="border-color:var(--gold-dim)">
+        <div class="chip-val">${bagRow?.itemID
+          ? `<a href="https://www.wowhead.com/tbc/item=${bagRow.itemID}" style="color:var(--gold);text-decoration:none">${stripBrackets(bagRow.item)}</a>`
+          : '✦'}</div>
+        <div class="chip-label">Bolsa</div>
+      </div>` : ''}
+      ${hasMount ? `<div class="loot-chip" style="border-color:var(--gold-dim)">
+        <div class="chip-val">${mountRow?.itemID
+          ? `<a href="https://www.wowhead.com/tbc/item=${mountRow.itemID}" style="color:var(--gold);text-decoration:none">${stripBrackets(mountRow.item)}</a>`
+          : '✦'}</div>
+        <div class="chip-label">Montura</div>
+      </div>` : ''}
+    </div>
+    <table class="ranked-list" id="loot-items-table">
+      <thead><tr>
+        <th>Fecha</th>
+        <th>Item</th>
+        <th>Boss</th>
+        <th>Tipo</th>
+      </tr></thead>
+      <tbody>
+        ${items.map(r => `<tr>
+          <td class="td-gold" style="white-space:nowrap">${r.date ? fmtDate(r.date) : '—'}</td>
+          <td style="white-space:nowrap">${r.itemID
+            ? `<a class="item-link" href="https://www.wowhead.com/tbc/item=${r.itemID}" target="_blank">${itemIcon(r.itemID)}${stripBrackets(r.item)}</a>`
+            : stripBrackets(r.item)}</td>
+          <td class="td-dim" style="font-size:.85rem">${r.boss || '—'}</td>
+          <td>${lootBadge(r.response)}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  `;
+
+  fetchMissingIcons();
+}
+
+function goToLootRegistro(nombre) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  const btn = document.querySelector('.tab-btn[data-tab="loot-registro"]');
+  btn.classList.add('active');
+  document.getElementById('tab-loot-registro').classList.add('active');
+  const sel = document.getElementById('loot-player-select');
+  if (sel) { sel.value = nombre; renderLootPlayer(nombre); }
+}
+
+function lootBadge(resp) {
+  if (!resp) return '<span class="response-badge other">—</span>';
+  const cls = resp === 'BiS' ? 'bis' : resp === 'Upgrade' ? 'upgrade' : resp === 'Off-Spec' ? 'offspec' : 'other';
+  return `<span class="response-badge ${cls}">${resp}</span>`;
+}
+
+// ── TAB NAVIGATION ────────────────────────────────────────────────────────────
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    if ((btn.dataset.tab === 'loot-resumen' || btn.dataset.tab === 'loot-registro') && !lootLoaded) {
+      fetchLootData();
+    }
+  });
+});
