@@ -406,100 +406,128 @@ function buildHistorial() {
   const container = document.getElementById('raid-list');
   if (!DATA.length) { container.innerHTML = '<div class="empty-msg">No hay raids registradas.</div>'; return; }
 
-  container.innerHTML = [...DATA].map((r, i) => {
-    const port    = r.leaderboard[0];
-    const fd      = r.deathStats?.firstToDie?.name ?? '—';
-    const top3d   = (r.deathStats?.deaths??[]).slice(0,3);
-    const top3int = (r.interrupts??[]).slice(0,3);
-    const top3dis = (r.dispels??[]).slice(0,3);
+  const rows = [...DATA].map(r => {
+    const bs          = r.bossStats;
+    const port        = r.leaderboard[0];
+    const fd          = r.deathStats?.firstToDie?.name ?? '—';
+    const topInt      = r.interrupts?.[0];
+    const totalDeaths = (r.deathStats?.deaths ?? []).reduce((s, e) => s + e.count, 0);
+    const effVal      = bs?.totalTries > 0 ? Math.round(bs.totalKills / bs.totalTries * 100) : null;
+    const effColor    = effVal === null ? 'var(--text-dim)' : effVal >= 80 ? 'var(--gold)' : effVal >= 50 ? 'var(--purple2)' : 'var(--red2)';
+    const duration    = bs?.totalRaidTimeMs > 0 ? fmtMs(bs.totalRaidTimeMs) : '—';
+
+    const top3ff  = r.leaderboard.slice(0, 3);
+    const top3d   = (r.deathStats?.deaths ?? []).slice(0, 3);
+    const top3int = (r.interrupts ?? []).slice(0, 3);
+    const top3dis = (r.dispels ?? []).slice(0, 3);
     const bh      = r.biggestHits;
 
     const miniList = (arr, valFn) => arr.length
-      ? `<ul>${arr.map(e=>`<li>${e.name}<span>${valFn(e)}</span></li>`).join('')}</ul>`
+      ? `<ul>${arr.map(e => `<li>${e.name}<span>${valFn(e)}</span></li>`).join('')}</ul>`
       : '<span style="color:var(--text-dim);font-style:italic">—</span>';
 
     const hitsHtml = bh ? `
-          <div class="raid-section">
-            <div class="raid-section-title">💥 Golpe más fuerte recibido</div>
-            <ul>
-              <li>${bh.biggestReceived?.victima ?? '—'}<span>${fmtDmg(bh.biggestReceived?.amount ?? 0)}</span></li>
-              <li style="color:var(--text-dim);font-size:.8rem">por ${bh.biggestReceived?.agresor ?? '—'}</li>
-              ${bh.biggestReceived?.ability ? `<li style="color:var(--purple2);font-size:.8rem;font-style:italic">${bh.biggestReceived.ability}</li>` : ''}
-            </ul>
-          </div>
-          <div class="raid-section">
-            <div class="raid-section-title">⚔️ Golpe más fuerte dado</div>
-            <ul>
-              <li>${bh.biggestDealt?.heroe ?? '—'}<span>${fmtDmg(bh.biggestDealt?.amount ?? 0)}</span></li>
-              <li style="color:var(--text-dim);font-size:.8rem">a ${bh.biggestDealt?.objetivo ?? '—'}</li>
-              ${bh.biggestDealt?.ability ? `<li style="color:var(--purple2);font-size:.8rem;font-style:italic">${bh.biggestDealt.ability}</li>` : ''}
-            </ul>
-          </div>
-          ${bh.biggestHeal ? `<div class="raid-section">
-            <div class="raid-section-title">💚 Curación más gorda</div>
-            <ul>
-              <li>${bh.biggestHeal.healer}<span>${fmtDmg(bh.biggestHeal.amount)}</span></li>
-              <li style="color:var(--text-dim);font-size:.8rem">a ${bh.biggestHeal.target}</li>
-              ${bh.biggestHeal.ability ? `<li style="color:var(--purple2);font-size:.8rem;font-style:italic">${bh.biggestHeal.ability}</li>` : ''}
-            </ul>
-          </div>` : ''}` : '';
-
-    const bs           = r.bossStats;
-    const raidTimeLabel = bs?.totalRaidTimeMs > 0
-      ? `<span class="raid-time">⏱ ${fmtMs(bs.totalRaidTimeMs)}</span>` : '';
-    const effVal  = bs && bs.totalTries > 0 ? Math.round(bs.totalKills / bs.totalTries * 100) : null;
-    const effColor = effVal === null ? 'var(--text-dim)' : effVal >= 80 ? 'var(--gold)' : effVal >= 50 ? 'var(--purple2)' : 'var(--red2)';
-    const effLabel = effVal !== null
-      ? `<strong style="color:${effColor}">${effVal}%</strong><span style="color:var(--text-dim);font-size:.8rem;margin-left:.4rem">(${bs.totalKills}K/${bs.totalWipes}W)</span>`
-      : '<strong style="color:var(--text-dim)">—</strong>';
-
-    return `<div class="raid-card" id="rcard-${i}">
-      <div class="raid-header" onclick="toggleRaid('rcard-${i}')">
-        <span class="raid-date">${fmtDate(r.fecha)}</span>
-        <span class="raid-portador"><span class="label">Efectividad:</span>${effLabel}</span>
-        ${raidTimeLabel}
-        <span class="raid-arrow">▼</span>
+      <div class="raid-section">
+        <div class="raid-section-title">💥 Golpe recibido</div>
+        <ul>
+          <li>${bh.biggestReceived?.victima ?? '—'}<span>${fmtDmg(bh.biggestReceived?.amount ?? 0)}</span></li>
+          <li style="color:var(--text-dim);font-size:.8rem">por ${bh.biggestReceived?.agresor ?? '—'}</li>
+          ${bh.biggestReceived?.ability ? `<li style="color:var(--purple2);font-size:.8rem;font-style:italic">${bh.biggestReceived.ability}</li>` : ''}
+        </ul>
       </div>
-      <div class="raid-body">
-        <div class="raid-body-grid">
-          <div class="raid-section">
-            <div class="raid-section-title">🍺 Resaca</div>
-            <ul><li>${port ? port.name : '—'}${port ? `<span>${fmtDmg(port.damage)}</span>` : ''}</li></ul>
-          </div>
-          <div class="raid-section">
-            <div class="raid-section-title">🏹 Bosses</div>
-            ${bs ? `<ul>${(bs.bosses ?? []).map(b => `<li>${b.name}<span>${b.kills}K / ${b.wipes}W${b.killTimeMs ? ' · ' + fmtMs(b.killTimeMs) : ''}</span></li>`).join('')}</ul>` : '<span style="color:var(--text-dim);font-style:italic">—</span>'}
-          </div>
-          <div class="raid-section">
-            <div class="raid-section-title">Muertes Top 3</div>
-            ${miniList(top3d, e => e.count+'×')}
-          </div>
-          <div class="raid-section">
-            <div class="raid-section-title">Primero en Morir</div>
-            <ul><li>${fd}</li></ul>
-          </div>
-          <div class="raid-section">
-            <div class="raid-section-title">Interrupts Top 3</div>
-            ${miniList(top3int, e => e.total)}
-          </div>
-          <div class="raid-section">
-            <div class="raid-section-title">Dispels Top 3</div>
-            ${miniList(top3dis, e => e.total)}
-          </div>
-          ${hitsHtml}
-          <div class="raid-section">
-            <div class="raid-section-title">Roster</div>
-            <span style="color:var(--text-dim);font-size:.8rem">${(r.roster??[]).join(', ') || '—'}</span>
-          </div>
-        </div>
-        <a class="raid-link" href="https://fresh.warcraftlogs.com/reports/${r.report}" target="_blank">↗ Ver en WarcraftLogs</a>
+      <div class="raid-section">
+        <div class="raid-section-title">⚔️ Golpe dado</div>
+        <ul>
+          <li>${bh.biggestDealt?.heroe ?? '—'}<span>${fmtDmg(bh.biggestDealt?.amount ?? 0)}</span></li>
+          <li style="color:var(--text-dim);font-size:.8rem">a ${bh.biggestDealt?.objetivo ?? '—'}</li>
+          ${bh.biggestDealt?.ability ? `<li style="color:var(--purple2);font-size:.8rem;font-style:italic">${bh.biggestDealt.ability}</li>` : ''}
+        </ul>
       </div>
-    </div>`;
+      ${bh.biggestHeal ? `<div class="raid-section">
+        <div class="raid-section-title">💚 Curación</div>
+        <ul>
+          <li>${bh.biggestHeal.healer}<span>${fmtDmg(bh.biggestHeal.amount)}</span></li>
+          <li style="color:var(--text-dim);font-size:.8rem">a ${bh.biggestHeal.target}</li>
+          ${bh.biggestHeal.ability ? `<li style="color:var(--purple2);font-size:.8rem;font-style:italic">${bh.biggestHeal.ability}</li>` : ''}
+        </ul>
+      </div>` : ''}` : '';
+
+    return `
+      <tr class="historial-row">
+        <td class="td-gold">${fmtDate(r.fecha)}</td>
+        <td style="font-family:'Cinzel',serif;font-size:.82rem;color:var(--text-dim)">${duration}</td>
+        <td>${effVal !== null
+          ? `<strong style="color:${effColor}">${effVal}%</strong> <span class="td-dim">(${bs.totalKills}K/${bs.totalWipes}W)</span>`
+          : '<span class="td-dim">—</span>'}</td>
+        <td>${port
+          ? `<span class="player-link" data-player="${port.name}">${port.name}</span> <span class="td-dim">${fmtDmg(port.damage)}</span>`
+          : '<span class="td-dim">—</span>'}</td>
+        <td class="td-red" style="text-align:center">${totalDeaths || '<span class="td-dim">0</span>'}</td>
+        <td style="color:var(--name)">${fd}</td>
+        <td>${topInt
+          ? `<span class="player-link" data-player="${topInt.name}">${topInt.name}</span> <span class="td-dim">${topInt.total}</span>`
+          : '<span class="td-dim">—</span>'}</td>
+        <td style="text-align:right"><span class="h-arrow">▼</span></td>
+      </tr>
+      <tr class="historial-detail">
+        <td colspan="8">
+          <div class="raid-body-grid">
+            <div class="raid-section">
+              <div class="raid-section-title">🏹 Bosses</div>
+              ${bs ? `<ul>${(bs.bosses ?? []).map(b => `<li>${b.name}<span>${b.kills}K / ${b.wipes}W${b.killTimeMs ? ' · ' + fmtMs(b.killTimeMs) : ''}</span></li>`).join('')}</ul>` : '<span style="color:var(--text-dim);font-style:italic">—</span>'}
+            </div>
+            <div class="raid-section">
+              <div class="raid-section-title">🍺 FF Top 3</div>
+              ${miniList(top3ff, e => fmtDmg(e.damage))}
+            </div>
+            <div class="raid-section">
+              <div class="raid-section-title">💀 Muertes Top 3</div>
+              ${miniList(top3d, e => e.count + '×')}
+            </div>
+            <div class="raid-section">
+              <div class="raid-section-title">Interrupts Top 3</div>
+              ${miniList(top3int, e => e.total)}
+            </div>
+            <div class="raid-section">
+              <div class="raid-section-title">Dispels Top 3</div>
+              ${miniList(top3dis, e => e.total)}
+            </div>
+            ${hitsHtml}
+            <div class="raid-section">
+              <div class="raid-section-title">Roster</div>
+              <span style="color:var(--text-dim);font-size:.8rem">${(r.roster ?? []).join(', ') || '—'}</span>
+            </div>
+          </div>
+          <a class="raid-link" href="https://fresh.warcraftlogs.com/reports/${r.report}" target="_blank">↗ Ver en WarcraftLogs</a>
+        </td>
+      </tr>`;
   }).join('');
-}
 
-function toggleRaid(id) {
-  document.getElementById(id).classList.toggle('open');
+  container.innerHTML = `
+    <table class="historial-table">
+      <thead><tr>
+        <th>Fecha</th>
+        <th>Duración</th>
+        <th>Efectividad</th>
+        <th>Portador Resaca</th>
+        <th style="text-align:center">Muertes</th>
+        <th>1º en Morir</th>
+        <th>Top Interrupt</th>
+        <th></th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+
+  container.querySelectorAll('.historial-row').forEach(row => {
+    row.addEventListener('click', () => {
+      row.classList.toggle('open');
+      row.nextElementSibling.classList.toggle('open');
+    });
+  });
+
+  container.querySelectorAll('.player-link').forEach(el => {
+    el.addEventListener('click', e => { e.stopPropagation(); openPlayer(el.dataset.player); });
+  });
 }
 
 // ── RÉCORDS DE TIEMPO ─────────────────────────────────────────────────────────
