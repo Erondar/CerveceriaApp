@@ -479,15 +479,22 @@ function buildHistorial() {
         <td>${timeCell(bossKillTime('Gruul the Dragonkiller'), bestByBoss['Gruul the Dragonkiller'])}</td>
         <td>${timeCell(bossKillTime('Magtheridon'),            bestByBoss['Magtheridon'])}</td>
         <td class="td-red" style="text-align:center">${totalDeaths || '<span class="td-dim">0</span>'}</td>
-        <td style="color:var(--name)">${fd}</td>
         <td style="text-align:right"><span class="h-arrow">▼</span></td>
       </tr>
       <tr class="historial-detail">
-        <td colspan="9">
+        <td colspan="8">
           <div class="raid-body-grid">
             <div class="raid-section">
               <div class="raid-section-title">🏹 Bosses</div>
               ${bs ? `<ul>${(bs.bosses ?? []).map(b => `<li>${b.name}<span>${b.kills}K / ${b.wipes}W${b.killTimeMs ? ' · ' + fmtMs(b.killTimeMs) : ''}</span></li>`).join('')}</ul>` : '<span style="color:var(--text-dim);font-style:italic">—</span>'}
+            </div>
+            <div class="raid-section">
+              <div class="raid-section-title">🍺 Portador de la Resaca</div>
+              <ul>${port ? `<li>${port.name}<span>${fmtDmg(port.damage)}</span></li>` : '<li style="color:var(--text-dim)">—</li>'}</ul>
+            </div>
+            <div class="raid-section">
+              <div class="raid-section-title">💀 1º en Morir</div>
+              <ul><li style="color:var(--name)">${fd}</li></ul>
             </div>
             <div class="raid-section">
               <div class="raid-section-title">🍺 FF Top 3</div>
@@ -526,7 +533,6 @@ function buildHistorial() {
         <th>Gruul</th>
         <th>Magtheridon</th>
         <th style="text-align:center">Muertes</th>
-        <th>1º en Morir</th>
         <th></th>
       </tr></thead>
       <tbody>${rows}</tbody>
