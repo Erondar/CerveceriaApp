@@ -456,22 +456,19 @@ function buildHistorial() {
     return `
       <tr class="historial-row">
         <td class="td-gold">${fmtDate(r.fecha)}</td>
-        <td style="font-family:'Cinzel',serif;font-size:.82rem;color:var(--text-dim)">${duration}</td>
+        <td class="td-gold">${duration}</td>
         <td>${effVal !== null
           ? `<strong style="color:${effColor}">${effVal}%</strong> <span class="td-dim">(${bs.totalKills}K/${bs.totalWipes}W)</span>`
           : '<span class="td-dim">—</span>'}</td>
-        <td style="font-family:'Cinzel',serif;font-size:.82rem;color:var(--text-dim)">${bossTime('High King Maulgar')}</td>
-        <td style="font-family:'Cinzel',serif;font-size:.82rem;color:var(--text-dim)">${bossTime('Gruul the Dragonkiller')}</td>
-        <td style="font-family:'Cinzel',serif;font-size:.82rem;color:var(--text-dim)">${bossTime('Magtheridon')}</td>
-        <td>${port
-          ? `<span class="player-link" data-player="${port.name}">${port.name}</span> <span class="td-dim">${fmtDmg(port.damage)}</span>`
-          : '<span class="td-dim">—</span>'}</td>
+        <td class="td-gold">${bossTime('High King Maulgar')}</td>
+        <td class="td-gold">${bossTime('Gruul the Dragonkiller')}</td>
+        <td class="td-gold">${bossTime('Magtheridon')}</td>
         <td class="td-red" style="text-align:center">${totalDeaths || '<span class="td-dim">0</span>'}</td>
         <td style="color:var(--name)">${fd}</td>
         <td style="text-align:right"><span class="h-arrow">▼</span></td>
       </tr>
       <tr class="historial-detail">
-        <td colspan="10">
+        <td colspan="9">
           <div class="raid-body-grid">
             <div class="raid-section">
               <div class="raid-section-title">🏹 Bosses</div>
@@ -513,7 +510,6 @@ function buildHistorial() {
         <th>Maulgar</th>
         <th>Gruul</th>
         <th>Magtheridon</th>
-        <th>Portador Resaca</th>
         <th style="text-align:center">Muertes</th>
         <th>1º en Morir</th>
         <th></th>
