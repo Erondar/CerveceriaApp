@@ -526,7 +526,6 @@ function buildTimeRecords() {
     <div class="section-title" style="margin-top:2rem">Récords de Tiempo</div>
     <div class="records-grid">
       ${timeCard('⚡', 'Raid más rápida', fastest.bossStats.totalRaidTimeMs, fastest.fecha)}
-      ${timeCard('🐢', 'Raid más lenta',  slowest.bossStats.totalRaidTimeMs, slowest.fecha)}
       ${fastestByBoss.map(b => timeCard(b.icon, b.label, b.killTimeMs, b.fecha)).join('')}
     </div>
   `;
