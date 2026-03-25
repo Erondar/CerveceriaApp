@@ -15,18 +15,19 @@
     --bg-row:    #1c2030;
     --border:    #2e3550;
     --border2:   #3d4a6a;
-    --gold:      #e2bc5c;
-    --gold2:     #f5d880;
+    --gold:      #f0c84a;
+    --gold2:     #fad96a;
     --gold-dim:  #7a6028;
     --purple:    #8a5cb8;
     --purple2:   #c090f0;
     --red:       #c03838;
     --red2:      #ff6060;
-    --text:      #c8ccd8;
-    --text-dim:  #7a84a0;
+    --text:      #cdd2e0;
+    --text-dim:  #a0aabc;
+    --text-muted: #7a84a0;
     --text-bright: #ffffff;
-    --name:      #e8eaf2;
-    --glow-gold: 0 0 20px rgba(226,188,92,0.35);
+    --name:      #eaecf5;
+    --glow-gold: 0 0 20px rgba(240,200,74,0.35);
     --glow-purple: 0 0 20px rgba(138,92,184,0.4);
   }
 
@@ -134,15 +135,15 @@
   }
   .header-sub {
     font-style: italic;
-    color: var(--text-dim);
+    color: var(--text);
     margin-top: 0.4rem;
     font-size: 0.95rem;
     letter-spacing: 0.08em;
   }
   .header-meta {
     margin-top: 0.8rem;
-    font-size: 0.82rem;
-    color: var(--text-dim);
+    font-size: 0.85rem;
+    color: var(--text);
     letter-spacing: 0.05em;
   }
   .header-meta span { color: var(--gold); font-weight: 600; }
@@ -167,7 +168,7 @@
     background: none;
     border: none;
     border-bottom: 2px solid transparent;
-    color: var(--text-dim);
+    color: var(--text);
     font-family: 'Cinzel', serif;
     font-size: 0.78rem;
     letter-spacing: 0.12em;
@@ -176,7 +177,7 @@
     transition: color 0.2s, border-color 0.2s;
     white-space: nowrap;
   }
-  .tab-btn:hover { color: var(--text); }
+  .tab-btn:hover { color: var(--text-bright); }
   .tab-btn.active { color: var(--gold); border-bottom-color: var(--gold); }
 
   /* ── CONTENT ── */
@@ -213,7 +214,7 @@
     font-size: 0.68rem;
     letter-spacing: 0.15em;
     text-transform: uppercase;
-    color: var(--text-dim);
+    color: var(--text);
     margin-bottom: 0.5rem;
   }
   .stat-card .value {
@@ -262,7 +263,7 @@
     font-size: 0.75rem;
     letter-spacing: 0.15em;
     text-transform: uppercase;
-    color: var(--text-dim);
+    color: var(--text);
     margin-bottom: 1rem;
   }
   .podium-entry {
@@ -284,7 +285,7 @@
     font-size: 0.68rem;
     letter-spacing: 0.15em;
     text-transform: uppercase;
-    color: var(--text-dim);
+    color: var(--text);
     text-align: left;
     padding: 0.6rem 1rem;
     border-bottom: 2px solid var(--border2);
@@ -302,7 +303,7 @@
   .ranked-list tr:hover .player-link { color: var(--gold2); }
   .rank-num {
     font-family: 'Cinzel', serif;
-    color: var(--text-dim);
+    color: var(--text);
     font-size: 0.82rem;
     width: 2.2rem;
     text-align: right;
@@ -424,7 +425,7 @@
     font-size: 0.65rem;
     letter-spacing: 0.15em;
     text-transform: uppercase;
-    color: var(--text-dim);
+    color: var(--text);
     margin-bottom: 0.4rem;
   }
   .raid-section li { list-style: none; color: var(--text); padding: 0.15rem 0; }
