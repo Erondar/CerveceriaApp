@@ -1,0 +1,1213 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>La Resaca de Gruul — Dashboard</title>
+<!-- Datos: generado automáticamente por el bot junto a historial.json -->
+<script src="historial.js" onerror="void 0"></script>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;900&family=Barlow:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<style>
+  :root {
+    --bg:        #0f1117;
+    --bg2:       #181c26;
+    --bg3:       #1e2230;
+    --bg-row:    #1c2030;
+    --border:    #2e3550;
+    --border2:   #3d4a6a;
+    --gold:      #e2bc5c;
+    --gold2:     #f5d880;
+    --gold-dim:  #7a6028;
+    --purple:    #8a5cb8;
+    --purple2:   #c090f0;
+    --red:       #c03838;
+    --red2:      #ff6060;
+    --text:      #c8ccd8;
+    --text-dim:  #7a84a0;
+    --text-bright: #ffffff;
+    --name:      #e8eaf2;
+    --glow-gold: 0 0 20px rgba(226,188,92,0.35);
+    --glow-purple: 0 0 20px rgba(138,92,184,0.4);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Barlow', system-ui, sans-serif;
+    font-size: 15px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Texture overlay ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      radial-gradient(ellipse 80% 40% at 50% -10%, rgba(123,79,160,0.12) 0%, transparent 70%),
+      radial-gradient(ellipse 60% 30% at 80% 100%, rgba(200,168,75,0.06) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── LOADER ── */
+  #loader {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2rem;
+    transition: opacity 0.5s, visibility 0.5s;
+  }
+  #loader.hidden { opacity: 0; visibility: hidden; }
+
+  .loader-title {
+    font-family: 'Cinzel', serif;
+    font-size: clamp(1.8rem, 5vw, 3.2rem);
+    font-weight: 900;
+    color: var(--gold);
+    text-shadow: var(--glow-gold);
+    letter-spacing: 0.05em;
+    text-align: center;
+  }
+  .loader-subtitle {
+    font-family: 'Barlow', system-ui, sans-serif;
+    font-style: italic;
+    color: var(--text-dim);
+    font-size: 1.1rem;
+    letter-spacing: 0.1em;
+    text-align: center;
+  }
+
+  #drop-zone {
+    width: min(420px, 90vw);
+    height: 200px;
+    border: 2px dashed var(--gold-dim);
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+    background: rgba(200,168,75,0.03);
+    position: relative;
+  }
+  #drop-zone:hover, #drop-zone.drag-over {
+    border-color: var(--gold);
+    background: rgba(200,168,75,0.07);
+    box-shadow: var(--glow-gold);
+  }
+  #drop-zone .drop-icon { font-size: 2.5rem; opacity: 0.6; }
+  #drop-zone .drop-text { font-family: 'Cinzel', serif; font-size: 0.85rem; letter-spacing: 0.15em; color: var(--gold); text-transform: uppercase; }
+  #drop-zone .drop-hint { font-size: 0.85rem; color: var(--text-dim); }
+  #file-input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+  .ornament { color: var(--gold-dim); font-size: 1.2rem; letter-spacing: 0.5em; }
+
+  /* ── MAIN APP ── */
+  #app { position: relative; z-index: 1; display: none; }
+  #app.visible { display: block; }
+
+  /* ── HEADER ── */
+  header {
+    padding: 2.5rem 2rem 1.5rem;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(123,79,160,0.08) 0%, transparent 100%);
+  }
+  .header-title {
+    font-family: 'Cinzel', serif;
+    font-size: clamp(1.6rem, 4vw, 2.8rem);
+    font-weight: 900;
+    color: var(--gold);
+    text-shadow: var(--glow-gold);
+    letter-spacing: 0.06em;
+  }
+  .header-sub {
+    font-style: italic;
+    color: var(--text-dim);
+    margin-top: 0.4rem;
+    font-size: 0.95rem;
+    letter-spacing: 0.08em;
+  }
+  .header-meta {
+    margin-top: 0.8rem;
+    font-size: 0.82rem;
+    color: var(--text-dim);
+    letter-spacing: 0.05em;
+  }
+  .header-meta span { color: var(--gold); font-weight: 600; }
+
+  /* ── NAV TABS ── */
+  nav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: rgba(13,15,22,0.97);
+    backdrop-filter: blur(10px);
+    border-bottom: 2px solid var(--border2);
+    display: flex;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  nav::-webkit-scrollbar { display: none; }
+
+  .tab-btn {
+    flex-shrink: 0;
+    padding: 0.9rem 1.4rem;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-dim);
+    font-family: 'Cinzel', serif;
+    font-size: 0.78rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: color 0.2s, border-color 0.2s;
+    white-space: nowrap;
+  }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { color: var(--gold); border-bottom-color: var(--gold); }
+
+  /* ── CONTENT ── */
+  .tab-content { display: none; padding: 2rem; max-width: 1100px; margin: 0 auto; }
+  .tab-content.active { display: block; }
+
+  /* ── CARDS ── */
+  .stat-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2.5rem;
+  }
+  .stat-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1.4rem 1.6rem;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    opacity: 0.6;
+  }
+  .stat-card:hover { border-color: var(--gold-dim); }
+  .stat-card .label {
+    font-family: 'Cinzel', serif;
+    font-size: 0.68rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 0.5rem;
+  }
+  .stat-card .value {
+    font-family: 'Cinzel', serif;
+    font-size: 2rem;
+    font-weight: 600;
+    color: var(--gold);
+    line-height: 1;
+  }
+  .stat-card .value.purple { color: var(--purple2); }
+  .stat-card .value.red { color: var(--red2); }
+  .stat-card .sub { font-size: 0.82rem; color: var(--text-dim); margin-top: 0.3rem; font-style: italic; }
+
+  /* ── SECTION HEADINGS ── */
+  .section-title {
+    font-family: 'Cinzel', serif;
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 1.2rem;
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  .section-title::before { content: '⬥'; font-size: 0.6rem; color: var(--gold-dim); }
+
+  /* ── PODIUMS ── */
+  .podiums-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2.5rem;
+  }
+  .podium-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1.2rem;
+  }
+  .podium-title {
+    font-family: 'Cinzel', serif;
+    font-size: 0.75rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 1rem;
+  }
+  .podium-entry {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 0.6rem 0.4rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .podium-entry:last-child { border-bottom: none; }
+  .medal { font-size: 1.3rem; width: 1.6rem; text-align: center; flex-shrink: 0; }
+  .podium-name { flex: 1; font-weight: 600; color: var(--name); font-size: 1.05rem; }
+  .podium-val { font-family: 'Cinzel', serif; font-size: 0.88rem; color: var(--gold); font-weight: 600; }
+
+  /* ── RANKED LIST ── */
+  .ranked-list { width: 100%; border-collapse: collapse; }
+  .ranked-list th {
+    font-family: 'Cinzel', serif;
+    font-size: 0.68rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    text-align: left;
+    padding: 0.6rem 1rem;
+    border-bottom: 2px solid var(--border2);
+    background: var(--bg3);
+  }
+  .ranked-list tbody tr:nth-child(odd)  td { background: rgba(255,255,255,0.015); }
+  .ranked-list tbody tr:nth-child(even) td { background: transparent; }
+  .ranked-list td {
+    padding: 0.65rem 1rem;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.97rem;
+    vertical-align: middle;
+  }
+  .ranked-list tr:hover td { background: rgba(226,188,92,0.06) !important; }
+  .ranked-list tr:hover .player-link { color: var(--gold2); }
+  .rank-num {
+    font-family: 'Cinzel', serif;
+    color: var(--text-dim);
+    font-size: 0.82rem;
+    width: 2.2rem;
+    text-align: right;
+  }
+  .rank-num.top1 { color: #ffd700; }
+  .rank-num.top2 { color: #c0c0c0; }
+  .rank-num.top3 { color: #cd7f32; }
+
+  .player-link {
+    color: var(--name);
+    cursor: pointer;
+    transition: color 0.15s;
+    font-weight: 600;
+    font-size: 1rem;
+    letter-spacing: 0.01em;
+  }
+
+  .bar-cell { width: 32%; }
+  .bar-wrap { height: 7px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
+  .bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, var(--gold-dim), var(--gold));
+    transition: width 0.6s ease;
+  }
+  .bar-fill.purple { background: linear-gradient(90deg, #3a1a60, var(--purple2)); }
+  .bar-fill.red    { background: linear-gradient(90deg, #5a0a0a, var(--red2)); }
+
+  .val-cell { font-family: 'Cinzel', serif; font-size: 0.9rem; color: var(--gold); text-align: right; white-space: nowrap; font-weight: 600; }
+  .val-cell.purple { color: var(--purple2); }
+  .val-cell.red    { color: var(--red2); }
+
+  /* ── CHART CONTAINER ── */
+  .chart-wrap {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  /* ── TWO COLUMNS ── */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  @media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1.2rem;
+  }
+  .panel-title {
+    font-family: 'Cinzel', serif;
+    font-size: 0.75rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 1rem;
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* ── HISTORIAL CARDS ── */
+  .raid-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    margin-bottom: 0.8rem;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .raid-card:hover { border-color: var(--gold-dim); }
+
+  .raid-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.9rem 1.2rem;
+    cursor: pointer;
+    user-select: none;
+  }
+  .raid-date {
+    font-family: 'Cinzel', serif;
+    font-size: 0.85rem;
+    color: var(--gold);
+    white-space: nowrap;
+    min-width: 90px;
+  }
+  .raid-portador { flex: 1; font-size: 0.9rem; }
+  .raid-portador .label { color: var(--text-dim); font-size: 0.75rem; margin-right: 0.4rem; }
+  .raid-arrow {
+    color: var(--text-dim);
+    transition: transform 0.2s;
+    font-size: 0.8rem;
+  }
+  .raid-card.open .raid-arrow { transform: rotate(180deg); }
+
+  .raid-body {
+    display: none;
+    padding: 0 1.2rem 1.2rem;
+    border-top: 1px solid var(--border);
+  }
+  .raid-card.open .raid-body { display: block; }
+
+  .raid-body-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+  .raid-section { font-size: 0.85rem; }
+  .raid-section-title {
+    font-family: 'Cinzel', serif;
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 0.4rem;
+  }
+  .raid-section li { list-style: none; color: var(--text); padding: 0.15rem 0; }
+  .raid-section li span { color: var(--text-dim); font-size: 0.8rem; margin-left: 0.3rem; }
+  .raid-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-family: 'Cinzel', serif;
+    font-size: 0.68rem;
+    letter-spacing: 0.1em;
+    color: var(--purple2);
+    text-decoration: none;
+    margin-top: 0.8rem;
+    padding: 0.3rem 0.8rem;
+    border: 1px solid var(--purple);
+    border-radius: 2px;
+    transition: background 0.15s, box-shadow 0.15s;
+  }
+  .raid-link:hover { background: rgba(123,79,160,0.15); box-shadow: var(--glow-purple); }
+
+  /* ── PLAYER SEARCH ── */
+  .search-wrap {
+    position: relative;
+    margin-bottom: 1.5rem;
+  }
+  .search-input {
+    width: 100%;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.8rem 1rem;
+    color: var(--text-bright);
+    font-family: 'Barlow', system-ui, sans-serif;
+    font-size: 1.1rem;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .search-input:focus { border-color: var(--gold-dim); box-shadow: var(--glow-gold); }
+  .search-input::placeholder { color: var(--text-dim); font-style: italic; }
+
+  .player-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 4px 4px;
+    z-index: 20;
+    max-height: 240px;
+    overflow-y: auto;
+    display: none;
+  }
+  .player-suggestions.visible { display: block; }
+  .suggestion-item {
+    padding: 0.6rem 1rem;
+    cursor: pointer;
+    font-size: 0.95rem;
+    transition: background 0.1s;
+  }
+  .suggestion-item:hover { background: rgba(200,168,75,0.08); color: var(--gold2); }
+
+  /* ── PLAYER PROFILE ── */
+  #player-profile { display: none; }
+  #player-profile.visible { display: block; }
+
+  .profile-name {
+    font-family: 'Cinzel', serif;
+    font-size: 1.8rem;
+    font-weight: 900;
+    color: var(--gold);
+    text-shadow: var(--glow-gold);
+    margin-bottom: 0.3rem;
+  }
+  .profile-meta {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    font-style: italic;
+    margin-bottom: 2rem;
+  }
+
+  .profile-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.8rem;
+    margin-bottom: 2rem;
+  }
+  .pstat {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1rem;
+    text-align: center;
+  }
+  .pstat .plabel {
+    font-family: 'Cinzel', serif;
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 0.4rem;
+  }
+  .pstat .pval {
+    font-family: 'Cinzel', serif;
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: var(--gold);
+  }
+  .pstat .pval.purple { color: var(--purple2); }
+  .pstat .pval.red    { color: var(--red2); }
+
+  .sparkline-section { margin-bottom: 2rem; }
+  .sparkline-title {
+    font-family: 'Cinzel', serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 0.6rem;
+  }
+
+  .raid-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+  }
+  .raid-table th {
+    font-family: 'Cinzel', serif;
+    font-size: 0.65rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    padding: 0.6rem 0.8rem;
+    background: var(--bg3);
+    text-align: left;
+    border-bottom: 2px solid var(--border2);
+  }
+  .raid-table tbody tr:nth-child(odd) td { background: rgba(255,255,255,0.015); }
+  .raid-table td {
+    padding: 0.55rem 0.8rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+  }
+  .raid-table tr:last-child td { border-bottom: none; }
+  .raid-table tr:hover td { background: rgba(255,255,255,0.02); }
+  .td-gold { color: var(--gold); font-family: 'Cinzel', serif; font-size: 0.82rem; }
+  .td-purple { color: var(--purple2); font-family: 'Cinzel', serif; font-size: 0.82rem; }
+  .td-red { color: var(--red2); font-family: 'Cinzel', serif; font-size: 0.82rem; }
+  .td-dim { color: var(--text-dim); font-size: 0.82rem; }
+
+  /* ── SHAME BADGE ── */
+  .shame-badge {
+    display: inline-block;
+    background: rgba(176,48,48,0.2);
+    border: 1px solid var(--red);
+    color: var(--red2);
+    font-family: 'Cinzel', serif;
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    padding: 0.15rem 0.5rem;
+    border-radius: 2px;
+    text-transform: uppercase;
+    vertical-align: middle;
+    margin-left: 0.4rem;
+  }
+
+  /* ── EMPTY ── */
+  .empty-msg {
+    text-align: center;
+    color: var(--text-dim);
+    font-style: italic;
+    padding: 3rem;
+    font-size: 0.95rem;
+  }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--gold-dim); }
+</style>
+</head>
+<body>
+
+<!-- LOADER -->
+<div id="loader">
+  <div class="ornament">— ✦ —</div>
+  <div class="loader-title">La Resaca de Gruul</div>
+  <div class="loader-subtitle">Archivo de Desgracias y Deshonor</div>
+  <div id="drop-zone">
+    <div class="drop-icon">📜</div>
+    <div class="drop-text">Cargar historial.json</div>
+    <div class="drop-hint">Arrastra el archivo o haz clic</div>
+    <input type="file" id="file-input" accept=".json">
+  </div>
+  <div class="ornament">— ✦ —</div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <header>
+    <div class="header-title">La Resaca de Gruul</div>
+    <div class="header-sub">Archivo de Desgracias y Deshonor</div>
+    <div class="header-meta" id="header-meta"></div>
+  </header>
+
+  <nav id="nav">
+    <button class="tab-btn active" data-tab="resumen">Resumen</button>
+    <button class="tab-btn" data-tab="ff">Friendly Fire</button>
+    <button class="tab-btn" data-tab="muertes">Muertes</button>
+    <button class="tab-btn" data-tab="mecanicas">Mecánicas</button>
+    <button class="tab-btn" data-tab="historial">Historial</button>
+    <button class="tab-btn" data-tab="jugador">Jugador</button>
+  </nav>
+
+  <!-- RESUMEN -->
+  <div class="tab-content active" id="tab-resumen">
+    <div class="stat-cards" id="stat-cards"></div>
+    <div class="podiums-grid" id="podiums"></div>
+  </div>
+
+  <!-- FRIENDLY FIRE -->
+  <div class="tab-content" id="tab-ff">
+    <div class="chart-wrap"><canvas id="chart-ff" height="320"></canvas></div>
+    <div class="section-title">Ranking Acumulado</div>
+    <table class="ranked-list" id="table-ff"></table>
+  </div>
+
+  <!-- MUERTES -->
+  <div class="tab-content" id="tab-muertes">
+    <div class="two-col">
+      <div>
+        <div class="section-title">Muertes Totales</div>
+        <table class="ranked-list" id="table-deaths"></table>
+      </div>
+      <div>
+        <div class="section-title">Tiempo Muerto</div>
+        <table class="ranked-list" id="table-timedead"></table>
+      </div>
+    </div>
+    <div class="section-title">Primero en Morir</div>
+    <div class="panel" style="max-width:420px">
+      <table class="ranked-list" id="table-firstdie"></table>
+    </div>
+  </div>
+
+  <!-- MECÁNICAS -->
+  <div class="tab-content" id="tab-mecanicas">
+    <div class="two-col">
+      <div>
+        <div class="section-title">Interrupts</div>
+        <table class="ranked-list" id="table-interrupts"></table>
+      </div>
+      <div>
+        <div class="section-title">Dispels</div>
+        <table class="ranked-list" id="table-dispels"></table>
+      </div>
+    </div>
+  </div>
+
+  <!-- HISTORIAL -->
+  <div class="tab-content" id="tab-historial">
+    <div id="raid-list"></div>
+  </div>
+
+  <!-- JUGADOR -->
+  <div class="tab-content" id="tab-jugador">
+    <div class="search-wrap">
+      <input type="text" class="search-input" id="player-search" placeholder="Buscar jugador...">
+      <div class="player-suggestions" id="player-suggestions"></div>
+    </div>
+    <div id="player-profile"></div>
+    <div id="player-empty" class="empty-msg">Escribe un nombre para ver el perfil del jugador.</div>
+  </div>
+</div>
+
+<script>
+let DATA = [];
+let ALL_PLAYERS = [];
+let ffChartInstance = null;
+
+// ── FILE LOADING ──────────────────────────────────────────────────────────────
+
+const dropZone  = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+
+// Intento automático: si el bot generó historial.js en la misma carpeta,
+// lo habrá inyectado como window.__HISTORIAL__ via <script src="historial.js">
+if (Array.isArray(window.__HISTORIAL__)) {
+  DATA = window.__HISTORIAL__;
+  document.addEventListener('DOMContentLoaded', initDashboard);
+}
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) readFile(file);
+});
+fileInput.addEventListener('change', e => { if (e.target.files[0]) readFile(e.target.files[0]); });
+
+function readFile(file) {
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      DATA = JSON.parse(ev.target.result);
+      if (!Array.isArray(DATA)) throw new Error('Formato inválido');
+      initDashboard();
+    } catch(err) {
+      alert('Error al leer el archivo: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+
+function initDashboard() {
+  document.getElementById('loader').classList.add('hidden');
+  document.getElementById('app').classList.add('visible');
+
+  // Collect all players
+  const playerSet = new Set();
+  DATA.forEach(r => (r.roster ?? []).forEach(n => playerSet.add(n)));
+  ALL_PLAYERS = Array.from(playerSet).sort();
+
+  buildHeaderMeta();
+  buildResumen();
+  buildFF();
+  buildMuertes();
+  buildMecanicas();
+  buildHistorial();
+  setupJugador();
+}
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+
+function fmtDmg(n) {
+  if (n >= 1_000_000) return (n/1_000_000).toFixed(1) + 'M';
+  if (n >= 1_000)     return (n/1_000).toFixed(1) + 'k';
+  return String(n);
+}
+
+function fmtMs(ms) {
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  const rem = s % 60;
+  return `${m}m ${String(rem).padStart(2,'0')}s`;
+}
+
+function fmtDate(d) {
+  const [y, mo, day] = d.split('-');
+  return `${day}/${mo}/${y}`;
+}
+
+function rankClass(i) {
+  return i === 0 ? 'top1' : i === 1 ? 'top2' : i === 2 ? 'top3' : '';
+}
+function medalEmoji(i) {
+  return i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}.`;
+}
+
+function makeBar(pct, cls='') {
+  return `<div class="bar-wrap"><div class="bar-fill ${cls}" style="width:${pct}%"></div></div>`;
+}
+
+function aggregateMap(field, key) {
+  const m = new Map();
+  DATA.forEach(r => {
+    (r[field] ?? []).forEach(e => {
+      m.set(e[key] ?? e.name, (m.get(e[key] ?? e.name) ?? 0) + (e.damage ?? e.count ?? e.total ?? e.ms ?? 0));
+    });
+  });
+  return Array.from(m.entries()).map(([name,val]) => ({name,val})).sort((a,b) => b.val - a.val);
+}
+
+function calcShame() {
+  const scores = new Map();
+  DATA.forEach(raid => {
+    const participants = raid.roster ? new Set(raid.roster)
+      : new Set([...raid.leaderboard.map(e=>e.name), ...(raid.deathStats?.deaths??[]).map(e=>e.name), ...(raid.deathStats?.timeDead??[]).map(e=>e.name)]);
+    const n = participants.size;
+    if (n <= 1) return;
+    const pct = (list, name) => {
+      const idx = list.findIndex(e => e.name === name);
+      return idx === -1 ? 0 : (n - 1 - idx) / (n - 1);
+    };
+    for (const name of participants) {
+      const avg = (pct(raid.leaderboard, name) + pct(raid.deathStats?.deaths??[], name) + pct(raid.deathStats?.timeDead??[], name)) / 3;
+      const curr = scores.get(name) ?? {total:0, count:0};
+      scores.set(name, {total: curr.total + avg, count: curr.count + 1});
+    }
+  });
+  const minRaids = Math.max(1, Math.ceil(DATA.length * 0.3));
+  return Array.from(scores.entries())
+    .filter(([,v]) => v.count >= minRaids)
+    .map(([name,{total,count}]) => ({name, score: total/count, count}))
+    .sort((a,b) => b.score - a.score);
+}
+
+// ── HEADER META ───────────────────────────────────────────────────────────────
+
+function buildHeaderMeta() {
+  const lastDate = DATA.length ? fmtDate(DATA[DATA.length-1].fecha) : '-';
+  document.getElementById('header-meta').innerHTML =
+    `<span>${DATA.length}</span> raids registradas · Última: <span>${lastDate}</span> · <span>${ALL_PLAYERS.length}</span> jugadores en total`;
+}
+
+// ── RESUMEN ───────────────────────────────────────────────────────────────────
+
+function buildResumen() {
+  const totalFF = DATA.reduce((s,r) => s + r.leaderboard.reduce((ss,e) => ss + e.damage, 0), 0);
+  const portCount = new Map();
+  DATA.forEach(r => { if (r.leaderboard[0]) { const n = r.leaderboard[0].name; portCount.set(n, (portCount.get(n)??0)+1); } });
+  const topPort = [...portCount.entries()].sort((a,b)=>b[1]-a[1])[0];
+
+  document.getElementById('stat-cards').innerHTML = `
+    <div class="stat-card">
+      <div class="label">Raids Registradas</div>
+      <div class="value">${DATA.length}</div>
+      <div class="sub">kill de Gruul</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Jugadores</div>
+      <div class="value purple">${ALL_PLAYERS.length}</div>
+      <div class="sub">han pisado la raid</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Fuego Amigo Total</div>
+      <div class="value">${fmtDmg(totalFF)}</div>
+      <div class="sub">daño a aliados acumulado</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Rey de la Resaca</div>
+      <div class="value red" style="font-size:1.3rem">${topPort ? topPort[0] : '-'}</div>
+      <div class="sub">${topPort ? topPort[1] + ' veces #1 en FF' : ''}</div>
+    </div>
+  `;
+
+  const ffPodio    = aggregateMap('leaderboard', 'name').slice(0,3);
+  const deathPodio = aggregateMap('deathStats.deaths','name');  // special handling below
+  const dMap = new Map();
+  DATA.forEach(r => (r.deathStats?.deaths??[]).forEach(e => dMap.set(e.name,(dMap.get(e.name)??0)+e.count)));
+  const deathArr = [...dMap.entries()].map(([name,val])=>({name,val})).sort((a,b)=>b.val-a.val).slice(0,3);
+  const shame = calcShame().slice(0,3);
+
+  const podiumHTML = (title, arr, valFn) => `
+    <div class="podium-card">
+      <div class="podium-title">${title}</div>
+      ${arr.map((e,i) => `<div class="podium-entry">
+        <span class="medal">${medalEmoji(i)}</span>
+        <span class="podium-name player-link" data-player="${e.name}">${e.name}</span>
+        <span class="podium-val">${valFn(e)}</span>
+      </div>`).join('')}
+    </div>`;
+
+  document.getElementById('podiums').innerHTML =
+    podiumHTML('Podio Friendly Fire', ffPodio, e => fmtDmg(e.val)) +
+    podiumHTML('Podio Muertes', deathArr, e => e.val + ' muertes') +
+    podiumHTML('Podio Vergüenza', shame, e => (e.score*100).toFixed(0)+'% vergüenza');
+
+  document.querySelectorAll('.player-link').forEach(el => {
+    el.addEventListener('click', () => openPlayer(el.dataset.player));
+  });
+}
+
+// ── FRIENDLY FIRE ─────────────────────────────────────────────────────────────
+
+function buildFF() {
+  const data = aggregateMap('leaderboard', 'name');
+  const max  = data[0]?.val ?? 1;
+
+  // Chart
+  const top10 = data.slice(0, 10);
+  const ctx = document.getElementById('chart-ff').getContext('2d');
+  if (ffChartInstance) ffChartInstance.destroy();
+  Chart.register(ChartDataLabels);
+  ffChartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: top10.map(e => e.name),
+      datasets: [{
+        label: 'Daño a aliados',
+        data: top10.map(e => e.val),
+        backgroundColor: top10.map((_,i) => i === 0 ? 'rgba(226,188,92,0.85)' : 'rgba(226,188,92,0.35)'),
+        borderColor: 'rgba(226,188,92,0.6)',
+        borderWidth: 1,
+        borderRadius: 3,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: { enabled: false },
+        datalabels: {
+          anchor: 'end',
+          align: 'end',
+          color: '#e2bc5c',
+          font: { family: 'Cinzel, serif', size: 12, weight: '600' },
+          formatter: v => fmtDmg(v),
+          clamp: true,
+        }
+      },
+      layout: { padding: { right: 54 } },
+      scales: {
+        x: {
+          ticks: { color: '#7a84a0', callback: v => fmtDmg(v), font: { size: 11 } },
+          grid: { color: 'rgba(255,255,255,0.05)' }
+        },
+        y: { ticks: { color: '#e8eaf2', font: { size: 13 } }, grid: { display: false } }
+      }
+    }
+  });
+
+  // Table
+  const tbl = document.getElementById('table-ff');
+  tbl.innerHTML = `<thead><tr><th></th><th>Jugador</th><th class="bar-cell"></th><th>Daño</th></tr></thead><tbody>
+    ${data.map((e,i) => `<tr>
+      <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
+      <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
+      <td class="bar-cell">${makeBar(e.val/max*100)}</td>
+      <td class="val-cell">${fmtDmg(e.val)}</td>
+    </tr>`).join('')}
+  </tbody>`;
+  tbl.querySelectorAll('.player-link').forEach(el => el.addEventListener('click', () => openPlayer(el.dataset.player)));
+}
+
+// ── MUERTES ───────────────────────────────────────────────────────────────────
+
+function buildMuertes() {
+  const dMap = new Map(), tMap = new Map(), fMap = new Map();
+  DATA.forEach(r => {
+    (r.deathStats?.deaths??[]).forEach(e => dMap.set(e.name,(dMap.get(e.name)??0)+e.count));
+    (r.deathStats?.timeDead??[]).forEach(e => tMap.set(e.name,(tMap.get(e.name)??0)+e.ms));
+    const f = r.deathStats?.firstToDie?.name;
+    if (f) fMap.set(f,(fMap.get(f)??0)+1);
+  });
+
+  const deaths = [...dMap.entries()].map(([name,val])=>({name,val})).sort((a,b)=>b.val-a.val);
+  const tdead  = [...tMap.entries()].map(([name,val])=>({name,val})).sort((a,b)=>b.val-a.val);
+  const first  = [...fMap.entries()].map(([name,val])=>({name,val})).sort((a,b)=>b.val-a.val);
+
+  const maxD = deaths[0]?.val ?? 1;
+  const maxT = tdead[0]?.val  ?? 1;
+  const maxF = first[0]?.val  ?? 1;
+
+  const mkTable = (id, arr, valFn, cls) => {
+    const el = document.getElementById(id);
+    el.innerHTML = `<thead><tr><th></th><th>Jugador</th><th class="bar-cell"></th><th>Total</th></tr></thead><tbody>
+      ${arr.map((e,i)=>`<tr>
+        <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
+        <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
+        <td class="bar-cell">${makeBar(e.val/Math.max(...arr.map(x=>x.val))*100, cls)}</td>
+        <td class="val-cell ${cls}">${valFn(e)}</td>
+      </tr>`).join('')}
+    </tbody>`;
+    el.querySelectorAll('.player-link').forEach(el2 => el2.addEventListener('click', () => openPlayer(el2.dataset.player)));
+  };
+
+  mkTable('table-deaths',  deaths, e => e.val + ' ×', 'red');
+  mkTable('table-timedead',tdead,  e => fmtMs(e.val), 'purple');
+
+  const fd = document.getElementById('table-firstdie');
+  fd.innerHTML = `<thead><tr><th></th><th>Jugador</th><th class="bar-cell"></th><th>Veces</th></tr></thead><tbody>
+    ${first.map((e,i)=>`<tr>
+      <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
+      <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
+      <td class="bar-cell">${makeBar(e.val/maxF*100,'red')}</td>
+      <td class="val-cell red">${e.val} ×</td>
+    </tr>`).join('')}
+  </tbody>`;
+  fd.querySelectorAll('.player-link').forEach(el => el.addEventListener('click', () => openPlayer(el.dataset.player)));
+}
+
+// ── MECÁNICAS ─────────────────────────────────────────────────────────────────
+
+function buildMecanicas() {
+  const intMap = new Map(), disMap = new Map();
+  DATA.forEach(r => {
+    (r.interrupts??[]).forEach(e => intMap.set(e.name,(intMap.get(e.name)??0)+e.total));
+    (r.dispels??[]).forEach(e => disMap.set(e.name,(disMap.get(e.name)??0)+e.total));
+  });
+
+  const ints = [...intMap.entries()].map(([name,val])=>({name,val})).sort((a,b)=>b.val-a.val);
+  const disp = [...disMap.entries()].map(([name,val])=>({name,val})).sort((a,b)=>b.val-a.val);
+
+  const mkTable = (id, arr) => {
+    const el = document.getElementById(id);
+    if (!arr.length) { el.innerHTML = '<tr><td colspan="4" class="empty-msg">Sin datos</td></tr>'; return; }
+    const maxV = arr[0].val;
+    el.innerHTML = `<thead><tr><th></th><th>Jugador</th><th class="bar-cell"></th><th>Total</th></tr></thead><tbody>
+      ${arr.map((e,i)=>`<tr>
+        <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
+        <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
+        <td class="bar-cell">${makeBar(e.val/maxV*100,'purple')}</td>
+        <td class="val-cell purple">${e.val}</td>
+      </tr>`).join('')}
+    </tbody>`;
+    el.querySelectorAll('.player-link').forEach(el2 => el2.addEventListener('click', () => openPlayer(el2.dataset.player)));
+  };
+  mkTable('table-interrupts', ints);
+  mkTable('table-dispels', disp);
+}
+
+// ── HISTORIAL ─────────────────────────────────────────────────────────────────
+
+function buildHistorial() {
+  const container = document.getElementById('raid-list');
+  if (!DATA.length) { container.innerHTML = '<div class="empty-msg">No hay raids registradas.</div>'; return; }
+
+  container.innerHTML = [...DATA].reverse().map((r, i) => {
+    const port    = r.leaderboard[0];
+    const fd      = r.deathStats?.firstToDie?.name ?? '—';
+    const top3d   = (r.deathStats?.deaths??[]).slice(0,3);
+    const top3int = (r.interrupts??[]).slice(0,3);
+    const top3dis = (r.dispels??[]).slice(0,3);
+
+    const miniList = (arr, valFn) => arr.length
+      ? `<ul>${arr.map(e=>`<li>${e.name}<span>${valFn(e)}</span></li>`).join('')}</ul>`
+      : '<span style="color:var(--text-dim);font-style:italic">—</span>';
+
+    return `<div class="raid-card" id="rcard-${i}">
+      <div class="raid-header" onclick="toggleRaid('rcard-${i}')">
+        <span class="raid-date">${fmtDate(r.fecha)}</span>
+        <span class="raid-portador"><span class="label">Resaca:</span><strong>${port ? port.name : '—'}</strong>${port ? `<span style="color:var(--text-dim);font-size:.8rem;margin-left:.4rem">(${fmtDmg(port.damage)})</span>` : ''}</span>
+        <span class="raid-arrow">▼</span>
+      </div>
+      <div class="raid-body">
+        <div class="raid-body-grid">
+          <div class="raid-section">
+            <div class="raid-section-title">Muertes Top 3</div>
+            ${miniList(top3d, e => e.count+'×')}
+          </div>
+          <div class="raid-section">
+            <div class="raid-section-title">Primero en Morir</div>
+            <ul><li>${fd}</li></ul>
+          </div>
+          <div class="raid-section">
+            <div class="raid-section-title">Interrupts Top 3</div>
+            ${miniList(top3int, e => e.total)}
+          </div>
+          <div class="raid-section">
+            <div class="raid-section-title">Dispels Top 3</div>
+            ${miniList(top3dis, e => e.total)}
+          </div>
+          <div class="raid-section">
+            <div class="raid-section-title">Roster</div>
+            <span style="color:var(--text-dim);font-size:.8rem">${(r.roster??[]).join(', ') || '—'}</span>
+          </div>
+        </div>
+        <a class="raid-link" href="https://fresh.warcraftlogs.com/reports/${r.report}" target="_blank">↗ Ver en WarcraftLogs</a>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleRaid(id) {
+  document.getElementById(id).classList.toggle('open');
+}
+
+// ── JUGADOR ───────────────────────────────────────────────────────────────────
+
+function setupJugador() {
+  const input = document.getElementById('player-search');
+  const sugg  = document.getElementById('player-suggestions');
+
+  input.addEventListener('input', () => {
+    const q = input.value.trim().toLowerCase();
+    if (!q) { sugg.classList.remove('visible'); return; }
+    const matches = ALL_PLAYERS.filter(p => p.toLowerCase().includes(q)).slice(0, 12);
+    if (!matches.length) { sugg.classList.remove('visible'); return; }
+    sugg.innerHTML = matches.map(p => `<div class="suggestion-item" data-player="${p}">${p}</div>`).join('');
+    sugg.classList.add('visible');
+    sugg.querySelectorAll('.suggestion-item').forEach(el => {
+      el.addEventListener('click', () => {
+        input.value = el.dataset.player;
+        sugg.classList.remove('visible');
+        openPlayer(el.dataset.player);
+      });
+    });
+  });
+
+  document.addEventListener('click', e => { if (!input.contains(e.target) && !sugg.contains(e.target)) sugg.classList.remove('visible'); });
+}
+
+function openPlayer(name) {
+  // Switch to jugador tab
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === 'jugador'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === 'tab-jugador'));
+
+  document.getElementById('player-search').value = name;
+  document.getElementById('player-suggestions').classList.remove('visible');
+  document.getElementById('player-empty').style.display = 'none';
+
+  const raidsAttended = DATA.filter(r => (r.roster ?? [...r.leaderboard.map(e=>e.name), ...(r.deathStats?.deaths??[]).map(e=>e.name)]).includes(name));
+
+  let totalFF = 0, totalDeaths = 0, totalTimeDead = 0, totalInts = 0, totalDisp = 0, portadorCount = 0, firstCount = 0;
+
+  const rows = raidsAttended.map(r => {
+    const ffEntry  = r.leaderboard.find(e => e.name === name);
+    const dEntry   = r.deathStats?.deaths?.find(e => e.name === name);
+    const tEntry   = r.deathStats?.timeDead?.find(e => e.name === name);
+    const intEntry = r.interrupts?.find(e => e.name === name);
+    const disEntry = r.dispels?.find(e => e.name === name);
+    const isPort   = r.leaderboard[0]?.name === name;
+    const isFirst  = r.deathStats?.firstToDie?.name === name;
+
+    const ff  = ffEntry?.damage ?? 0;
+    const d   = dEntry?.count ?? 0;
+    const td  = tEntry?.ms ?? 0;
+    const int = intEntry?.total ?? 0;
+    const dis = disEntry?.total ?? 0;
+
+    totalFF += ff; totalDeaths += d; totalTimeDead += td; totalInts += int; totalDisp += dis;
+    if (isPort) portadorCount++;
+    if (isFirst) firstCount++;
+
+    return { fecha: r.fecha, ff, d, td, int, dis, isPort, isFirst };
+  });
+
+  const profile = document.getElementById('player-profile');
+  profile.className = 'visible';
+  profile.innerHTML = `
+    <div class="profile-name">${name}</div>
+    <div class="profile-meta">${raidsAttended.length} raids · ${portadorCount ? portadorCount + '× portador de la resaca' : 'nunca portador'} · ${firstCount ? firstCount + '× primero en morir' : ''}</div>
+    <div class="profile-stats">
+      <div class="pstat"><div class="plabel">Raids</div><div class="pval purple">${raidsAttended.length}</div></div>
+      <div class="pstat"><div class="plabel">Fuego Amigo</div><div class="pval">${fmtDmg(totalFF)}</div></div>
+      <div class="pstat"><div class="plabel">Muertes</div><div class="pval red">${totalDeaths}</div></div>
+      <div class="pstat"><div class="plabel">Tiempo Muerto</div><div class="pval red">${fmtMs(totalTimeDead)}</div></div>
+      <div class="pstat"><div class="plabel">Interrupts</div><div class="pval purple">${totalInts}</div></div>
+      <div class="pstat"><div class="plabel">Dispels</div><div class="pval purple">${totalDisp}</div></div>
+    </div>
+
+    <div class="section-title">Histórico por Raid</div>
+    <table class="raid-table">
+      <thead><tr>
+        <th>Fecha</th>
+        <th>FF Daño</th>
+        <th>Muertes</th>
+        <th>T. Muerto</th>
+        <th>Interrupts</th>
+        <th>Dispels</th>
+        <th></th>
+      </tr></thead>
+      <tbody>
+        ${rows.map(r => `<tr>
+          <td class="td-gold">${fmtDate(r.fecha)}</td>
+          <td class="td-gold">${r.ff ? fmtDmg(r.ff) : '<span class="td-dim">—</span>'} ${r.isPort ? '<span class="shame-badge">resaca</span>' : ''}</td>
+          <td class="td-red">${r.d || '<span class="td-dim">0</span>'} ${r.isFirst ? '<span class="shame-badge">1º</span>' : ''}</td>
+          <td class="td-red">${r.td ? fmtMs(r.td) : '<span class="td-dim">—</span>'}</td>
+          <td class="td-purple">${r.int || '<span class="td-dim">0</span>'}</td>
+          <td class="td-purple">${r.dis || '<span class="td-dim">0</span>'}</td>
+          <td></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+// ── TAB NAVIGATION ────────────────────────────────────────────────────────────
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+</script>
+</body>
+</html>
