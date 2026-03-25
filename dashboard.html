@@ -1006,10 +1006,27 @@ function buildHistorial() {
     const top3d   = (r.deathStats?.deaths??[]).slice(0,3);
     const top3int = (r.interrupts??[]).slice(0,3);
     const top3dis = (r.dispels??[]).slice(0,3);
+    const bh      = r.biggestHits;
 
     const miniList = (arr, valFn) => arr.length
       ? `<ul>${arr.map(e=>`<li>${e.name}<span>${valFn(e)}</span></li>`).join('')}</ul>`
       : '<span style="color:var(--text-dim);font-style:italic">—</span>';
+
+    const hitsHtml = bh ? `
+          <div class="raid-section">
+            <div class="raid-section-title">💥 Golpe más fuerte recibido</div>
+            <ul>
+              <li>${bh.biggestReceived?.victima ?? '—'}<span>${fmtDmg(bh.biggestReceived?.amount ?? 0)}</span></li>
+              <li style="color:var(--text-dim);font-size:.8rem">por ${bh.biggestReceived?.agresor ?? '—'}</li>
+            </ul>
+          </div>
+          <div class="raid-section">
+            <div class="raid-section-title">⚔️ Golpe más fuerte dado</div>
+            <ul>
+              <li>${bh.biggestDealt?.heroe ?? '—'}<span>${fmtDmg(bh.biggestDealt?.amount ?? 0)}</span></li>
+              <li style="color:var(--text-dim);font-size:.8rem">a ${bh.biggestDealt?.objetivo ?? '—'}</li>
+            </ul>
+          </div>` : '';
 
     return `<div class="raid-card" id="rcard-${i}">
       <div class="raid-header" onclick="toggleRaid('rcard-${i}')">
@@ -1035,6 +1052,7 @@ function buildHistorial() {
             <div class="raid-section-title">Dispels Top 3</div>
             ${miniList(top3dis, e => e.total)}
           </div>
+          ${hitsHtml}
           <div class="raid-section">
             <div class="raid-section-title">Roster</div>
             <span style="color:var(--text-dim);font-size:.8rem">${(r.roster??[]).join(', ') || '—'}</span>
