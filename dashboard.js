@@ -241,6 +241,23 @@ function calcGlobalRecords() {
   return { biggestHit, biggestHeal, biggestReceived };
 }
 
+function raidCountMap() {
+  const m = new Map();
+  DATA.forEach(r => {
+    const players = r.roster
+      ? new Set(r.roster)
+      : new Set([
+          ...r.leaderboard.map(e => e.name),
+          ...(r.deathStats?.deaths ?? []).map(e => e.name),
+          ...(r.deathStats?.timeDead ?? []).map(e => e.name),
+          ...(r.interrupts ?? []).map(e => e.name),
+          ...(r.dispels ?? []).map(e => e.name),
+        ]);
+    players.forEach(name => m.set(name, (m.get(name) ?? 0) + 1));
+  });
+  return m;
+}
+
 // ── FRIENDLY FIRE ─────────────────────────────────────────────────────────────
 
 function buildFF() {
@@ -282,13 +299,15 @@ function buildFF() {
   `;
 
   // Table
+  const rcMap = raidCountMap();
   const tbl = document.getElementById('table-ff');
-  tbl.innerHTML = `<thead><tr><th></th><th>Jugador</th><th class="bar-cell"></th><th>Daño</th></tr></thead><tbody>
+  tbl.innerHTML = `<thead><tr><th></th><th>Jugador</th><th class="bar-cell"></th><th>Daño</th><th>Raids</th></tr></thead><tbody>
     ${data.map((e,i) => `<tr>
       <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
       <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
       <td class="bar-cell">${makeBar(e.val/max*100)}</td>
       <td class="val-cell">${fmtDmg(e.val)}</td>
+      <td class="td-dim">${rcMap.get(e.name) ?? '—'}</td>
     </tr>`).join('')}
   </tbody>`;
   tbl.querySelectorAll('.player-link').forEach(el => el.addEventListener('click', () => openPlayer(el.dataset.player)));
@@ -342,14 +361,16 @@ function buildMuertes() {
 
   const maxF = first[0]?.val  ?? 1;
 
+  const rcMap = raidCountMap();
   const mkTable = (id, arr, valFn, cls) => {
     const el = document.getElementById(id);
-    el.innerHTML = `<thead><tr><th></th><th>Jugador</th><th class="bar-cell"></th><th>Total</th></tr></thead><tbody>
+    el.innerHTML = `<thead><tr><th></th><th>Jugador</th><th class="bar-cell"></th><th>Total</th><th>Raids</th></tr></thead><tbody>
       ${arr.map((e,i)=>`<tr>
         <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
         <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
         <td class="bar-cell">${makeBar(e.val/Math.max(...arr.map(x=>x.val))*100, cls)}</td>
         <td class="val-cell ${cls}">${valFn(e)}</td>
+        <td class="td-dim">${rcMap.get(e.name) ?? '—'}</td>
       </tr>`).join('')}
     </tbody>`;
     el.querySelectorAll('.player-link').forEach(el2 => el2.addEventListener('click', () => openPlayer(el2.dataset.player)));
@@ -382,16 +403,18 @@ function buildMecanicas() {
   const ints = [...intMap.entries()].map(([name,val])=>({name,val})).sort((a,b)=>b.val-a.val);
   const disp = [...disMap.entries()].map(([name,val])=>({name,val})).sort((a,b)=>b.val-a.val);
 
+  const rcMap = raidCountMap();
   const mkTable = (id, arr) => {
     const el = document.getElementById(id);
-    if (!arr.length) { el.innerHTML = '<tr><td colspan="4" class="empty-msg">Sin datos</td></tr>'; return; }
+    if (!arr.length) { el.innerHTML = '<tr><td colspan="5" class="empty-msg">Sin datos</td></tr>'; return; }
     const maxV = arr[0].val;
-    el.innerHTML = `<thead><tr><th></th><th>Jugador</th><th class="bar-cell"></th><th>Total</th></tr></thead><tbody>
+    el.innerHTML = `<thead><tr><th></th><th>Jugador</th><th class="bar-cell"></th><th>Total</th><th>Raids</th></tr></thead><tbody>
       ${arr.map((e,i)=>`<tr>
         <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
         <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
         <td class="bar-cell">${makeBar(e.val/maxV*100,'purple')}</td>
         <td class="val-cell purple">${e.val}</td>
+        <td class="td-dim">${rcMap.get(e.name) ?? '—'}</td>
       </tr>`).join('')}
     </tbody>`;
     el.querySelectorAll('.player-link').forEach(el2 => el2.addEventListener('click', () => openPlayer(el2.dataset.player)));
