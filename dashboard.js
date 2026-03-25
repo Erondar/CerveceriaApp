@@ -445,7 +445,7 @@ function buildHistorial() {
       : `<span class="time-normal">${fmtMs(ms)}</span>`;
   };
 
-  const rows = [...DATA].map(r => {
+  const rows = [...DATA].sort((a,b) => new Date(b.fecha) - new Date(a.fecha)).map(r => {
     const bs          = r.bossStats;
     const port        = r.leaderboard[0];
     const fd          = r.deathStats?.firstToDie?.name ?? '—';
