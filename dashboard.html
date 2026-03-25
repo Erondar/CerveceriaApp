@@ -944,7 +944,7 @@ function buildResumen() {
     <div class="records-grid">
       ${recCard('⚔️', 'Golpe más fuerte', records.biggestHit, r => r.heroe, r => r.objetivo)}
       ${recCard('💚', 'Curación más gorda', records.biggestHeal, r => r.healer, r => r.target)}
-      ${recCard('💀', 'Golpe más bestia recibido', records.biggestReceived, r => r.victima, r => r.agresor)}
+      ${recCard('💀', 'Golpe más bestia recibido', records.biggestReceived, r => r.agresor, r => r.victima)}
     </div>
   `;
   recEl.querySelectorAll('.record-link').forEach(el => el.addEventListener('click', () => openPlayer(el.dataset.player)));
@@ -1230,7 +1230,7 @@ function openPlayer(name) {
     <div class="records-grid" style="margin-bottom:1.5rem">
       ${prHit ? `<div class="record-card"><div class="record-icon">⚔️</div><div class="record-label">Mayor golpe dado</div><div class="record-amount">${fmtDmg(prHit.amount)}</div><div class="record-who">→ ${prHit.target}</div><div class="record-date">${fmtDate(prHit.fecha)}</div></div>` : ''}
       ${prHeal ? `<div class="record-card"><div class="record-icon">💚</div><div class="record-label">Mayor curación</div><div class="record-amount">${fmtDmg(prHeal.amount)}</div><div class="record-who">→ ${prHeal.target}</div><div class="record-date">${fmtDate(prHeal.fecha)}</div></div>` : ''}
-      ${prReceived ? `<div class="record-card"><div class="record-icon">💀</div><div class="record-label">Mayor golpe recibido</div><div class="record-amount">${fmtDmg(prReceived.amount)}</div><div class="record-who">← ${prReceived.source}</div><div class="record-date">${fmtDate(prReceived.fecha)}</div></div>` : ''}
+      ${prReceived ? `<div class="record-card"><div class="record-icon">💀</div><div class="record-label">Mayor golpe recibido</div><div class="record-amount">${fmtDmg(prReceived.amount)}</div><div class="record-who">${prReceived.source} → ${name}</div><div class="record-date">${fmtDate(prReceived.fecha)}</div></div>` : ''}
     </div>` : ''}
 
     <div class="section-title">Histórico por Raid</div>
