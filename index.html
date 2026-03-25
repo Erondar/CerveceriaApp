@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<title>La Resaca de Gruul — Dashboard</title>
+<!-- Datos: generado automáticamente por el bot junto a historial.json -->
+<script src="historial.js" onerror="void 0"></script>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;900&family=Barlow:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="dashboard.css">
+<script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: false};</script>
+<script src="https://wow.zamimg.com/widgets/power.js"></script>
+</head>
+<body>
+
+<!-- LOADER -->
+<div id="loader">
+  <div class="ornament">— ✦ —</div>
+  <div class="loader-title">La Resaca de Gruul</div>
+  <div class="loader-subtitle">Archivo de Desgracias y Deshonor</div>
+  <div id="drop-zone">
+    <div class="drop-icon">📜</div>
+    <div class="drop-text">Cargar historial.json</div>
+    <div class="drop-hint">Arrastra el archivo o haz clic</div>
+    <input type="file" id="file-input" accept=".json">
+  </div>
+  <div class="ornament">— ✦ —</div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <header>
+    <div class="header-title">La Resaca de Gruul</div>
+    <div class="header-sub">Archivo de Desgracias y Deshonor · Raids 25 · Fase 1 TBC</div>
+    <div class="header-meta" id="header-meta"></div>
+  </header>
+
+  <nav id="nav">
+    <button class="tab-btn active" data-tab="resumen">Resumen</button>
+    <button class="tab-btn" data-tab="ff">Friendly Fire</button>
+    <button class="tab-btn" data-tab="muertes">Muertes</button>
+    <button class="tab-btn" data-tab="mecanicas">Mecánicas</button>
+    <button class="tab-btn" data-tab="historial">Historial</button>
+    <button class="tab-btn" data-tab="verguenza">Vergüenza</button>
+    <button class="tab-btn" data-tab="jugador">Jugador</button>
+    <div class="nav-separator"></div>
+    <button class="tab-btn" data-tab="loot-resumen">Loot — Resumen</button>
+    <button class="tab-btn" data-tab="loot-registro">Loot — Registro</button>
+  </nav>
+
+  <!-- RESUMEN -->
+  <div class="tab-content active" id="tab-resumen">
+    <div class="stat-cards" id="stat-cards"></div>
+    <div class="podiums-grid" id="podiums"></div>
+    <div id="global-records"></div>
+  </div>
+
+  <!-- FRIENDLY FIRE -->
+  <div class="tab-content" id="tab-ff">
+    <div class="section-title">Ranking Acumulado</div>
+    <div class="section-note">Solo daño a aliados en el combate de Gruul</div>
+    <table class="ranked-list" id="table-ff"></table>
+  </div>
+
+  <!-- MUERTES -->
+  <div class="tab-content" id="tab-muertes">
+    <div class="two-col">
+      <div>
+        <div class="section-title">Muertes Totales</div>
+        <table class="ranked-list" id="table-deaths"></table>
+      </div>
+      <div>
+        <div class="section-title">Tiempo Muerto</div>
+        <table class="ranked-list" id="table-timedead"></table>
+      </div>
+    </div>
+    <div class="section-title">Primero en Morir</div>
+    <div class="panel" style="max-width:420px">
+      <table class="ranked-list" id="table-firstdie"></table>
+    </div>
+  </div>
+
+  <!-- MECÁNICAS -->
+  <div class="tab-content" id="tab-mecanicas">
+    <div class="two-col">
+      <div>
+        <div class="section-title">Interrupts</div>
+        <table class="ranked-list" id="table-interrupts"></table>
+      </div>
+      <div>
+        <div class="section-title">Dispels</div>
+        <table class="ranked-list" id="table-dispels"></table>
+      </div>
+    </div>
+  </div>
+
+  <!-- HISTORIAL -->
+  <div class="tab-content" id="tab-historial">
+    <div id="raid-list"></div>
+  </div>
+
+  <!-- VERGÜENZA -->
+  <div class="tab-content" id="tab-verguenza">
+    <div class="section-title">Ranking de la Vergüenza</div>
+    <div class="section-note">Solo jugadores con al menos un 30% de raids asistidas</div>
+    <div id="shame-explanation"></div>
+    <table class="ranked-list" id="table-verguenza"></table>
+  </div>
+
+  <!-- JUGADOR -->
+  <div class="tab-content" id="tab-jugador">
+    <div class="search-wrap">
+      <input type="text" class="search-input" id="player-search" placeholder="Buscar jugador...">
+      <div class="player-suggestions" id="player-suggestions"></div>
+    </div>
+    <div id="player-profile"></div>
+    <div id="player-empty" class="empty-msg">Escribe un nombre para ver el perfil del jugador.</div>
+  </div>
+
+  <!-- LOOT RESUMEN -->
+  <div class="tab-content" id="tab-loot-resumen">
+    <div id="loot-resumen-inner"><div class="loot-loading">Cargando datos de loot...</div></div>
+  </div>
+
+  <!-- LOOT REGISTRO -->
+  <div class="tab-content" id="tab-loot-registro">
+    <div id="loot-registro-inner"><div class="loot-loading">Cargando datos de loot...</div></div>
+  </div>
+</div>
+
+<script src="dashboard.js"></script>
+</body>
+</html>
