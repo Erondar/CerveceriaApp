@@ -278,6 +278,33 @@
   .podium-name { flex: 1; font-weight: 600; color: var(--name); font-size: 1.05rem; }
   .podium-val { font-family: 'Cinzel', serif; font-size: 0.88rem; color: var(--gold); font-weight: 600; }
 
+  /* ── GLOBAL RECORDS ── */
+  .records-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1.25rem;
+    margin-bottom: 2.5rem;
+  }
+  .record-card {
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: 4px;
+    padding: 1.2rem;
+    text-align: center;
+  }
+  .record-icon { font-size: 1.8rem; margin-bottom: 0.4rem; }
+  .record-label {
+    font-family: 'Cinzel', serif;
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 0.5rem;
+  }
+  .record-amount { font-family: 'Cinzel', serif; font-size: 1.6rem; font-weight: 600; color: var(--gold); line-height: 1; margin-bottom: 0.5rem; }
+  .record-who { font-size: 0.9rem; color: var(--name); margin-bottom: 0.25rem; }
+  .record-date { font-size: 0.78rem; color: var(--text-muted); }
+
   /* ── RANKED LIST ── */
   .ranked-list { width: 100%; border-collapse: collapse; }
   .ranked-list th {
@@ -652,6 +679,7 @@
   <div class="tab-content active" id="tab-resumen">
     <div class="stat-cards" id="stat-cards"></div>
     <div class="podiums-grid" id="podiums"></div>
+    <div id="global-records"></div>
   </div>
 
   <!-- FRIENDLY FIRE -->
@@ -897,6 +925,44 @@ function buildResumen() {
   document.querySelectorAll('.player-link').forEach(el => {
     el.addEventListener('click', () => openPlayer(el.dataset.player));
   });
+
+  // Global records
+  const records = calcGlobalRecords();
+  const recCard = (icon, label, rec, nameFn, targetFn) => {
+    if (!rec) return `<div class="record-card"><div class="record-icon">${icon}</div><div class="record-label">${label}</div><div class="record-val td-dim">Sin datos</div></div>`;
+    return `<div class="record-card">
+      <div class="record-icon">${icon}</div>
+      <div class="record-label">${label}</div>
+      <div class="record-amount">${fmtDmg(rec.amount)}</div>
+      <div class="record-who"><span class="player-link record-link" data-player="${nameFn(rec)}">${nameFn(rec)}</span> → <span class="player-link record-link" data-player="${targetFn(rec)}">${targetFn(rec)}</span></div>
+      <div class="record-date">${fmtDate(rec.fecha)}</div>
+    </div>`;
+  };
+  const recEl = document.getElementById('global-records');
+  recEl.innerHTML = `
+    <div class="section-title" style="margin-top:2rem">Récords Históricos</div>
+    <div class="records-grid">
+      ${recCard('⚔️', 'Golpe más fuerte', records.biggestHit, r => r.heroe, r => r.objetivo)}
+      ${recCard('💚', 'Curación más gorda', records.biggestHeal, r => r.healer, r => r.target)}
+      ${recCard('💀', 'Golpe más bestia recibido', records.biggestReceived, r => r.victima, r => r.agresor)}
+    </div>
+  `;
+  recEl.querySelectorAll('.record-link').forEach(el => el.addEventListener('click', () => openPlayer(el.dataset.player)));
+}
+
+function calcGlobalRecords() {
+  let biggestHit = null, biggestHeal = null, biggestReceived = null;
+  for (const raid of DATA) {
+    const bh = raid.biggestHits;
+    if (!bh) continue;
+    if (bh.biggestDealt?.amount > 0 && (!biggestHit || bh.biggestDealt.amount > biggestHit.amount))
+      biggestHit = { ...bh.biggestDealt, fecha: raid.fecha };
+    if (bh.biggestHeal?.amount > 0 && (!biggestHeal || bh.biggestHeal.amount > biggestHeal.amount))
+      biggestHeal = { ...bh.biggestHeal, fecha: raid.fecha };
+    if (bh.biggestReceived?.amount > 0 && (!biggestReceived || bh.biggestReceived.amount > biggestReceived.amount))
+      biggestReceived = { ...bh.biggestReceived, fecha: raid.fecha };
+  }
+  return { biggestHit, biggestHeal, biggestReceived };
 }
 
 // ── FRIENDLY FIRE ─────────────────────────────────────────────────────────────
@@ -1115,6 +1181,7 @@ function openPlayer(name) {
     const disEntry = r.dispels?.find(e => e.name === name);
     const isPort   = r.leaderboard[0]?.name === name;
     const isFirst  = r.deathStats?.firstToDie?.name === name;
+    const hitStats = r.playerHitStats?.[name] ?? null;
 
     const ff  = ffEntry?.damage ?? 0;
     const d   = dEntry?.count ?? 0;
@@ -1126,8 +1193,23 @@ function openPlayer(name) {
     if (isPort) portadorCount++;
     if (isFirst) firstCount++;
 
-    return { fecha: r.fecha, ff, d, td, int, dis, isPort, isFirst };
+    return { fecha: r.fecha, report: r.report, ff, d, td, int, dis, isPort, isFirst, hitStats };
   });
+
+  // Personal records from playerHitStats
+  let prHit = null, prHeal = null, prReceived = null;
+  for (const r of rows) {
+    const h = r.hitStats;
+    if (!h) continue;
+    if (h.biggestHit?.amount > 0 && (!prHit || h.biggestHit.amount > prHit.amount))
+      prHit = { ...h.biggestHit, fecha: r.fecha };
+    if (h.biggestHeal?.amount > 0 && (!prHeal || h.biggestHeal.amount > prHeal.amount))
+      prHeal = { ...h.biggestHeal, fecha: r.fecha };
+    if (h.biggestReceived?.amount > 0 && (!prReceived || h.biggestReceived.amount > prReceived.amount))
+      prReceived = { ...h.biggestReceived, fecha: r.fecha };
+  }
+
+  const hasHitData = rows.some(r => r.hitStats);
 
   const profile = document.getElementById('player-profile');
   profile.className = 'visible';
@@ -1143,6 +1225,14 @@ function openPlayer(name) {
       <div class="pstat"><div class="plabel">Dispels</div><div class="pval purple">${totalDisp}</div></div>
     </div>
 
+    ${hasHitData ? `
+    <div class="section-title">Récords Personales</div>
+    <div class="records-grid" style="margin-bottom:1.5rem">
+      ${prHit ? `<div class="record-card"><div class="record-icon">⚔️</div><div class="record-label">Mayor golpe dado</div><div class="record-amount">${fmtDmg(prHit.amount)}</div><div class="record-who">→ ${prHit.target}</div><div class="record-date">${fmtDate(prHit.fecha)}</div></div>` : ''}
+      ${prHeal ? `<div class="record-card"><div class="record-icon">💚</div><div class="record-label">Mayor curación</div><div class="record-amount">${fmtDmg(prHeal.amount)}</div><div class="record-who">→ ${prHeal.target}</div><div class="record-date">${fmtDate(prHeal.fecha)}</div></div>` : ''}
+      ${prReceived ? `<div class="record-card"><div class="record-icon">💀</div><div class="record-label">Mayor golpe recibido</div><div class="record-amount">${fmtDmg(prReceived.amount)}</div><div class="record-who">← ${prReceived.source}</div><div class="record-date">${fmtDate(prReceived.fecha)}</div></div>` : ''}
+    </div>` : ''}
+
     <div class="section-title">Histórico por Raid</div>
     <table class="raid-table">
       <thead><tr>
@@ -1152,7 +1242,7 @@ function openPlayer(name) {
         <th>T. Muerto</th>
         <th>Interrupts</th>
         <th>Dispels</th>
-        <th></th>
+        ${hasHitData ? '<th>Mayor Golpe</th><th>Mayor Cura</th><th>Mayor Recibido</th>' : ''}
       </tr></thead>
       <tbody>
         ${rows.map(r => `<tr>
@@ -1162,7 +1252,10 @@ function openPlayer(name) {
           <td class="td-red">${r.td ? fmtMs(r.td) : '<span class="td-dim">—</span>'}</td>
           <td class="td-purple">${r.int || '<span class="td-dim">0</span>'}</td>
           <td class="td-purple">${r.dis || '<span class="td-dim">0</span>'}</td>
-          <td></td>
+          ${hasHitData ? `
+          <td class="td-gold">${r.hitStats?.biggestHit?.amount ? fmtDmg(r.hitStats.biggestHit.amount) : '<span class="td-dim">—</span>'}</td>
+          <td style="color:var(--purple2)">${r.hitStats?.biggestHeal?.amount ? fmtDmg(r.hitStats.biggestHeal.amount) : '<span class="td-dim">—</span>'}</td>
+          <td class="td-red">${r.hitStats?.biggestReceived?.amount ? fmtDmg(r.hitStats.biggestReceived.amount) : '<span class="td-dim">—</span>'}</td>` : ''}
         </tr>`).join('')}
       </tbody>
     </table>
