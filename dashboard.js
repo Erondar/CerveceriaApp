@@ -519,7 +519,7 @@ function buildPorRaid() {
 
   el.innerHTML = `
     <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap">
-      <span style="color:var(--text-dim);font-size:0.9rem">Raid:</span>
+      <span style="color:var(--text-dim);font-size:1rem;font-family:'Cinzel',serif;font-weight:600;letter-spacing:.05em">Raid</span>
       <select id="raid-selector" class="loot-select" style="min-width:160px">
         ${raids.map((r, i) => `<option value="${i}">${fmtDate(r.fecha)}</option>`).join('')}
       </select>
