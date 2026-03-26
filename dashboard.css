@@ -689,6 +689,62 @@
     font-size: 0.95rem;
   }
 
+  /* ── TÍTULOS / GALERÍA ── */
+  .titulos-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+  .titulo-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.2rem 1rem;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: .35rem;
+  }
+  .titulo-card--shame { border-color: rgba(220,60,60,.35); }
+  .titulo-card--honor { border-color: rgba(80,200,130,.35); }
+  .titulo-icon   { font-size: 2rem; line-height: 1; }
+  .titulo-titulo { font-family: 'Cinzel', serif; font-size: .95rem; font-weight: 600; color: var(--text-bright); }
+  .titulo-jugador { font-size: 1rem; font-weight: 600; }
+  .titulo-card--shame .titulo-jugador { color: var(--red2); }
+  .titulo-card--honor .titulo-jugador { color: #4ec97e; }
+  .titulo-desc  { font-size: .75rem; color: var(--text-dim); }
+  .titulo-valor { font-size: .8rem; color: var(--text-muted); font-style: italic; }
+
+  /* Badges en perfil */
+  .titulo-badges { display: flex; flex-wrap: wrap; gap: .5rem; margin: .75rem 0 1rem; }
+  .titulo-badge {
+    display: inline-flex; align-items: center; gap: .3rem;
+    padding: .25rem .65rem;
+    border-radius: 20px;
+    font-size: .78rem;
+    font-weight: 600;
+    cursor: default;
+  }
+  .titulo-badge--shame { background: rgba(220,60,60,.15); border: 1px solid rgba(220,60,60,.4); color: var(--red2); }
+  .titulo-badge--honor { background: rgba(80,200,130,.12); border: 1px solid rgba(80,200,130,.35); color: #4ec97e; }
+
+  /* Titular de la noche */
+  .titular-box {
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-left: 3px solid var(--gold);
+    border-radius: 6px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+  }
+  .titular-headline { font-size: .9rem; color: var(--text-dim); line-height: 1.5; }
+  .titular-headline--main { font-size: 1rem; color: var(--text-bright); font-weight: 500; }
+  .titular-headline b { color: var(--gold); font-weight: 600; }
+
   /* ── SCROLLBAR ── */
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: var(--bg); }
