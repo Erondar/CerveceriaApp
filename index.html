@@ -40,12 +40,10 @@
     <button class="tab-btn active" data-tab="resumen">Resumen</button>
     <button class="tab-btn" data-tab="progresion">Progresión</button>
     <button class="tab-btn" data-tab="por-raid">Por Raid</button>
-    <button class="tab-btn" data-tab="ff">Friendly Fire</button>
-    <button class="tab-btn" data-tab="muertes">Muertes</button>
     <button class="tab-btn" data-tab="mecanicas">Mecánicas</button>
     <button class="tab-btn" data-tab="historial">Historial</button>
-    <button class="tab-btn" data-tab="verguenza">Vergüenza</button>
     <button class="tab-btn" data-tab="logros">Logros</button>
+    <button class="tab-btn" data-tab="verguenza">Vergüenza</button>
     <button class="tab-btn" data-tab="jugador">Jugador</button>
     <div class="nav-separator"></div>
     <button class="tab-btn" data-tab="loot-resumen">Loot — Resumen</button>
@@ -59,32 +57,6 @@
     <div class="podiums-grid" id="podiums"></div>
     <div id="time-records"></div>
     <div id="global-records"></div>
-  </div>
-
-  <!-- FRIENDLY FIRE -->
-  <div class="tab-content" id="tab-ff">
-    <div id="ff-stats"></div>
-    <div class="section-title">Ranking Acumulado</div>
-    <div class="section-note">Solo daño a aliados en el combate de Gruul</div>
-    <table class="ranked-list" id="table-ff"></table>
-  </div>
-
-  <!-- MUERTES -->
-  <div class="tab-content" id="tab-muertes">
-    <div class="two-col">
-      <div>
-        <div class="section-title">Muertes Totales</div>
-        <table class="ranked-list" id="table-deaths"></table>
-      </div>
-      <div>
-        <div class="section-title">Tiempo Muerto</div>
-        <table class="ranked-list" id="table-timedead"></table>
-      </div>
-    </div>
-    <div class="section-title">Primero en Morir</div>
-    <div class="panel" style="max-width:420px">
-      <table class="ranked-list" id="table-firstdie"></table>
-    </div>
   </div>
 
   <!-- MECÁNICAS -->
@@ -112,12 +84,42 @@
     <div id="raid-list"></div>
   </div>
 
-  <!-- VERGÜENZA -->
+  <!-- VERGÜENZA (con sub-tabs: Vergüenza | FF | Muertes) -->
   <div class="tab-content" id="tab-verguenza">
-    <div class="section-title">Ranking de la Vergüenza</div>
-    <div class="section-note">Solo jugadores con al menos un 30% de raids asistidas</div>
-    <div id="shame-explanation"></div>
-    <table class="ranked-list" id="table-verguenza"></table>
+    <div id="verguenza-header"></div>
+    <div class="sub-nav" id="sub-nav-verguenza">
+      <button class="sub-tab-btn active" data-subtab="shame">Vergüenza</button>
+      <button class="sub-tab-btn" data-subtab="ff">Friendly Fire</button>
+      <button class="sub-tab-btn" data-subtab="muertes">Muertes</button>
+    </div>
+    <div class="sub-tab-content active" id="subtab-shame">
+      <div class="section-title">Ranking de la Vergüenza</div>
+      <div class="section-note">Solo jugadores con al menos un 30% de raids asistidas</div>
+      <div id="shame-explanation"></div>
+      <table class="ranked-list" id="table-verguenza"></table>
+    </div>
+    <div class="sub-tab-content" id="subtab-ff">
+      <div id="ff-stats"></div>
+      <div class="section-title">Ranking Acumulado</div>
+      <div class="section-note">Solo daño a aliados en el combate de Gruul</div>
+      <table class="ranked-list" id="table-ff"></table>
+    </div>
+    <div class="sub-tab-content" id="subtab-muertes">
+      <div class="two-col">
+        <div>
+          <div class="section-title">Muertes Totales</div>
+          <table class="ranked-list" id="table-deaths"></table>
+        </div>
+        <div>
+          <div class="section-title">Tiempo Muerto</div>
+          <table class="ranked-list" id="table-timedead"></table>
+        </div>
+      </div>
+      <div class="section-title">Primero en Morir</div>
+      <div class="panel" style="max-width:420px">
+        <table class="ranked-list" id="table-firstdie"></table>
+      </div>
+    </div>
   </div>
 
   <!-- LOGROS -->
