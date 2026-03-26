@@ -1466,114 +1466,176 @@ function generarTitulares(raid, allRaids) {
   const seed = [...(raid.report ?? 'x')].reduce((s, c) => s + c.charCodeAt(0), 0);
   const pick = arr => arr[seed % arr.length];
 
-  // 1. Racha del portador
+  const dmg   = fmtDmg(raid.leaderboard[0]?.damage ?? 0);
+  const bs    = raid.bossStats;
+  const firstDie  = raid.deathStats?.firstToDie;
+  const topDead   = raid.deathStats?.deaths?.[0];
+  const totalDeaths = (raid.deathStats?.deaths ?? []).reduce((s, e) => s + e.count, 0);
+  const dps = calcRaidDpsHps(raid);
+
+  // 1. Portador
   const winner = raid.leaderboard[0]?.name;
   if (winner) {
     let streak = 0;
     for (let i = raidIdx; i >= 0; i--) { if (sorted[i].leaderboard[0]?.name === winner) streak++; else break; }
-    if (streak >= 4)      lines.push(`${winner} lleva <b>${streak} semanas seguidas</b> portando la Resaca. A estas alturas ya es patrimonio cultural.`);
-    else if (streak >= 3) lines.push(`${winner} lleva <b>${streak} semanas consecutivas</b> portando la Resaca. Alguien que lo pare.`);
+    if (streak >= 4) lines.push(pick([
+      `${winner} lleva <b>${streak} semanas seguidas</b> portando la Resaca. A estas alturas ya es patrimonio cultural.`,
+      `<b>${streak} raids consecutivas</b> con ${winner} al frente del friendly fire. El resto ya ni se molesta en competir.`,
+      `${winner} lleva <b>${streak} semanas</b> siendo el mayor peligro de la banda. Los bosses lo miran con respeto.`,
+    ]));
+    else if (streak >= 3) lines.push(pick([
+      `${winner} lleva <b>${streak} semanas consecutivas</b> portando la Resaca. Alguien que lo pare.`,
+      `Tres raids, mismo ganador. ${winner} ha convertido el friendly fire en una costumbre. Una muy cara.`,
+      `<b>${streak} en fila</b> para ${winner}. El Portador ya no es un título, es una identidad.`,
+    ]));
     else if (streak === 2) lines.push(pick([
       `${winner} repite como Portador de la Resaca. Va para racha.`,
       `${winner} vuelve a liderar el friendly fire. La consistencia es una virtud, supongo.`,
+      `Segunda raid seguida para ${winner}. Con <b>${dmg}</b> de daño a aliados. Progresión inversa.`,
+      `${winner} defiende el título. <b>${dmg}</b> de ff y ni una disculpa. Clásico.`,
     ]));
     else lines.push(pick([
-      `${winner} se corona nuevo Portador con <b>${fmtDmg(raid.leaderboard[0].damage)}</b> de daño a sus propios compañeros.`,
-      `<b>${fmtDmg(raid.leaderboard[0].damage)}</b> de friendly fire. ${winner} se lleva la Resaca sin esfuerzo aparente.`,
-      `${winner} demuestra que el mayor enemigo de la banda es ${winner}. <b>${fmtDmg(raid.leaderboard[0].damage)}</b> de ff.`,
+      `${winner} se corona nuevo Portador con <b>${dmg}</b> de daño a sus propios compañeros.`,
+      `<b>${dmg}</b> de friendly fire. ${winner} se lleva la Resaca sin esfuerzo aparente.`,
+      `${winner} demuestra que el mayor enemigo de la banda es ${winner}. <b>${dmg}</b> de ff.`,
+      `La Resaca de esta noche es para ${winner}, con <b>${dmg}</b> de daño a los suyos. Gruul toma nota.`,
+      `${winner} aparentemente confundió a sus compañeros con el boss. <b>${dmg}</b> de daño a aliados.`,
+      `Con <b>${dmg}</b> de ff, ${winner} se lleva la Resaca. Sin aparente esfuerzo y sin aparente vergüenza.`,
     ]));
   } else {
     lines.push(pick([
       'Noche sin culpables: nadie hizo daño a aliados. ¿Sigue siendo la misma banda?',
       'Cero friendly fire. O hemos madurado mucho, o alguien está manipulando los logs.',
+      'Sin Portador esta noche. Los bosses se preguntan quién va a hacer su trabajo.',
+      'Nadie hizo friendly fire. Momento histórico. Que nadie lo cuente fuera.',
     ]));
   }
 
   // 2. Wipes
-  const bs = raid.bossStats;
   if (bs) {
     if (bs.totalWipes === 0) {
       let cleanStreak = 0;
       for (let i = raidIdx; i >= 0; i--) { if ((sorted[i].bossStats?.totalWipes ?? 1) === 0) cleanStreak++; else break; }
-      if (cleanStreak >= 3) lines.push(`<b>${cleanStreak} raids seguidas sin un solo wipe.</b> Los bosses han pedido reunión de emergencia.`);
-      else if (cleanStreak >= 2) lines.push(`<b>${cleanStreak} raids seguidas sin un solo wipe.</b> La banda ha madurado. O los bosses se han vuelto más blandos.`);
+      if (cleanStreak >= 3) lines.push(pick([
+        `<b>${cleanStreak} raids seguidas sin un solo wipe.</b> Los bosses han pedido reunión de emergencia.`,
+        `<b>${cleanStreak} raids limpias seguidas.</b> Esto empieza a dar miedo.`,
+      ]));
+      else if (cleanStreak >= 2) lines.push(pick([
+        `<b>${cleanStreak} raids seguidas sin un solo wipe.</b> La banda ha madurado. O los bosses se han vuelto más blandos.`,
+        `Segunda raid limpia consecutiva. Los jefes de raid no lo dicen, pero están emocionados.`,
+      ]));
       else lines.push(pick([
         'Raid impoluta: cero wipes. Guárdalo porque no dura.',
         'Sin wipes esta noche. Los bosses lo están tomando como algo personal.',
         'Cero wipes. El récord está en peligro de seguir siendo récord.',
+        'Noche sin wipes. Los sanadores duermen tranquilos esta vez.',
+        'Raid limpia. Los bosses ya están hablando entre ellos para vengarse la semana que viene.',
       ]));
     } else if (bs.totalWipes >= 8) {
       lines.push(pick([
         `<b>${bs.totalWipes} wipes</b>. En algún punto hay que preguntarse si el problema son los bosses o nosotros.`,
         `${bs.totalWipes} wipes. El gremio de fantasmas está considerando abrir sede permanente aquí.`,
+        `${bs.totalWipes} wipes esta noche. El boss ya nos conoce por el nombre y nos guarda el sitio.`,
+        `Con <b>${bs.totalWipes} wipes</b>, la noche se convirtió en una clase magistral de cómo no hacerlo.`,
       ]));
     } else if (bs.totalWipes >= 5) {
       lines.push(pick([
         `Noche de sufrimiento colectivo: <b>${bs.totalWipes} wipes</b>. El terapeuta de la banda está haciendo horas extra.`,
         `${bs.totalWipes} wipes antes del kill. Los bosses ya nos conocen por el nombre.`,
+        `<b>${bs.totalWipes} intentos</b> para tirar al boss. No porque sea difícil, sino porque somos así.`,
+        `${bs.totalWipes} wipes. El boss empezó a darnos pena y se dejó matar.`,
       ]));
     } else if (bs.totalWipes >= 3) {
       lines.push(pick([
         `${bs.totalWipes} wipes en la noche. Se puede hacer mejor.`,
         `${bs.totalWipes} wipes. "Estábamos calentando", dijeron. Siempre dicen eso.`,
+        `${bs.totalWipes} intentos. El boss tampoco lo tiene fácil con nosotros.`,
+        `Tres intentos antes del kill. Nadie lo dirá en voz alta, pero todos pensaron en irse a dormir.`,
+      ]));
+    } else if (bs.totalWipes === 1) {
+      lines.push(pick([
+        'Un wipe antes del kill. Dijeron que era para calentar. Puede ser.',
+        'Solo un wipe. Casi perfecto. Casi.',
+        'Un wipe. El boss quiso llevarse el suspense hasta el final.',
       ]));
     }
   }
 
-  // 3. Récord de velocidad en cualquier boss (elige el más impresionante por % de mejora)
+  // 3. Récord de velocidad (boss con mayor % de mejora)
   if (bs && prev.length > 0) {
     const thisBosses = raid.bossStats?.bosses ?? [];
     let bestRecord = null;
     for (const boss of thisBosses) {
       if (!boss.killTimeMs) continue;
-      const shortName = boss.name.replace('Gruul the Dragonkiller','Gruul').replace('High King Maulgar','Maulgar');
+      const sn = boss.name.replace('Gruul the Dragonkiller','Gruul').replace('High King Maulgar','Maulgar');
       const prevTimes = prev.map(r => (r.bossStats?.bosses ?? []).find(b => b.name === boss.name)?.killTimeMs).filter(Boolean);
       if (!prevTimes.length) continue;
       const prevBest = Math.min(...prevTimes);
       if (boss.killTimeMs < prevBest) {
         const pct = (prevBest - boss.killTimeMs) / prevBest;
-        if (!bestRecord || pct > bestRecord.pct) bestRecord = { bossName: shortName, thisMs: boss.killTimeMs, prevBestMs: prevBest, pct };
+        if (!bestRecord || pct > bestRecord.pct) bestRecord = { bossName: sn, thisMs: boss.killTimeMs, prevBestMs: prevBest, pct };
       }
     }
     if (bestRecord) {
       const pctStr = (bestRecord.pct * 100).toFixed(0);
       lines.push(pick([
-        `${bestRecord.bossName} cae en <b>${fmtMs(bestRecord.thisMs)}</b>: nuevo récord de velocidad (antes ${fmtMs(bestRecord.prevBestMs)}, −${pctStr}%).`,
+        `${bestRecord.bossName} cae en <b>${fmtMs(bestRecord.thisMs)}</b>: nuevo récord (antes ${fmtMs(bestRecord.prevBestMs)}, −${pctStr}%).`,
         `Nuevo récord en ${bestRecord.bossName}: <b>${fmtMs(bestRecord.thisMs)}</b>. Antes tardábamos ${fmtMs(bestRecord.prevBestMs)}. Algo hemos aprendido.`,
+        `${bestRecord.bossName} en <b>${fmtMs(bestRecord.thisMs)}</b>. Un ${pctStr}% más rápido que nunca. Guardar la fecha.`,
+        `Kill de ${bestRecord.bossName} en <b>${fmtMs(bestRecord.thisMs)}</b>. El récord anterior era ${fmtMs(bestRecord.prevBestMs)}. Por fin.`,
       ]));
     }
   }
 
   // 4. Top muerte
-  const topDead = raid.deathStats?.deaths?.[0];
   if (topDead?.count >= 5) {
     lines.push(pick([
-      `${topDead.name} muere <b>${topDead.count} veces</b> en una sola noche. Ya tiene más experiencia muriendo que matando.`,
+      `${topDead.name} muere <b>${topDead.count} veces</b> esta noche. Ya tiene más experiencia muriendo que matando.`,
       `${topDead.name}: <b>${topDead.count} muertes</b>. Está explorando activamente el sistema de respawn.`,
+      `<b>${topDead.count} veces</b> en el suelo para ${topDead.name}. Gruul tampoco lo mata tanto a él.`,
+      `${topDead.name} decidió que vivir era opcional esta noche. ${topDead.count} veces para demostrarlo.`,
+      `${topDead.name} muere <b>${topDead.count} veces</b>. El cementerio ya le tiene reservado sitio fijo.`,
     ]));
   } else if (topDead?.count >= 3) {
-    lines.push(`${topDead.name} muere <b>${topDead.count} veces</b> esta noche. Constancia.`);
+    lines.push(pick([
+      `${topDead.name} muere <b>${topDead.count} veces</b> esta noche. Constancia.`,
+      `<b>${topDead.count} muertes</b> para ${topDead.name}. Spoiler: no mejoró con la práctica.`,
+      `${topDead.name} probó a morir <b>${topDead.count} veces</b>. El boss se lo está tomando bien.`,
+      `${topDead.name} con <b>${topDead.count} muertes</b>. Los compañeros, silencio cómplice.`,
+      `${topDead.name} muere <b>${topDead.count} veces</b>. Ya se sabe el camino del cementerio de memoria.`,
+    ]));
   }
 
-  // 5. Primer muerto muy rápido
-  const firstDie = raid.deathStats?.firstToDie;
+  // 5. Primer muerto rápido
   if (firstDie?.name && firstDie.timeMs) {
-    if (firstDie.timeMs < 12000) lines.push(`${firstDie.name} palma a los <b>${(firstDie.timeMs/1000).toFixed(1)}s</b> del pull. Ni terminó de colocarse.`);
-    else if (firstDie.timeMs < 25000) lines.push(`${firstDie.name} abre el marcador de muertes a los <b>${(firstDie.timeMs/1000).toFixed(0)}s</b>. Un clásico.`);
+    if (firstDie.timeMs < 12000) lines.push(pick([
+      `${firstDie.name} palma a los <b>${(firstDie.timeMs/1000).toFixed(1)}s</b> del pull. Ni terminó de colocarse.`,
+      `<b>${(firstDie.timeMs/1000).toFixed(1)} segundos</b>. ${firstDie.name} no esperó ni al primer trash para caer.`,
+      `${firstDie.name} al suelo en <b>${(firstDie.timeMs/1000).toFixed(1)}s</b>. El pull todavía no había terminado de resolverse.`,
+    ]));
+    else if (firstDie.timeMs < 30000) lines.push(pick([
+      `${firstDie.name} abre el marcador de muertes a los <b>${(firstDie.timeMs/1000).toFixed(0)}s</b>. Un clásico.`,
+      `Alguien tenía que ser el primero. ${firstDie.name} se ofreció a los <b>${(firstDie.timeMs/1000).toFixed(0)}s</b>, sin saberlo.`,
+      `${firstDie.name} inaugura el cementerio a los <b>${(firstDie.timeMs/1000).toFixed(0)}s</b>. Tradición de guild.`,
+    ]));
   }
 
   // 6. Nuevo récord DPS
-  const dps = calcRaidDpsHps(raid);
   if (dps && prev.length > 0) {
     const prevBest = prev.reduce((best, r) => { const s = calcRaidDpsHps(r); return s && s.dps > best ? s.dps : best; }, 0);
-    if (prevBest > 0 && dps.dps > prevBest) lines.push(`Nuevo récord de daño: la banda supera los <b>${fmtDmg(dps.dps)} DPS</b>. El esfuerzo a veces da frutos.`);
+    if (prevBest > 0 && dps.dps > prevBest) lines.push(pick([
+      `Nuevo récord de daño: la banda supera los <b>${fmtDmg(dps.dps)} DPS</b>. El esfuerzo a veces da frutos.`,
+      `<b>${fmtDmg(dps.dps)} DPS</b> de media. Nuevo récord histórico. Guardar la fecha.`,
+      `La banda nunca había hecho tanto daño. <b>${fmtDmg(dps.dps)} DPS</b>. Los bosses toman nota.`,
+    ]));
   }
 
   // 7. Cero muertes
-  const totalDeaths = (raid.deathStats?.deaths ?? []).reduce((s, e) => s + e.count, 0);
   if (totalDeaths === 0) lines.push(pick([
     'Noche histórica: nadie murió. Revisad los logs, seguro que hay algún error.',
     'Cero muertes en la raid. Los sanadores piden que conste en acta.',
+    'Nadie murió esta noche. Esto no puede ser real. Alguien comprueba los logs.',
+    'Sin muertes. Los bosses se preguntan qué han hecho mal.',
   ]));
 
   return lines.slice(0, 4);
