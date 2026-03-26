@@ -1815,16 +1815,16 @@ function calcTitulos() {
 
   const survivors = [...rcMap.entries()]
     .filter(([, c]) => c >= minRaids)
-    .map(([n]) => ({ name: n, val: deathTotals.get(n) ?? 0 }))
+    .map(([n, c]) => ({ name: n, val: (deathTotals.get(n) ?? 0) / c }))
     .sort((a, b) => a.val - b.val);
-  if (survivors.length > 0) titles.push({ id:'superviviente', icon:'🌿', titulo:'El Superviviente', desc:'Menos muertes entre los asiduos', jugador: survivors[0].name,
+  if (survivors.length > 0) titles.push({ id:'superviviente', icon:'🌿', titulo:'El Superviviente', desc:'Menos muertes por raid entre los asiduos', jugador: survivors[0].name,
     comentario: pickFor(survivors[0].name, [
       'En la catástrofe general, él sale caminando.',
       'Mientras el grupo muere, él toma nota.',
       'La muerte le conoce de oídas, nada más.',
       'Sobrevivir donde otros caen: su talento oculto.',
     ]),
-    valor: survivors[0].val + ' muertes', tipo:'honor' });
+    valor: survivors[0].val.toFixed(2) + ' muertes/raid', tipo:'honor' });
 
   const pacifistas = [...rcMap.entries()]
     .filter(([n, c]) => c >= minRaids && (ffTotals.get(n) ?? 0) === 0)
