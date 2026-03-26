@@ -54,6 +54,7 @@ function initDashboard() {
   buildMuertes();
   buildMecanicas();
   buildHistorial();
+  buildProgresion();
   buildVerguenza();
   buildTimeRecords();
   setupJugador();
@@ -301,16 +302,269 @@ function buildFF() {
   // Table
   const rcMap = raidCountMap();
   const tbl = document.getElementById('table-ff');
-  tbl.innerHTML = `<thead><tr><th></th><th>Jugador</th><th class="bar-cell"></th><th>Daño</th><th>Raids</th></tr></thead><tbody>
-    ${data.map((e,i) => `<tr>
+  tbl.innerHTML = `<thead><tr><th></th><th>Jugador</th><th class="bar-cell"></th><th>Daño</th><th>Media/Raid</th><th>Raids</th></tr></thead><tbody>
+    ${data.map((e,i) => { const rc = rcMap.get(e.name) ?? 1; return `<tr>
       <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
       <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
       <td class="bar-cell">${makeBar(e.val/max*100)}</td>
       <td class="val-cell">${fmtDmg(e.val)}</td>
+      <td class="val-cell td-dim">${fmtDmg(Math.round(e.val / rc))}</td>
       <td class="td-dim">${rcMap.get(e.name) ?? '—'}</td>
-    </tr>`).join('')}
+    </tr>`; }).join('')}
   </tbody>`;
   tbl.querySelectorAll('.player-link').forEach(el => el.addEventListener('click', () => openPlayer(el.dataset.player)));
+}
+
+// ── PROGRESIÓN ────────────────────────────────────────────────────────────────
+
+const PROG_BOSSES = ['High King Maulgar', 'Gruul the Dragonkiller', 'Magtheridon'];
+const PROG_SHORT  = ['Maulgar', 'Gruul', 'Magtheridon'];
+const PROG_COLORS = ['#f0c84a', '#ff6060', '#c090f0'];
+
+function progLegend(labels, colors) {
+  return `<div class="prog-legend">${labels.map((l,i) =>
+    `<span class="prog-legend-item"><span class="prog-legend-dot" style="background:${colors[i]}"></span>${l}</span>`
+  ).join('')}</div>`;
+}
+
+function drawLineChart(xLabels, series, yFormat) {
+  const W = 800, H = 240;
+  const pad = { top: 20, right: 20, bottom: 44, left: 64 };
+  const cW = W - pad.left - pad.right, cH = H - pad.top - pad.bottom;
+  const n = xLabels.length;
+
+  const allVals = series.flatMap(s => s.values.filter(v => v != null));
+  if (!allVals.length) return '<p class="section-note">Sin datos suficientes.</p>';
+
+  const yMax = Math.max(...allVals);
+  const yBottom = Math.max(0, Math.min(...allVals) * 0.8);
+  const yRange = yMax - yBottom || 1;
+
+  const xPos = i => pad.left + (n <= 1 ? cW / 2 : i * cW / (n - 1));
+  const yPos = v => pad.top + cH - (v - yBottom) / yRange * cH;
+
+  const GRID = 4;
+  let grid = '', yAxis = '';
+  for (let g = 0; g <= GRID; g++) {
+    const v = yBottom + yRange * g / GRID;
+    const y = yPos(v);
+    grid  += `<line x1="${pad.left}" y1="${y.toFixed(1)}" x2="${W - pad.right}" y2="${y.toFixed(1)}" stroke="#2e3550" stroke-width="1"/>`;
+    yAxis += `<text x="${pad.left - 8}" y="${(y + 4).toFixed(1)}" text-anchor="end" fill="#a0aabc" font-size="11">${yFormat(v)}</text>`;
+  }
+
+  let xAxis = '';
+  xLabels.forEach((l, i) => {
+    xAxis += `<text x="${xPos(i).toFixed(1)}" y="${H - pad.bottom + 16}" text-anchor="middle" fill="#a0aabc" font-size="11">${l}</text>`;
+  });
+
+  let seriesSVG = '';
+  series.forEach(s => {
+    let d = '', started = false;
+    s.values.forEach((v, i) => {
+      if (v == null) { started = false; return; }
+      const x = xPos(i).toFixed(1), y = yPos(v).toFixed(1);
+      d += started ? ` L${x},${y}` : `M${x},${y}`;
+      started = true;
+    });
+    if (d) seriesSVG += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>`;
+    s.values.forEach((v, i) => {
+      if (v == null) return;
+      const x = xPos(i).toFixed(1), y = yPos(v).toFixed(1);
+      const tip = s.label ? `${xLabels[i]} · ${s.label}: ${yFormat(v)}` : `${xLabels[i]}: ${yFormat(v)}`;
+      seriesSVG += `<circle cx="${x}" cy="${y}" r="5" fill="${s.color}" stroke="#0f1117" stroke-width="2" class="prog-pt" data-tip="${tip}"/>`;
+    });
+  });
+
+  return `<svg viewBox="0 0 ${W} ${H}" class="prog-svg">
+    ${grid}
+    <line x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${H - pad.bottom}" stroke="#2e3550" stroke-width="1"/>
+    ${yAxis}${xAxis}${seriesSVG}
+  </svg>`;
+}
+
+function drawStackedBar(xLabels, series) {
+  const W = 800, H = 240;
+  const pad = { top: 20, right: 20, bottom: 44, left: 40 };
+  const cW = W - pad.left - pad.right, cH = H - pad.top - pad.bottom;
+  const n = xLabels.length;
+
+  const totals = xLabels.map((_, i) => series.reduce((s, ser) => s + (ser.values[i] ?? 0), 0));
+  const yMax = Math.max(...totals, 1);
+  const gridMax = yMax <= 4 ? yMax : Math.ceil(yMax / Math.ceil(yMax / 4)) * Math.ceil(yMax / 4);
+  const gridStep = gridMax <= 4 ? 1 : Math.ceil(gridMax / 4);
+
+  const barSlot = cW / n;
+  const barW = Math.min(barSlot * 0.55, 60);
+  const xCenter = i => pad.left + i * barSlot + barSlot / 2;
+  const yPos = v => pad.top + cH - v / (gridMax || 1) * cH;
+  const barH = v => v / (gridMax || 1) * cH;
+
+  let grid = '', yAxis = '';
+  for (let g = 0; g <= gridMax; g += gridStep) {
+    const y = yPos(g);
+    grid  += `<line x1="${pad.left}" y1="${y.toFixed(1)}" x2="${W - pad.right}" y2="${y.toFixed(1)}" stroke="#2e3550" stroke-width="1"/>`;
+    yAxis += `<text x="${pad.left - 6}" y="${(y + 4).toFixed(1)}" text-anchor="end" fill="#a0aabc" font-size="11">${g}</text>`;
+  }
+
+  let bars = '', xAxis = '';
+  xLabels.forEach((label, i) => {
+    let stackY = pad.top + cH;
+    series.forEach(s => {
+      const v = s.values[i] ?? 0;
+      if (v <= 0) return;
+      const h = barH(v);
+      stackY -= h;
+      const tip = `${label} · ${s.label}: ${v} wipe${v !== 1 ? 's' : ''}`;
+      bars += `<rect x="${(xCenter(i) - barW / 2).toFixed(1)}" y="${stackY.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" fill="${s.color}" opacity="0.85" rx="2" class="prog-pt" data-tip="${tip}"/>`;
+    });
+    const total = totals[i];
+    if (total > 0) {
+      bars += `<text x="${xCenter(i).toFixed(1)}" y="${(yPos(total) - 5).toFixed(1)}" text-anchor="middle" fill="#a0aabc" font-size="11">${total}</text>`;
+    } else {
+      bars += `<text x="${xCenter(i).toFixed(1)}" y="${(pad.top + cH - 6).toFixed(1)}" text-anchor="middle" fill="#3d4a6a" font-size="11">0</text>`;
+    }
+    xAxis += `<text x="${xCenter(i).toFixed(1)}" y="${H - pad.bottom + 16}" text-anchor="middle" fill="#a0aabc" font-size="11">${label}</text>`;
+  });
+
+  return `<svg viewBox="0 0 ${W} ${H}" class="prog-svg">
+    ${grid}
+    <line x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${H - pad.bottom}" stroke="#2e3550" stroke-width="1"/>
+    ${yAxis}${bars}${xAxis}
+  </svg>`;
+}
+
+function buildProgresion() {
+  const raids = DATA.filter(r => r.bossStats).sort((a, b) => a.fecha.localeCompare(b.fecha));
+  const el = document.getElementById('tab-progresion');
+  if (!raids.length) {
+    el.innerHTML = '<div class="section-note">No hay datos de progresión disponibles.</div>';
+    return;
+  }
+
+  const xLabels = raids.map(r => fmtDate(r.fecha));
+
+  // ── Stat cards ──
+  const totalWipes = raids.reduce((s, r) => s + r.bossStats.totalWipes, 0);
+  const totalKills = raids.reduce((s, r) => s + r.bossStats.totalKills, 0);
+  const totalTries = totalWipes + totalKills;
+  const globalEff  = totalTries > 0 ? Math.round(totalKills / totalTries * 100) : 0;
+
+  const wipesByBoss = new Map(PROG_BOSSES.map(b => [b, 0]));
+  raids.forEach(r => (r.bossStats.bosses ?? []).forEach(b => wipesByBoss.set(b.name, (wipesByBoss.get(b.name) ?? 0) + b.wipes)));
+  const sortedByWipes = [...wipesByBoss.entries()].sort((a, b) => b[1] - a[1]);
+  const [worstBossName, worstBossWipes] = sortedByWipes[0] ?? [null, 0];
+  const [bestBossName,  bestBossWipes]  = sortedByWipes[sortedByWipes.length - 1] ?? [null, 0];
+  const worstBossIdx   = PROG_BOSSES.indexOf(worstBossName);
+  const bestBossIdx    = PROG_BOSSES.indexOf(bestBossName);
+  const worstBossShort = worstBossIdx >= 0 ? PROG_SHORT[worstBossIdx] : (worstBossName ?? '—');
+  const bestBossShort  = bestBossIdx  >= 0 ? PROG_SHORT[bestBossIdx]  : (bestBossName  ?? '—');
+  const worstBossColor = worstBossIdx >= 0 ? PROG_COLORS[worstBossIdx] : 'var(--text-bright)';
+  const bestBossColor  = bestBossIdx  >= 0 ? PROG_COLORS[bestBossIdx]  : 'var(--text-bright)';
+
+  const raidWipes   = raids.map(r => r.bossStats.totalWipes);
+  const minWipes    = Math.min(...raidWipes);
+  const maxWipes    = Math.max(...raidWipes);
+  const cleanestIdx = raidWipes.lastIndexOf(minWipes);
+  const chaosIdx    = raidWipes.indexOf(maxWipes);
+
+  // ── Chart 1: Raid time ──
+  const raidTimeSeries = [{
+    label: '', color: '#f0c84a',
+    values: raids.map(r => r.bossStats.totalRaidTimeMs > 0 ? r.bossStats.totalRaidTimeMs / 60000 : null),
+  }];
+
+  // ── Chart 2: Kill time por boss ──
+  const killTimeSeries = PROG_BOSSES.map((bossName, i) => ({
+    label: PROG_SHORT[i], color: PROG_COLORS[i],
+    values: raids.map(r => {
+      const b = (r.bossStats.bosses ?? []).find(b => b.name === bossName);
+      return b?.killTimeMs ? b.killTimeMs : null;
+    }),
+  }));
+
+  // ── Chart 3: Wipes por raid ──
+  const wipeSeries = PROG_BOSSES.map((bossName, i) => ({
+    label: PROG_SHORT[i], color: PROG_COLORS[i],
+    values: raids.map(r => (r.bossStats.bosses ?? []).find(b => b.name === bossName)?.wipes ?? 0),
+  }));
+
+  // ── Tabla acumulada ──
+  const bossRows = PROG_BOSSES.map((bossName, i) => {
+    const totalW     = wipesByBoss.get(bossName) ?? 0;
+    const attempted  = raids.filter(r => (r.bossStats.bosses ?? []).some(b => b.name === bossName)).length;
+    const cleanRaids = raids.filter(r => {
+      const b = (r.bossStats.bosses ?? []).find(b => b.name === bossName);
+      return b && b.wipes === 0;
+    }).length;
+    return { short: PROG_SHORT[i], color: PROG_COLORS[i], totalW, attempted, cleanRaids };
+  });
+
+  el.innerHTML = `
+    <div class="stat-cards" style="margin-bottom:2rem">
+      <div class="stat-card">
+        <div class="label">Raid más Limpia</div>
+        <div class="value" style="font-size:1.4rem">${fmtDate(raids[cleanestIdx].fecha)}</div>
+        <div class="sub">${minWipes === 0 ? 'Sin wipes' : minWipes + ' wipes'}</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Raid más Caótica</div>
+        <div class="value red" style="font-size:1.4rem">${fmtDate(raids[chaosIdx].fecha)}</div>
+        <div class="sub">${maxWipes} wipe${maxWipes !== 1 ? 's' : ''}</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Boss más Problemático</div>
+        <div class="value" style="color:${worstBossColor};font-size:1.4rem">${worstBossShort}</div>
+        <div class="sub">${worstBossWipes} wipe${worstBossWipes !== 1 ? 's' : ''} acumulados</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Boss menos Problemático</div>
+        <div class="value" style="color:${bestBossColor};font-size:1.4rem">${bestBossShort}</div>
+        <div class="sub">${bestBossWipes} wipe${bestBossWipes !== 1 ? 's' : ''} acumulados</div>
+      </div>
+    </div>
+
+    <div class="prog-chart">
+      <div class="prog-chart-title">Duración de Raid</div>
+      <div class="prog-chart-note">Tiempo total de cada raid en minutos</div>
+      ${drawLineChart(xLabels, raidTimeSeries, v => Math.round(v) + 'min')}
+    </div>
+
+    <div class="prog-chart">
+      <div class="prog-chart-title">Tiempo de Kill por Boss</div>
+      ${drawLineChart(xLabels, killTimeSeries, v => fmtMs(v))}
+      ${progLegend(PROG_SHORT, PROG_COLORS)}
+    </div>
+
+    <div class="prog-chart">
+      <div class="prog-chart-title">Wipes por Raid</div>
+      <div class="prog-chart-note">Barras apiladas por boss. El número sobre la barra es el total de wipes de esa raid.</div>
+      ${drawStackedBar(xLabels, wipeSeries)}
+      ${progLegend(PROG_SHORT, PROG_COLORS)}
+    </div>
+
+    <div class="section-title">Wipes Acumulados por Boss</div>
+    <table class="ranked-list" style="max-width:480px;margin-bottom:2rem">
+      <thead><tr><th>Boss</th><th>Wipes</th><th>Raids intentadas</th><th>Raids sin wipe</th></tr></thead>
+      <tbody>
+        ${bossRows.map(b => `<tr>
+          <td style="color:${b.color};font-weight:600">${b.short}</td>
+          <td class="val-cell" style="color:var(--red2)">${b.totalW}</td>
+          <td class="td-dim">${b.attempted}</td>
+          <td class="td-dim">${b.cleanRaids} / ${b.attempted}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+
+    <div id="prog-tooltip" class="prog-tooltip"></div>
+  `;
+
+  // Tooltip interaction
+  const tip = el.querySelector('#prog-tooltip');
+  el.querySelectorAll('.prog-pt').forEach(pt => {
+    pt.addEventListener('mouseenter', () => { tip.textContent = pt.dataset.tip; tip.classList.add('visible'); });
+    pt.addEventListener('mousemove', e => { tip.style.left = (e.clientX + 14) + 'px'; tip.style.top = (e.clientY - 36) + 'px'; });
+    pt.addEventListener('mouseleave', () => tip.classList.remove('visible'));
+  });
 }
 
 // ── VERGÜENZA ─────────────────────────────────────────────────────────────────
@@ -732,9 +986,9 @@ function openPlayer(name) {
           <td class="td-purple">${r.int || '<span class="td-dim">0</span>'}</td>
           <td class="td-purple">${r.dis || '<span class="td-dim">0</span>'}</td>
           ${hasHitData ? `
-          <td class="td-gold" title="${r.hitStats?.biggestHit?.ability ?? ''}">${r.hitStats?.biggestHit?.amount ? fmtDmg(r.hitStats.biggestHit.amount) : '<span class="td-dim">—</span>'}</td>
-          <td style="color:var(--purple2)" title="${r.hitStats?.biggestHeal?.ability ?? ''}">${r.hitStats?.biggestHeal?.amount ? fmtDmg(r.hitStats.biggestHeal.amount) : '<span class="td-dim">—</span>'}</td>
-          <td class="td-red" title="${r.hitStats?.biggestReceived?.ability ?? ''}">${r.hitStats?.biggestReceived?.amount ? fmtDmg(r.hitStats.biggestReceived.amount) : '<span class="td-dim">—</span>'}</td>` : ''}
+          <td class="td-gold" title="${[r.hitStats?.biggestHit?.ability, r.hitStats?.biggestHit?.target ? '→ ' + r.hitStats.biggestHit.target : ''].filter(Boolean).join(' ')}">${r.hitStats?.biggestHit?.amount ? fmtDmg(r.hitStats.biggestHit.amount) : '<span class="td-dim">—</span>'}</td>
+          <td style="color:var(--purple2)" title="${[r.hitStats?.biggestHeal?.ability, r.hitStats?.biggestHeal?.target ? '→ ' + r.hitStats.biggestHeal.target : ''].filter(Boolean).join(' ')}">${r.hitStats?.biggestHeal?.amount ? fmtDmg(r.hitStats.biggestHeal.amount) : '<span class="td-dim">—</span>'}</td>
+          <td class="td-red" title="${[r.hitStats?.biggestReceived?.ability, r.hitStats?.biggestReceived?.source ? '← ' + r.hitStats.biggestReceived.source : ''].filter(Boolean).join(' ')}">${r.hitStats?.biggestReceived?.amount ? fmtDmg(r.hitStats.biggestReceived.amount) : '<span class="td-dim">—</span>'}</td>` : ''}
         </tr>`).join('')}
       </tbody>
     </table>
@@ -968,13 +1222,13 @@ function renderLootPlayer(nombre) {
       </div>`).join('')}
       ${hasBag ? `<div class="loot-chip" style="border-color:var(--gold-dim)">
         <div class="chip-val">${bagRow?.itemID
-          ? `<a href="https://www.wowhead.com/tbc/item=${bagRow.itemID}" style="color:var(--gold);text-decoration:none">${stripBrackets(bagRow.item)}</a>`
+          ? `<a href="https://www.wowhead.com/tbc/item=${bagRow.itemID}" target="_blank" style="color:var(--gold);text-decoration:none">${stripBrackets(bagRow.item)}</a>`
           : '✦'}</div>
         <div class="chip-label">Bolsa</div>
       </div>` : ''}
       ${hasMount ? `<div class="loot-chip" style="border-color:var(--gold-dim)">
         <div class="chip-val">${mountRow?.itemID
-          ? `<a href="https://www.wowhead.com/tbc/item=${mountRow.itemID}" style="color:var(--gold);text-decoration:none">${stripBrackets(mountRow.item)}</a>`
+          ? `<a href="https://www.wowhead.com/tbc/item=${mountRow.itemID}" target="_blank" style="color:var(--gold);text-decoration:none">${stripBrackets(mountRow.item)}</a>`
           : '✦'}</div>
         <div class="chip-label">Montura</div>
       </div>` : ''}
