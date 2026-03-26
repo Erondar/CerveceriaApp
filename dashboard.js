@@ -1850,6 +1850,22 @@ function _checkLootReady() {
   lootLoaded = true;
   buildLootResumen();
   buildLootRegistroShell();
+  _calcMimado();
+}
+
+function _calcMimado() {
+  if (!lootRows) return;
+  const count = new Map();
+  lootRows.filter(r => ASSIGNED.has(r.response)).forEach(r => {
+    count.set(r.nombre, (count.get(r.nombre) ?? 0) + 1);
+  });
+  if (!count.size) return;
+  const max = Math.max(...count.values());
+  const mimados = [...count.entries()].filter(([, c]) => c === max).map(([n]) => n);
+  // Quitar título anterior si existe y añadir el nuevo
+  TITULOS = TITULOS.filter(t => t.id !== 'mimado');
+  TITULOS.push({ id:'mimado', icon:'💸', titulo:'El Mimado', desc:'Más ítems de loot recibidos', jugadores: mimados, valor: max + (max === 1 ? ' ítem' : ' ítems'), tipo:'shame' });
+  buildGaleriaInfamia();
 }
 
 function fetchLootData() {
