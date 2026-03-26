@@ -185,7 +185,7 @@ function buildResumen() {
     </div>
     <div class="stat-card">
       <div class="label">Mejor DPS de Raid</div>
-      <div class="value" style="color:#f0c84a">${bestDpsRaid ? fmtDmg(bestDpsRaid.dps) : '—'}</div>
+      <div class="value" style="color:#7ec8e3">${bestDpsRaid ? fmtDmg(bestDpsRaid.dps) : '—'}</div>
       <div class="sub">${bestDpsRaid ? fmtDate(bestDpsRaid.fecha) : 'Sin datos'}</div>
     </div>
     <div class="stat-card">
@@ -505,19 +505,22 @@ function drawStackedBar(xLabels, series) {
   </svg>`;
 }
 
+const DPS_COLOR = '#7ec8e3';
+const HPS_COLOR = '#4ec97e';
+
 function buildDpsHpsChart(raids, xLabels) {
   const raidStats = raids.map(r => calcRaidDpsHps(r));
   if (raidStats.every(s => s === null)) return '';
   const dpsSeries = [
-    { label: 'DPS', color: '#f0c84a', values: raidStats.map(s => s?.dps ?? null) },
-    { label: 'HPS', color: '#4ec97e', values: raidStats.map(s => s?.hps ?? null) },
+    { label: 'DPS', color: DPS_COLOR, values: raidStats.map(s => s?.dps ?? null) },
+    { label: 'HPS', color: HPS_COLOR, values: raidStats.map(s => s?.hps ?? null) },
   ];
   return `
     <div class="prog-chart">
       <div class="prog-chart-title">DPS y HPS por Raid</div>
       <div class="prog-chart-note">Media ponderada de los 3 boss kills de cada raid (daño o cura total ÷ duración total)</div>
       ${drawLineChart(xLabels, dpsSeries, v => fmtDmg(Math.round(v)))}
-      ${progLegend(['DPS', 'HPS'], ['#f0c84a', '#4ec97e'])}
+      ${progLegend(['DPS', 'HPS'], [DPS_COLOR, HPS_COLOR])}
     </div>
   `;
 }
@@ -534,47 +537,48 @@ function buildDpsHpsTable(raids, xLabels) {
     return n.split(' ').pop();
   };
 
-  const tableRows = raids.map((raid, i) => {
-    const dpsCells = bossNames.map(bn => {
+  const dpsRows = raids.map((raid, i) => {
+    const cells = bossNames.map(bn => {
       const b = (raid.dpsStats ?? []).find(b => b.name === bn);
       return b ? `<td class="val-cell">${fmtDmg(b.dps)}</td>` : `<td class="td-dim">—</td>`;
-    });
-    const hpsCells = bossNames.map(bn => {
-      const b = (raid.dpsStats ?? []).find(b => b.name === bn);
-      return b ? `<td class="val-cell">${fmtDmg(b.hps)}</td>` : `<td class="td-dim">—</td>`;
-    });
+    }).join('');
     const total = raidStats[i];
     return `<tr>
       <td class="td-dim">${xLabels[i]}</td>
-      ${dpsCells.join('')}
-      <td class="val-cell" style="font-weight:600;border-left:1px solid var(--border2)">${total ? fmtDmg(total.dps) : '—'}</td>
-      ${hpsCells.join('')}
-      <td class="val-cell" style="font-weight:600;border-left:1px solid var(--border2)">${total ? fmtDmg(total.hps) : '—'}</td>
+      ${cells}
+      <td class="val-cell" style="color:${DPS_COLOR};font-weight:600">${total ? fmtDmg(total.dps) : '—'}</td>
     </tr>`;
   });
 
-  const bossCount = bossNames.length;
-  const dpsHeaders = bossNames.map(bn => `<th>${shortName(bn)}</th>`).join('');
-  const hpsHeaders = bossNames.map(bn => `<th>${shortName(bn)}</th>`).join('');
+  const hpsRows = raids.map((raid, i) => {
+    const cells = bossNames.map(bn => {
+      const b = (raid.dpsStats ?? []).find(b => b.name === bn);
+      return b ? `<td class="val-cell">${fmtDmg(b.hps)}</td>` : `<td class="td-dim">—</td>`;
+    }).join('');
+    const total = raidStats[i];
+    return `<tr>
+      <td class="td-dim">${xLabels[i]}</td>
+      ${cells}
+      <td class="val-cell" style="color:${HPS_COLOR};font-weight:600">${total ? fmtDmg(total.hps) : '—'}</td>
+    </tr>`;
+  });
+
+  const bossHeaders = bossNames.map(bn => `<th>${shortName(bn)}</th>`).join('');
+  const makeTable = (title, color, rows) => `
+    <div>
+      <div style="font-size:0.8rem;font-weight:600;color:${color};letter-spacing:.06em;text-transform:uppercase;margin-bottom:.4rem">${title}</div>
+      <table class="ranked-list">
+        <thead><tr><th>Fecha</th>${bossHeaders}<th style="color:${color}">Media</th></tr></thead>
+        <tbody>${rows.join('')}</tbody>
+      </table>
+    </div>`;
 
   return `
     <div class="section-title" style="margin-top:2rem">DPS y HPS por Raid</div>
-    <table class="ranked-list" style="margin-bottom:2rem">
-      <thead>
-        <tr>
-          <th rowspan="2">Fecha</th>
-          <th colspan="${bossCount + 1}" style="color:#f0c84a;border-bottom:1px solid #f0c84a44">DPS</th>
-          <th colspan="${bossCount + 1}" style="color:#4ec97e;border-bottom:1px solid #4ec97e44">HPS</th>
-        </tr>
-        <tr>
-          ${dpsHeaders}
-          <th style="color:#f0c84a;border-left:1px solid var(--border2)">Media</th>
-          ${hpsHeaders}
-          <th style="color:#4ec97e;border-left:1px solid var(--border2)">Media</th>
-        </tr>
-      </thead>
-      <tbody>${tableRows.join('')}</tbody>
-    </table>
+    <div style="display:flex;gap:1.5rem;flex-wrap:wrap;margin-bottom:2rem;align-items:flex-start">
+      ${makeTable('DPS', DPS_COLOR, dpsRows)}
+      ${makeTable('HPS', HPS_COLOR, hpsRows)}
+    </div>
   `;
 }
 
