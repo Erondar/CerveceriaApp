@@ -736,7 +736,7 @@
   .titulo-jugador .player-link:hover { color: var(--gold2); }
   .titulo-desc       { font-size: .72rem; color: var(--text-dim); }
   .titulo-comentario { font-size: .75rem; color: var(--text-bright); font-style: italic; }
-  .titulo-valor      { font-size: .72rem; color: var(--text-muted); font-style: italic; }
+  .titulo-valor      { font-size: .82rem; color: var(--purple2); font-weight: 600; font-style: italic; }
 
   /* Badges en perfil */
   .titulo-badges { display: flex; flex-wrap: wrap; gap: .5rem; margin: .75rem 0 1rem; }
