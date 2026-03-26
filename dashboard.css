@@ -1021,15 +1021,20 @@
     margin: 0;
     quotes: none;
   }
-  #cita-del-dia-app {
-    margin-top: 0.9rem;
-    padding-top: 0.8rem;
-    border-top: 1px solid var(--border);
+  #cita-del-dia-resumen {
     display: flex;
     justify-content: center;
+    margin-bottom: 1.5rem;
   }
-  #cita-del-dia-app .cita-del-dia { padding: 0 1rem; }
-  #cita-del-dia-app .cita-text { font-size: 0.82rem; }
+  #cita-del-dia-resumen .cita-del-dia {
+    padding: 0.9rem 1.8rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg2);
+    max-width: 620px;
+    width: 100%;
+  }
+  #cita-del-dia-resumen .cita-text { font-size: 0.88rem; }
 
   /* ── BOLETÍN DE NOTAS ── */
   .boletin-panel {
