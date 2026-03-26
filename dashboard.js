@@ -586,7 +586,7 @@ function buildPorRaid() {
     // ── FF ──
     const ff    = raid.leaderboard ?? [];
     const ffMax = ff[0]?.damage ?? 1;
-    const ffRows = ff.slice(0, 10).map((e, i) => `<tr>
+    const ffRows = ff.slice(0, 5).map((e, i) => `<tr>
       <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
       <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
       <td class="bar-cell">${makeBar(e.damage / ffMax * 100)}</td>
@@ -596,7 +596,7 @@ function buildPorRaid() {
     // ── Muertes ──
     const deaths   = raid.deathStats?.deaths ?? [];
     const deathMax = deaths[0]?.count ?? 1;
-    const deathRows = deaths.slice(0, 10).map((e, i) => `<tr>
+    const deathRows = deaths.slice(0, 5).map((e, i) => `<tr>
       <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
       <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
       <td class="bar-cell">${makeBar(e.count / deathMax * 100, 'red')}</td>
@@ -606,7 +606,7 @@ function buildPorRaid() {
     // ── Tiempo muerto ──
     const timeDead    = raid.deathStats?.timeDead ?? [];
     const timeDeadMax = timeDead[0]?.ms ?? 1;
-    const timeDeadRows = timeDead.slice(0, 10).map((e, i) => `<tr>
+    const timeDeadRows = timeDead.slice(0, 5).map((e, i) => `<tr>
       <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
       <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
       <td class="bar-cell">${makeBar(e.ms / timeDeadMax * 100, 'red')}</td>
@@ -630,7 +630,7 @@ function buildPorRaid() {
         }))
         .filter(e => e.score > 0)
         .sort((a, b) => b.score - a.score)
-        .slice(0, 10)
+        .slice(0, 5)
         .map((e, i) => `<tr>
           <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
           <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
@@ -642,7 +642,7 @@ function buildPorRaid() {
     // ── Interrupts ──
     const ints   = raid.interrupts ?? [];
     const intMax = ints[0]?.total ?? 1;
-    const intRows = ints.slice(0, 10).map((e, i) => `<tr>
+    const intRows = ints.slice(0, 5).map((e, i) => `<tr>
       <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
       <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
       <td class="bar-cell">${makeBar(e.total / intMax * 100, 'purple')}</td>
@@ -652,7 +652,7 @@ function buildPorRaid() {
     // ── Dispels ──
     const disps   = raid.dispels ?? [];
     const dispMax = disps[0]?.total ?? 1;
-    const dispRows = disps.slice(0, 10).map((e, i) => `<tr>
+    const dispRows = disps.slice(0, 5).map((e, i) => `<tr>
       <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
       <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
       <td class="bar-cell">${makeBar(e.total / dispMax * 100, 'purple')}</td>
@@ -689,18 +689,18 @@ function buildPorRaid() {
           ${miniTable(['', 'Jugador', '', 'Daño'], ffRows, '¡Nadie hizo friendly fire! 🎉')}
         </div>
         <div>
-          <div class="section-title">Muertes</div>
-          ${miniTable(['', 'Jugador', '', 'Muertes'], deathRows, '¡Nadie murió! 🎉')}
+          <div class="section-title">Vergüenza</div>
+          ${miniTable(['', 'Jugador', '', 'Score'], shameRows, 'Sin datos suficientes.')}
         </div>
       </div>
       <div class="two-col" style="margin-bottom:2rem">
         <div>
-          <div class="section-title">Tiempo Muerto</div>
-          ${miniTable(['', 'Jugador', '', 'Tiempo'], timeDeadRows, 'Sin datos de tiempo muerto.')}
+          <div class="section-title">Muertes</div>
+          ${miniTable(['', 'Jugador', '', 'Muertes'], deathRows, '¡Nadie murió! 🎉')}
         </div>
         <div>
-          <div class="section-title">Vergüenza</div>
-          ${miniTable(['', 'Jugador', '', 'Score'], shameRows, 'Sin datos suficientes.')}
+          <div class="section-title">Tiempo Muerto</div>
+          ${miniTable(['', 'Jugador', '', 'Tiempo'], timeDeadRows, 'Sin datos de tiempo muerto.')}
         </div>
       </div>
       <div class="two-col" style="margin-bottom:2rem">
