@@ -52,6 +52,7 @@ function initDashboard() {
   buildPlayerMaps();
   TITULOS = calcTitulos();
   buildHeaderMeta();
+  fetchLootData();
   buildResumen();
   buildFF();
   buildMuertes();
@@ -1383,22 +1384,6 @@ function calcTitulos() {
   }
 
   // El Invisible: asiduo con más raids sin aparecer en ningún ranking
-  // El Invisible: asiduo que nunca aparece en FF, interrupts ni dispels (no hace nada activo)
-  const invisibleCount = new Map();
-  DATA.forEach(raid => {
-    const active = new Set([
-      ...raid.leaderboard.map(e => e.name),
-      ...(raid.interrupts ?? []).map(e => e.name),
-      ...(raid.dispels    ?? []).map(e => e.name),
-    ]);
-    (raid.roster ?? []).forEach(name => {
-      if (!active.has(name)) invisibleCount.set(name, (invisibleCount.get(name) ?? 0) + 1);
-    });
-  });
-  const topInvisible = [...invisibleCount.entries()]
-    .filter(([n, c]) => (rcMap.get(n) ?? 0) >= minRaids && c >= 1)
-    .sort((a, b) => b[1] - a[1]);
-  if (topInvisible.length > 0) titles.push({ id:'invisible', icon:'🎭', titulo:'El Invisible', desc:'Más raids sin FF, interrupts ni dispels', jugador: topInvisible[0][0], valor: topInvisible[0][1] + ' raids sin rastro', tipo:'shame' });
 
   // ── Honor ──
   const topDisp = topOf(dispelTotals);
@@ -2139,8 +2124,5 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-    if ((btn.dataset.tab === 'loot-resumen' || btn.dataset.tab === 'loot-registro') && !lootLoaded) {
-      fetchLootData();
-    }
   });
 });
