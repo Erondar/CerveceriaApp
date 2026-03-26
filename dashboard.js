@@ -530,7 +530,7 @@ function buildPorRaid() {
   function bossShort(n) {
     if (n.includes('Maulgar'))     return 'Maulgar';
     if (n.includes('Gruul'))       return 'Gruul';
-    if (n.includes('Magtheridon')) return 'Magth';
+    if (n.includes('Magtheridon')) return 'Magtheridon';
     return n;
   }
 
@@ -603,6 +603,42 @@ function buildPorRaid() {
       <td class="val-cell red">${e.count} ×</td>
     </tr>`);
 
+    // ── Tiempo muerto ──
+    const timeDead    = raid.deathStats?.timeDead ?? [];
+    const timeDeadMax = timeDead[0]?.ms ?? 1;
+    const timeDeadRows = timeDead.slice(0, 10).map((e, i) => `<tr>
+      <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
+      <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
+      <td class="bar-cell">${makeBar(e.ms / timeDeadMax * 100, 'red')}</td>
+      <td class="val-cell red">${fmtMs(e.ms)}</td>
+    </tr>`);
+
+    // ── Vergüenza (esta raid) ──
+    const participants = raid.roster ? new Set(raid.roster)
+      : new Set([...ff.map(e => e.name), ...deaths.map(e => e.name), ...timeDead.map(e => e.name)]);
+    const n = participants.size;
+    const shameRows = (() => {
+      if (n <= 1) return [];
+      const pct = (list, name, valKey) => {
+        const idx = list.findIndex(e => e.name === name);
+        return idx === -1 ? 0 : (n - 1 - idx) / (n - 1);
+      };
+      return [...participants]
+        .map(name => ({
+          name,
+          score: (pct(ff, name) + pct(deaths, name) + pct(timeDead, name)) / 3,
+        }))
+        .filter(e => e.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 10)
+        .map((e, i) => `<tr>
+          <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
+          <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
+          <td class="bar-cell">${makeBar(e.score * 100)}</td>
+          <td class="val-cell">${(e.score * 100).toFixed(0)}%</td>
+        </tr>`);
+    })();
+
     // ── Interrupts ──
     const ints   = raid.interrupts ?? [];
     const intMax = ints[0]?.total ?? 1;
@@ -655,6 +691,16 @@ function buildPorRaid() {
         <div>
           <div class="section-title">Muertes</div>
           ${miniTable(['', 'Jugador', '', 'Muertes'], deathRows, '¡Nadie murió! 🎉')}
+        </div>
+      </div>
+      <div class="two-col" style="margin-bottom:2rem">
+        <div>
+          <div class="section-title">Tiempo Muerto</div>
+          ${miniTable(['', 'Jugador', '', 'Tiempo'], timeDeadRows, 'Sin datos de tiempo muerto.')}
+        </div>
+        <div>
+          <div class="section-title">Vergüenza</div>
+          ${miniTable(['', 'Jugador', '', 'Score'], shameRows, 'Sin datos suficientes.')}
         </div>
       </div>
       <div class="two-col" style="margin-bottom:2rem">
