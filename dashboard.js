@@ -512,7 +512,6 @@ function buildPorRaid() {
       <select id="raid-selector" class="loot-select" style="min-width:160px;width:auto;margin-bottom:0">
         ${raids.map((r, i) => `<option value="${i}">${fmtDate(r.fecha)}</option>`).join('')}
       </select>
-      <button id="btn-export-png" style="margin-left:auto;padding:.55rem 1.1rem;background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--text-bright);font-family:'Barlow',sans-serif;font-size:.9rem;cursor:pointer;display:inline-flex;align-items:center;gap:.45rem"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Exportar imagen</button>
     </div>
     <div id="por-raid-content"></div>
   `;
@@ -712,31 +711,6 @@ function buildPorRaid() {
 
   renderRaid(raids[0]);
   document.getElementById('raid-selector').addEventListener('change', e => renderRaid(raids[+e.target.value]));
-
-  document.getElementById('btn-export-png').addEventListener('click', () => {
-    const btn      = document.getElementById('btn-export-png');
-    const content  = document.getElementById('por-raid-content');
-    const selector = document.getElementById('raid-selector');
-    const fecha    = raids[+selector.value]?.fecha ?? 'raid';
-
-    btn.textContent = '⏳ Generando...';
-    btn.disabled    = true;
-
-    html2canvas(content, {
-      backgroundColor: '#0f1117',
-      scale: 2,
-      useCORS: true,
-      logging: false,
-    }).then(canvas => {
-      const link    = document.createElement('a');
-      link.download = `resaca-${fecha}.png`;
-      link.href     = canvas.toDataURL('image/png');
-      link.click();
-    }).finally(() => {
-      btn.innerHTML = '📷 Exportar imagen';
-      btn.disabled  = false;
-    });
-  });
 }
 
 function buildDpsHpsChart(raids, xLabels) {
@@ -1701,6 +1675,41 @@ function lootBadge(resp) {
   const cls = resp === 'BiS' ? 'bis' : resp === 'Upgrade' ? 'upgrade' : resp === 'Off-Spec' ? 'offspec' : 'other';
   return `<span class="response-badge ${cls}">${resp}</span>`;
 }
+
+// ── EXPORT PNG ────────────────────────────────────────────────────────────────
+
+document.getElementById('btn-export-png').addEventListener('click', () => {
+  const btn = document.getElementById('btn-export-png');
+
+  // Determine what to capture: Por Raid captures only the content area (not selector)
+  const activeTab  = document.querySelector('.tab-content.active');
+  const porRaidContent = document.getElementById('por-raid-content');
+  const target = (activeTab?.id === 'tab-por-raid' && porRaidContent) ? porRaidContent : activeTab;
+  if (!target) return;
+
+  // Build filename from active tab name
+  const activeBtn = document.querySelector('.tab-btn.active');
+  const tabLabel  = (activeBtn?.textContent ?? 'tab').trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+
+  const originalText = btn.innerHTML;
+  btn.innerHTML = 'Generando...';
+  btn.disabled  = true;
+
+  html2canvas(target, {
+    backgroundColor: '#0f1117',
+    scale: 2,
+    useCORS: true,
+    logging: false,
+  }).then(canvas => {
+    const link    = document.createElement('a');
+    link.download = `resaca-${tabLabel}.png`;
+    link.href     = canvas.toDataURL('image/png');
+    link.click();
+  }).finally(() => {
+    btn.innerHTML = originalText;
+    btn.disabled  = false;
+  });
+});
 
 // ── TAB NAVIGATION ────────────────────────────────────────────────────────────
 
