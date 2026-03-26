@@ -1644,70 +1644,7 @@ function calcTitulos() {
   };
 
   // ── Vergüenza ──
-  // Calcula cuándo cambió de manos cada título para cambiar la frase al rotar portador.
-  // epoch='' si lo tiene desde la primera raid (frase estable, igual que antes),
-  // epoch=fecha si tomó el título en una raid posterior (frase nueva al cambiar).
-  const titleEpochs = (() => {
-    const epochs = {}, prev = {};
-    const chk = (key, w, f) => {
-      if (!w) return;
-      if (!(key in prev))       { epochs[key] = '';    prev[key] = w; }
-      else if (prev[key] !== w) { epochs[key] = f;     prev[key] = w; }
-    };
-    const cFF = new Map(), cDead = new Map(), cTD = new Map(), cPort = new Map();
-    const cDisp = new Map(), cInt = new Map(), cAv = new Map();
-    const cBl = new Map(), cWh = new Map(), cCI = new Map(), cDb = new Map(), cCo = new Map();
-    const cFD = new Map(), cRc = new Map(), cSp = new Map();
-    let cBR = null, cBD = null;
-    const topM = m => { let b = null, bv = -1; for (const [n, v] of m) if (v > bv) { b = n; bv = v; } return b; };
-    const minR = Math.max(1, Math.ceil(DATA.length * 0.3));
-    for (const raid of DATA) {
-      const f = raid.fecha;
-      (raid.leaderboard    ?? []).forEach(e => cFF.set(e.name, (cFF.get(e.name) ?? 0) + e.damage));
-      (raid.deathStats?.deaths   ?? []).forEach(e => cDead.set(e.name, (cDead.get(e.name) ?? 0) + e.count));
-      (raid.deathStats?.timeDead ?? []).forEach(e => cTD.set(e.name, (cTD.get(e.name) ?? 0) + e.ms));
-      if (raid.leaderboard?.[0]) cPort.set(raid.leaderboard[0].name, (cPort.get(raid.leaderboard[0].name) ?? 0) + 1);
-      (raid.dispels    ?? []).forEach(e => cDisp.set(e.name, (cDisp.get(e.name) ?? 0) + e.total));
-      (raid.interrupts ?? []).forEach(e => cInt.set(e.name, (cInt.get(e.name) ?? 0) + e.total));
-      (raid.avoidableDamage ?? []).forEach(m => {
-        m.players.forEach(p => cAv.set(p.name, (cAv.get(p.name) ?? 0) + p.total));
-        if (m.mechanic === 'Blast Wave')    m.players.forEach(p => cBl.set(p.name, (cBl.get(p.name) ?? 0) + p.total));
-        if (m.mechanic === 'Whirlwind')     m.players.forEach(p => cWh.set(p.name, (cWh.get(p.name) ?? 0) + p.total));
-        if (m.mechanic === 'Cave In')       m.players.forEach(p => cCI.set(p.name, (cCI.get(p.name) ?? 0) + p.total));
-        if (m.mechanic === 'Debris')        m.players.forEach(p => cDb.set(p.name, (cDb.get(p.name) ?? 0) + p.total));
-        if (m.mechanic === 'Conflagration') m.players.forEach(p => cCo.set(p.name, (cCo.get(p.name) ?? 0) + p.total));
-      });
-      const fd = raid.deathStats?.firstToDie?.name;
-      if (fd) cFD.set(fd, (cFD.get(fd) ?? 0) + 1);
-      const ds = new Set((raid.deathStats?.deaths ?? []).filter(e => e.count > 0).map(e => e.name));
-      (raid.roster ?? []).forEach(n => { cRc.set(n, (cRc.get(n) ?? 0) + 1); if (!ds.has(n)) cSp.set(n, (cSp.get(n) ?? 0) + 1); });
-      const br = raid.biggestHits?.biggestReceived;
-      if (br?.amount > (cBR?.amount ?? 0)) cBR = br;
-      Object.entries(raid.playerHitStats ?? {}).forEach(([pn, s]) => { if (s.biggestHit?.amount > (cBD?.amount ?? 0)) cBD = { ...s.biggestHit, jugador: pn }; });
-      chk('kamikaze',    topM(cAv),   f); chk('temerario',   topM(cBl),   f);
-      chk('picadora',    topM(cWh),   f); chk('estalactita', topM(cCI),   f);
-      chk('albanil',     topM(cDb),   f); chk('tostado',     topM(cCo),   f);
-      chk('portador',    topM(cFF),   f); chk('martir',      topM(cDead), f);
-      chk('fantasma',    topM(cTD),   f); chk('escudo',      topM(cDisp), f);
-      chk('centinela',   topM(cInt),  f);
-      chk('masoca',  cBR?.victima ?? null, f);
-      chk('verdugo', cBD?.jugador ?? null, f);
-      const tf = [...cFD.entries()].filter(([, c]) => c >= 2).sort((a, b) => b[1] - a[1])[0];
-      chk('primero', tf?.[0] ?? null, f);
-      const sv = [...cRc.entries()].filter(([, c]) => c >= minR).map(([n, c]) => ({ name: n, val: (cDead.get(n) ?? 0) / c })).sort((a, b) => a.val - b.val)[0];
-      chk('superviviente', sv?.name ?? null, f);
-      const pa = [...cRc.entries()].filter(([n, c]) => c >= minR && (cFF.get(n) ?? 0) === 0).sort((a, b) => b[1] - a[1])[0];
-      chk('pacifista', pa?.[0] ?? null, f);
-      const it = [...cRc.entries()].filter(([, c]) => c >= minR).map(([n]) => ({ name: n, val: cAv.get(n) ?? 0 })).sort((a, b) => a.val - b.val)[0];
-      chk('intocable', it?.name ?? null, f);
-      const sp = [...cSp.entries()].filter(([n]) => (cRc.get(n) ?? 0) >= minR).sort((a, b) => b[1] - a[1])[0];
-      chk('espartano', sp?.[0] ?? null, f);
-    }
-    return epochs;
-  })();
-
-  const nameSeed = name => [...(name ?? 'x')].reduce((s, c) => s + c.charCodeAt(0), 0);
-  const pickFor  = (name, titleKey, arr) => arr[nameSeed(name + (titleEpochs[titleKey] ?? '')) % arr.length];
+  const pickFor = (_name, _titleKey, arr) => arr[Math.floor(Math.random() * arr.length)];
 
   const topAvoid = topOf(avoidTotal);
   if (topAvoid) titles.push({ id:'kamikaze', icon:'💥', titulo:'El Kamikaze', desc:'Más daño recibido de mecánicas evitables', jugador: topAvoid.name,
