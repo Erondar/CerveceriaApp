@@ -139,12 +139,6 @@ function buildHeaderMeta() {
 
 function buildResumen() {
   const totalFF = DATA.reduce((s,r) => s + r.leaderboard.reduce((ss,e) => ss + e.damage, 0), 0);
-  let maxFF = {name: null, damage: 0};
-  DATA.forEach(r => {
-    if (r.leaderboard[0] && r.leaderboard[0].damage > maxFF.damage)
-      maxFF = {name: r.leaderboard[0].name, damage: r.leaderboard[0].damage};
-  });
-
   const totalKills    = DATA.reduce((s,r) => s + (r.bossStats?.totalKills ?? 0), 0);
   const totalWipes    = DATA.reduce((s,r) => s + (r.bossStats?.totalWipes ?? 0), 0);
   const totalTries    = totalKills + totalWipes;
@@ -293,6 +287,11 @@ function buildFF() {
     return sum > (best.sum ?? 0) ? { sum, fecha: r.fecha } : best;
   }, {});
   const uniqueFF   = data.length;
+  const maxFF      = DATA.reduce((best, r) => {
+    if (r.leaderboard[0] && r.leaderboard[0].damage > (best.damage ?? 0))
+      return { name: r.leaderboard[0].name, damage: r.leaderboard[0].damage };
+    return best;
+  }, { name: null, damage: 0 });
 
   document.getElementById('ff-stats').innerHTML = `
     <div class="stat-cards" style="margin-bottom:2rem">
