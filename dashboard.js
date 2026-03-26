@@ -512,7 +512,7 @@ function buildPorRaid() {
       <select id="raid-selector" class="loot-select" style="min-width:160px;width:auto;margin-bottom:0">
         ${raids.map((r, i) => `<option value="${i}">${fmtDate(r.fecha)}</option>`).join('')}
       </select>
-      <button id="btn-export-png" style="margin-left:auto;padding:.55rem 1.1rem;background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--text-bright);font-family:'Barlow',sans-serif;font-size:.9rem;cursor:pointer">📷 Exportar imagen</button>
+      <button id="btn-export-png" style="margin-left:auto;padding:.55rem 1.1rem;background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--text-bright);font-family:'Barlow',sans-serif;font-size:.9rem;cursor:pointer;display:inline-flex;align-items:center;gap:.45rem"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Exportar imagen</button>
     </div>
     <div id="por-raid-content"></div>
   `;
