@@ -317,6 +317,33 @@ function buildFF() {
 
 // ── PROGRESIÓN ────────────────────────────────────────────────────────────────
 
+// ── CLASES WOW ────────────────────────────────────────────────────────────────
+
+const CLASS_COLOR = {
+  Warrior: '#C69B3A', Paladin: '#F48CBA', Hunter: '#AAD372', Rogue:   '#FFF468',
+  Priest:  '#FFFFFF', Shaman:  '#0070DD', Mage:   '#3FC7EB', Warlock: '#8788EE',
+  Druid:   '#FF7C0A',
+};
+const CLASS_ES = {
+  Warrior: 'Guerrero', Paladin: 'Paladín', Hunter: 'Cazador', Rogue:   'Pícaro',
+  Priest:  'Sacerdote', Shaman: 'Chamán',  Mage:   'Mago',    Warlock: 'Brujo',
+  Druid:   'Druida',
+};
+
+function getPlayerClass(name) {
+  for (const r of DATA) {
+    const cls = r.playerClasses?.[name];
+    if (cls) return cls;
+  }
+  return null;
+}
+
+function classIcon(cls) {
+  if (!cls) return '';
+  const slug = cls.toLowerCase();
+  return `<img src="https://wow.zamimg.com/images/wow/icons/medium/classicon_${slug}.jpg" class="class-icon" title="${CLASS_ES[cls] ?? cls}">`;
+}
+
 const PROG_BOSSES = ['High King Maulgar', 'Gruul the Dragonkiller', 'Magtheridon'];
 const PROG_SHORT  = ['Maulgar', 'Gruul', 'Magtheridon'];
 const PROG_COLORS = ['#f0c84a', '#ff6060', '#c090f0'];
@@ -976,10 +1003,20 @@ function openPlayer(name) {
 
   const hasHitData = rows.some(r => r.hitStats);
 
+  const cls      = getPlayerClass(name);
+  const clsColor = cls ? (CLASS_COLOR[cls] ?? 'var(--text-bright)') : 'var(--text-bright)';
+  const clsLabel = cls ? (CLASS_ES[cls] ?? cls) : '';
+
   const profile = document.getElementById('player-profile');
   profile.className = 'visible';
   profile.innerHTML = `
-    <div class="profile-name">${name}</div>
+    <div class="profile-header">
+      ${classIcon(cls)}
+      <div>
+        <div class="profile-name" style="color:${clsColor}">${name}</div>
+        ${clsLabel ? `<div class="profile-class">${clsLabel}</div>` : ''}
+      </div>
+    </div>
     <div class="profile-meta">${raidsAttended.length} raids · ${portadorCount ? portadorCount + '× portador de la resaca' : 'nunca portador'} · ${firstCount ? firstCount + '× primero en morir' : ''}</div>
     <div class="profile-stats">
       <div class="pstat"><div class="plabel">Raids</div><div class="pval purple">${raidsAttended.length}</div></div>
