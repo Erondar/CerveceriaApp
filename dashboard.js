@@ -172,7 +172,7 @@ function buildResumen() {
     </div>
     <div class="stat-card">
       <div class="label">Rey de la Resaca</div>
-      <div class="value red" style="font-size:1.3rem;display:flex;align-items:center;gap:.4rem">${playerBadge(maxFF.name)}${maxFF.name ?? '-'}</div>
+      <div class="value red" style="font-size:1.3rem">${maxFF.name ?? '-'}</div>
       <div class="sub">${maxFF.name ? fmtDmg(maxFF.damage) + ' FF en una sola raid' : ''}</div>
     </div>
   `;
@@ -188,7 +188,7 @@ function buildResumen() {
       <div class="podium-title">${title}</div>
       ${arr.map((e,i) => `<div class="podium-entry">
         <span class="medal">${medalEmoji(i)}</span>
-        ${playerBadge(e.name)}<span class="podium-name player-link" data-player="${e.name}">${e.name}</span>
+        <span class="podium-name player-link" data-player="${e.name}">${e.name}</span>
         <span class="podium-val">${valFn(e)}</span>
       </div>`).join('')}
     </div>`;
@@ -211,7 +211,7 @@ function buildResumen() {
       <div class="record-icon">${icon}</div>
       <div class="record-label">${label}</div>
       <div class="record-amount">${fmtDmg(rec.amount)}</div>
-      <div class="record-who">${playerBadge(nameFn(rec))}<span class="player-link record-link" data-player="${nameFn(rec)}">${nameFn(rec)}</span> → ${playerBadge(targetFn(rec))}<span class="player-link record-link" data-player="${targetFn(rec)}">${targetFn(rec)}</span></div>
+      <div class="record-who"><span class="player-link record-link" data-player="${nameFn(rec)}">${nameFn(rec)}</span> → <span class="player-link record-link" data-player="${targetFn(rec)}">${targetFn(rec)}</span></div>
       ${abilityLine}
       <div class="record-date">${fmtDate(rec.fecha)}</div>
     </div>`;
@@ -306,7 +306,7 @@ function buildFF() {
   tbl.innerHTML = `<thead><tr><th></th><th>Jugador</th><th class="bar-cell"></th><th>Daño</th><th>Media/Raid</th><th>Raids</th></tr></thead><tbody>
     ${data.map((e,i) => { const rc = rcMap.get(e.name) ?? 1; return `<tr>
       <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
-      <td>${playerBadge(e.name)}<span class="player-link" data-player="${e.name}">${e.name}</span></td>
+      <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
       <td class="bar-cell">${makeBar(e.val/max*100)}</td>
       <td class="val-cell">${fmtDmg(e.val)}</td>
       <td class="val-cell td-dim">${fmtDmg(Math.round(e.val / rc))}</td>
@@ -639,12 +639,12 @@ function buildVerguenza() {
     <div class="stat-cards" style="margin-bottom:2rem">
       <div class="stat-card">
         <div class="label">Noche más Vergonzosa</div>
-        <div class="value red" style="font-size:1.3rem;display:flex;align-items:center;gap:.4rem">${playerBadge(worstRaid?.name)}${worstRaid?.name ?? '—'}</div>
+        <div class="value red" style="font-size:1.3rem">${worstRaid?.name ?? '—'}</div>
         <div class="sub">${worstRaid ? (worstRaid.score*100).toFixed(1) + '% · ' + fmtDate(worstRaid.fecha) : ''}</div>
       </div>
       <div class="stat-card">
         <div class="label">Noche más Ejemplar</div>
-        <div class="value" style="font-size:1.3rem;display:flex;align-items:center;gap:.4rem">${playerBadge(bestRaid?.name)}${bestRaid?.name ?? '—'}</div>
+        <div class="value" style="font-size:1.3rem">${bestRaid?.name ?? '—'}</div>
         <div class="sub">${bestRaid ? (bestRaid.score*100).toFixed(1) + '% · ' + fmtDate(bestRaid.fecha) : ''}</div>
       </div>
     </div>`);
@@ -665,7 +665,7 @@ function buildVerguenza() {
   tbl.innerHTML = `<thead><tr><th></th><th>Jugador</th><th class="bar-cell"></th><th>Score</th><th>Raids</th></tr></thead><tbody>
     ${data.map((e,i) => `<tr>
       <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
-      <td>${playerBadge(e.name)}<span class="player-link" data-player="${e.name}">${e.name}</span></td>
+      <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
       <td class="bar-cell"><div class="bar-wrap"><div class="bar-fill" style="width:${(e.score/max*100).toFixed(1)}%;background:var(--red2)"></div></div></td>
       <td class="val-cell" style="color:var(--red2)">${(e.score*100).toFixed(1)}%</td>
       <td class="td-dim">${e.count}</td>
@@ -697,7 +697,7 @@ function buildMuertes() {
     el.innerHTML = `<thead><tr><th></th><th>Jugador</th><th class="bar-cell"></th><th>Total</th><th>Raids</th></tr></thead><tbody>
       ${arr.map((e,i)=>`<tr>
         <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
-        <td>${playerBadge(e.name)}<span class="player-link" data-player="${e.name}">${e.name}</span></td>
+        <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
         <td class="bar-cell">${makeBar(e.val/Math.max(...arr.map(x=>x.val))*100, cls)}</td>
         <td class="val-cell ${cls}">${valFn(e)}</td>
         <td class="td-dim">${rcMap.get(e.name) ?? '—'}</td>
@@ -713,7 +713,7 @@ function buildMuertes() {
   fd.innerHTML = `<thead><tr><th></th><th>Jugador</th><th class="bar-cell"></th><th>Veces</th></tr></thead><tbody>
     ${first.map((e,i)=>`<tr>
       <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
-      <td>${playerBadge(e.name)}<span class="player-link" data-player="${e.name}">${e.name}</span></td>
+      <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
       <td class="bar-cell">${makeBar(e.val/maxF*100,'red')}</td>
       <td class="val-cell red">${e.val} ×</td>
     </tr>`).join('')}
@@ -741,7 +741,7 @@ function buildMecanicas() {
     el.innerHTML = `<thead><tr><th></th><th>Jugador</th><th class="bar-cell"></th><th>Total</th><th>Raids</th></tr></thead><tbody>
       ${arr.map((e,i)=>`<tr>
         <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
-        <td>${playerBadge(e.name)}<span class="player-link" data-player="${e.name}">${e.name}</span></td>
+        <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
         <td class="bar-cell">${makeBar(e.val/maxV*100,'purple')}</td>
         <td class="val-cell purple">${e.val}</td>
         <td class="td-dim">${rcMap.get(e.name) ?? '—'}</td>
