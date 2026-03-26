@@ -904,6 +904,15 @@
     border: 2px solid var(--border2);
     flex-shrink: 0;
   }
+  .class-icon-sm {
+    width: 20px;
+    height: 20px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    vertical-align: middle;
+    margin-right: 4px;
+    flex-shrink: 0;
+  }
   .profile-class {
     font-size: 0.85rem;
     color: var(--text-dim);
