@@ -1376,7 +1376,11 @@ function calcTitulos() {
     })
     .map(([n]) => ({ name: n, val: intTotals.get(n) ?? 0 }))
     .sort((a, b) => a.val - b.val);
-  if (capable.length > 0) titles.push({ id:'mudo', icon:'🤐', titulo:'El Mudo', desc:'Menos interrupts entre los capaces', jugador: capable[0].name, valor: capable[0].val + ' interrupts', tipo:'shame' });
+  if (capable.length > 0) {
+    const mudoMin = capable[0].val;
+    const mudos = capable.filter(e => e.val === mudoMin).map(e => e.name);
+    titles.push({ id:'mudo', icon:'🤐', titulo:'El Mudo', desc:'Menos interrupts entre los capaces', jugadores: mudos, valor: mudoMin + ' interrupts', tipo:'shame' });
+  }
 
   // El Invisible: asiduo con más raids sin aparecer en ningún ranking
   // El Invisible: asiduo que nunca aparece en FF, interrupts ni dispels (no hace nada activo)
