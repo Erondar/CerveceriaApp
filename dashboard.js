@@ -632,17 +632,17 @@ function buildPorRaid() {
     const mvp = allShameScores.length > 1 ? allShameScores[allShameScores.length - 1] : null;
     const mvpHazHTML = (mvp && hazmerreir && hazmerreir.name !== mvp.name) ? `
       <div class="two-col" style="margin-bottom:2rem">
-        <div class="panel" style="border-color:var(--red2);text-align:center;padding:1.2rem 1rem">
-          <div style="font-size:1.6rem;margin-bottom:.3rem">🤡</div>
-          <div style="font-family:'Cinzel',serif;font-size:.72rem;color:var(--red2);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem">Hazmerreír de la Noche</div>
-          <div style="font-size:1.1rem;font-weight:600"><span class="player-link" data-player="${hazmerreir.name}">${hazmerreir.name}</span></div>
-          <div style="color:var(--text-dim);font-size:.8rem;margin-top:.3rem">${(hazmerreir.score * 100).toFixed(0)}% de vergüenza</div>
+        <div class="panel" style="border-color:var(--red2);text-align:center;padding:1.5rem 1.2rem">
+          <div style="font-size:2rem;margin-bottom:.4rem">🤡</div>
+          <div style="font-family:'Cinzel',serif;font-size:.8rem;color:var(--red2);letter-spacing:.08em;text-transform:uppercase;margin-bottom:.6rem">Hazmerreír de la Noche</div>
+          <div style="font-size:1.4rem;font-weight:700;color:var(--gold)"><span class="player-link" data-player="${hazmerreir.name}">${hazmerreir.name}</span></div>
+          <div style="color:var(--text-dim);font-size:.82rem;margin-top:.4rem">${(hazmerreir.score * 100).toFixed(0)}% de vergüenza</div>
         </div>
-        <div class="panel" style="border-color:var(--green);text-align:center;padding:1.2rem 1rem">
-          <div style="font-size:1.6rem;margin-bottom:.3rem">🌟</div>
-          <div style="font-family:'Cinzel',serif;font-size:.72rem;color:var(--green);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem">MVP de la Noche</div>
-          <div style="font-size:1.1rem;font-weight:600"><span class="player-link" data-player="${mvp.name}">${mvp.name}</span></div>
-          <div style="color:var(--text-dim);font-size:.8rem;margin-top:.3rem">${(mvp.score * 100).toFixed(0)}% de vergüenza</div>
+        <div class="panel" style="border-color:var(--green);text-align:center;padding:1.5rem 1.2rem">
+          <div style="font-size:2rem;margin-bottom:.4rem">🌟</div>
+          <div style="font-family:'Cinzel',serif;font-size:.8rem;color:var(--green);letter-spacing:.08em;text-transform:uppercase;margin-bottom:.6rem">MVP de la Noche</div>
+          <div style="font-size:1.4rem;font-weight:700;color:var(--gold)"><span class="player-link" data-player="${mvp.name}">${mvp.name}</span></div>
+          <div style="color:var(--text-dim);font-size:.82rem;margin-top:.4rem">${(mvp.score * 100).toFixed(0)}% de vergüenza</div>
         </div>
       </div>` : '';
 
