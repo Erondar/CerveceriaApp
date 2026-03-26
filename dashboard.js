@@ -537,45 +537,48 @@ function buildDpsHpsTable(raids, xLabels) {
     return n.split(' ').pop();
   };
 
+  const BOSS_VAL_COLOR = 'var(--text-dim)';
+  const MEDIA_COLOR    = '#f0c84a';
+
   const dpsRows = raids.map((raid, i) => {
     const cells = bossNames.map(bn => {
       const b = (raid.dpsStats ?? []).find(b => b.name === bn);
-      return b ? `<td class="val-cell">${fmtDmg(b.dps)}</td>` : `<td class="td-dim">—</td>`;
+      return b ? `<td class="val-cell" style="color:${BOSS_VAL_COLOR}">${fmtDmg(b.dps)}</td>` : `<td class="td-dim">—</td>`;
     }).join('');
     const total = raidStats[i];
     return `<tr>
       <td class="td-dim">${xLabels[i]}</td>
       ${cells}
-      <td class="val-cell" style="color:${DPS_COLOR};font-weight:600">${total ? fmtDmg(total.dps) : '—'}</td>
+      <td class="val-cell" style="color:${MEDIA_COLOR};font-weight:600">${total ? fmtDmg(total.dps) : '—'}</td>
     </tr>`;
   });
 
   const hpsRows = raids.map((raid, i) => {
     const cells = bossNames.map(bn => {
       const b = (raid.dpsStats ?? []).find(b => b.name === bn);
-      return b ? `<td class="val-cell">${fmtDmg(b.hps)}</td>` : `<td class="td-dim">—</td>`;
+      return b ? `<td class="val-cell" style="color:${BOSS_VAL_COLOR}">${fmtDmg(b.hps)}</td>` : `<td class="td-dim">—</td>`;
     }).join('');
     const total = raidStats[i];
     return `<tr>
       <td class="td-dim">${xLabels[i]}</td>
       ${cells}
-      <td class="val-cell" style="color:${HPS_COLOR};font-weight:600">${total ? fmtDmg(total.hps) : '—'}</td>
+      <td class="val-cell" style="color:${MEDIA_COLOR};font-weight:600">${total ? fmtDmg(total.hps) : '—'}</td>
     </tr>`;
   });
 
   const bossHeaders = bossNames.map(bn => `<th>${shortName(bn)}</th>`).join('');
   const makeTable = (title, color, rows) => `
-    <div>
+    <div style="min-width:0">
       <div style="font-size:0.8rem;font-weight:600;color:${color};letter-spacing:.06em;text-transform:uppercase;margin-bottom:.4rem">${title}</div>
       <table class="ranked-list">
-        <thead><tr><th>Fecha</th>${bossHeaders}<th style="color:${color}">Media</th></tr></thead>
+        <thead><tr><th>Fecha</th>${bossHeaders}<th style="color:${MEDIA_COLOR}">Media</th></tr></thead>
         <tbody>${rows.join('')}</tbody>
       </table>
     </div>`;
 
   return `
     <div class="section-title" style="margin-top:2rem">DPS y HPS por Raid</div>
-    <div style="display:flex;gap:1.5rem;flex-wrap:wrap;margin-bottom:2rem;align-items:flex-start">
+    <div style="display:flex;gap:2rem;flex-wrap:nowrap;overflow-x:auto;margin-bottom:2rem;align-items:flex-start">
       ${makeTable('DPS', DPS_COLOR, dpsRows)}
       ${makeTable('HPS', HPS_COLOR, hpsRows)}
     </div>
