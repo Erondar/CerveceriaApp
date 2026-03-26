@@ -1,5 +1,6 @@
 let DATA = [];
 let ALL_PLAYERS = [];
+let TITULOS = [];
 
 // ── FILE LOADING ──────────────────────────────────────────────────────────────
 
@@ -49,6 +50,7 @@ function initDashboard() {
   ALL_PLAYERS = Array.from(playerSet).sort();
 
   buildPlayerMaps();
+  TITULOS = calcTitulos();
   buildHeaderMeta();
   buildResumen();
   buildFF();
@@ -59,6 +61,7 @@ function initDashboard() {
   buildProgresion();
   buildVerguenza();
   buildTimeRecords();
+  buildGaleriaInfamia();
   setupJugador();
 }
 
@@ -668,7 +671,14 @@ function buildPorRaid() {
         ${bh.biggestReceived ? hitCard('💀', 'Golpe más bestia recibido', bh.biggestReceived.victima,      bh.biggestReceived.amount, '← ' + bh.biggestReceived.agresor,  bh.biggestReceived.ability ?? '') : ''}
       </div>` : '';
 
+    const titulares = generarTitulares(raid, raids);
+    const titularesHTML = titulares.length ? `
+      <div class="titular-box">
+        ${titulares.map((t, i) => `<div class="titular-headline${i === 0 ? ' titular-headline--main' : ''}">${t}</div>`).join('')}
+      </div>` : '';
+
     document.getElementById('por-raid-content').innerHTML = `
+      ${titularesHTML}
       ${statCards}
       <div class="section-title">Boss Kills</div>
       <div class="stat-cards" style="margin-bottom:2rem">${bossCards || '<div class="section-note">Sin datos de boss kills.</div>'}</div>
@@ -1261,6 +1271,174 @@ function buildTimeRecords() {
   `;
 }
 
+// ── TÍTULOS Y LOGROS ──────────────────────────────────────────────────────────
+
+function calcTitulos() {
+  if (!DATA.length) return [];
+  const titles = [];
+
+  const ffTotals       = new Map();
+  const deathTotals    = new Map();
+  const timeDeadTotals = new Map();
+  const portadorCount  = new Map();
+  const dispelTotals   = new Map();
+  const intTotals      = new Map();
+
+  DATA.forEach(raid => {
+    (raid.leaderboard ?? []).forEach(e => ffTotals.set(e.name, (ffTotals.get(e.name) ?? 0) + e.damage));
+    (raid.deathStats?.deaths   ?? []).forEach(e => deathTotals.set(e.name, (deathTotals.get(e.name) ?? 0) + e.count));
+    (raid.deathStats?.timeDead ?? []).forEach(e => timeDeadTotals.set(e.name, (timeDeadTotals.get(e.name) ?? 0) + e.ms));
+    if (raid.leaderboard[0]) portadorCount.set(raid.leaderboard[0].name, (portadorCount.get(raid.leaderboard[0].name) ?? 0) + 1);
+    (raid.dispels    ?? []).forEach(e => dispelTotals.set(e.name, (dispelTotals.get(e.name) ?? 0) + e.total));
+    (raid.interrupts ?? []).forEach(e => intTotals.set(e.name, (intTotals.get(e.name) ?? 0) + e.total));
+  });
+
+  const rcMap    = raidCountMap();
+  const minRaids = Math.max(1, Math.ceil(DATA.length * 0.3));
+
+  const topOf = (map, qualify = true) => {
+    let best = null, bestVal = -1;
+    for (const [name, val] of map) {
+      if (qualify && (rcMap.get(name) ?? 0) < minRaids) continue;
+      if (val > bestVal) { best = name; bestVal = val; }
+    }
+    return best ? { name: best, val: bestVal } : null;
+  };
+
+  // ── Vergüenza ──
+  const topFF = topOf(ffTotals);
+  if (topFF) titles.push({ id:'kamikaze',   icon:'🩸', titulo:'El Kamikaze',     desc:'Mayor daño a aliados histórico',        jugador: topFF.name,    valor: fmtDmg(topFF.val) + ' FF',          tipo:'shame' });
+
+  const topPort = topOf(portadorCount, false);
+  if (topPort) titles.push({ id:'portador',  icon:'🏆', titulo:'El Portador',     desc:'Más veces con la Resaca',               jugador: topPort.name,  valor: topPort.val + ' raids',             tipo:'shame' });
+
+  const topDead = topOf(deathTotals);
+  if (topDead) titles.push({ id:'martir',    icon:'💀', titulo:'El Mártir',       desc:'Más muertes históricas',                jugador: topDead.name,  valor: topDead.val + ' muertes',           tipo:'shame' });
+
+  const topGhost = topOf(timeDeadTotals);
+  if (topGhost) titles.push({ id:'fantasma', icon:'👻', titulo:'El Fantasma',     desc:'Mayor tiempo muerto histórico',         jugador: topGhost.name, valor: fmtMs(topGhost.val),                tipo:'shame' });
+
+  // El Mudo: menos interrupts entre clases capaces con min raids
+  const CAPABLE = new Set(['Warrior','Rogue','Mage','Shaman']);
+  const capable = Object.entries(PLAYER_CLASS_MAP)
+    .filter(([n, cls]) => CAPABLE.has(cls) && (rcMap.get(n) ?? 0) >= minRaids)
+    .map(([n]) => ({ name: n, val: intTotals.get(n) ?? 0 }))
+    .sort((a, b) => a.val - b.val);
+  if (capable.length > 0) titles.push({ id:'mudo', icon:'🤐', titulo:'El Mudo', desc:'Menos interrupts entre los capaces', jugador: capable[0].name, valor: capable[0].val + ' interrupts', tipo:'shame' });
+
+  // ── Honor ──
+  const topDisp = topOf(dispelTotals);
+  if (topDisp) titles.push({ id:'escudo',      icon:'🛡️', titulo:'El Escudo',       desc:'Más dispels históricos',               jugador: topDisp.name,  valor: topDisp.val + ' dispels',           tipo:'honor' });
+
+  const topInt = topOf(intTotals);
+  if (topInt) titles.push({ id:'centinela',    icon:'⚡', titulo:'El Centinela',    desc:'Más interrupts históricos',            jugador: topInt.name,   valor: topInt.val + ' interrupts',         tipo:'honor' });
+
+  const survivors = [...rcMap.entries()]
+    .filter(([, c]) => c >= minRaids)
+    .map(([n]) => ({ name: n, val: deathTotals.get(n) ?? 0 }))
+    .sort((a, b) => a.val - b.val);
+  if (survivors.length > 0) titles.push({ id:'superviviente', icon:'🌿', titulo:'El Superviviente', desc:'Menos muertes entre los asiduos', jugador: survivors[0].name, valor: survivors[0].val + ' muertes', tipo:'honor' });
+
+  const pacifistas = [...rcMap.entries()]
+    .filter(([n, c]) => c >= minRaids && (ffTotals.get(n) ?? 0) === 0)
+    .sort((a, b) => b[1] - a[1]);
+  if (pacifistas.length > 0) titles.push({ id:'pacifista', icon:'☮️', titulo:'El Pacifista', desc:'Nunca ha dañado a un aliado', jugador: pacifistas[0][0], valor: rcMap.get(pacifistas[0][0]) + ' raids sin FF', tipo:'honor' });
+
+  return titles;
+}
+
+function getPlayerTitles(name) {
+  return TITULOS.filter(t => t.jugador === name);
+}
+
+// ── GALERÍA DE INFAMIA ────────────────────────────────────────────────────────
+
+function buildGaleriaInfamia() {
+  const el = document.getElementById('tab-galeria');
+  if (!el) return;
+  if (!TITULOS.length) { el.innerHTML = '<div class="empty-msg">Sin datos suficientes.</div>'; return; }
+
+  const shames = TITULOS.filter(t => t.tipo === 'shame');
+  const honors = TITULOS.filter(t => t.tipo === 'honor');
+
+  const card = t => `
+    <div class="titulo-card titulo-card--${t.tipo}">
+      <div class="titulo-icon">${t.icon}</div>
+      <div class="titulo-titulo">${t.titulo}</div>
+      <div class="titulo-jugador"><span class="player-link" data-player="${t.jugador}">${t.jugador}</span></div>
+      <div class="titulo-desc">${t.desc}</div>
+      <div class="titulo-valor">${t.valor}</div>
+    </div>`;
+
+  el.innerHTML = `
+    <div class="section-title">Títulos de la Vergüenza</div>
+    <div class="titulos-grid">${shames.map(card).join('')}</div>
+    <div class="section-title" style="margin-top:2rem">Títulos de Honor</div>
+    <div class="titulos-grid">${honors.map(card).join('')}</div>
+  `;
+
+  el.querySelectorAll('.player-link').forEach(e => e.addEventListener('click', () => openPlayer(e.dataset.player)));
+}
+
+// ── TITULAR DE LA NOCHE ───────────────────────────────────────────────────────
+
+function generarTitulares(raid, allRaids) {
+  const sorted   = [...allRaids].sort((a, b) => a.fecha.localeCompare(b.fecha));
+  const raidIdx  = sorted.findIndex(r => r.report === raid.report && r.fightId === raid.fightId);
+  const prev     = sorted.slice(0, raidIdx);
+  const lines    = [];
+
+  // 1. Racha del portador
+  const winner = raid.leaderboard[0]?.name;
+  if (winner) {
+    let streak = 0;
+    for (let i = raidIdx; i >= 0; i--) { if (sorted[i].leaderboard[0]?.name === winner) streak++; else break; }
+    if (streak >= 3)      lines.push(`${winner} lleva <b>${streak} semanas consecutivas</b> portando la Resaca. Alguien que lo pare.`);
+    else if (streak === 2) lines.push(`${winner} repite como Portador de la Resaca. Va para racha.`);
+    else                   lines.push(`${winner} se corona nuevo Portador con <b>${fmtDmg(raid.leaderboard[0].damage)}</b> de daño a sus propios compañeros.`);
+  } else {
+    lines.push('Noche sin culpables: nadie hizo daño a aliados. ¿Sigue siendo la misma banda?');
+  }
+
+  // 2. Wipes
+  const bs = raid.bossStats;
+  if (bs) {
+    if (bs.totalWipes === 0) {
+      let cleanStreak = 0;
+      for (let i = raidIdx; i >= 0; i--) { if ((sorted[i].bossStats?.totalWipes ?? 1) === 0) cleanStreak++; else break; }
+      if (cleanStreak >= 2) lines.push(`<b>${cleanStreak} raids seguidas sin un solo wipe.</b> La banda ha madurado. O los bosses se han vuelto más blandos.`);
+      else                  lines.push('Raid impoluta: cero wipes. Guárdalo porque no dura.');
+    } else if (bs.totalWipes >= 6) {
+      lines.push(`Noche de sufrimiento colectivo: <b>${bs.totalWipes} wipes</b>. El terapeuta de la banda está haciendo horas extra.`);
+    } else if (bs.totalWipes >= 3) {
+      lines.push(`${bs.totalWipes} wipes en la noche. Se puede hacer mejor.`);
+    }
+  }
+
+  // 3. Nuevo récord DPS
+  const dps = calcRaidDpsHps(raid);
+  if (dps && prev.length > 0) {
+    const prevBest = prev.reduce((best, r) => { const s = calcRaidDpsHps(r); return s && s.dps > best ? s.dps : best; }, 0);
+    if (prevBest > 0 && dps.dps > prevBest) lines.push(`Nuevo récord de daño: la banda supera los <b>${fmtDmg(dps.dps)} DPS</b> por primera vez.`);
+  }
+
+  // 4. Top muerte
+  const topDead = raid.deathStats?.deaths?.[0];
+  if (topDead?.count >= 4) lines.push(`${topDead.name} muere <b>${topDead.count} veces</b> en una sola noche. Arte.`);
+
+  // 5. Kill rápido de Gruul
+  if (bs && prev.length > 0) {
+    const gruulKill = (r) => (r.bossStats?.bosses ?? []).find(b => b.name === 'Gruul the Dragonkiller')?.killTimeMs;
+    const thisGruul = gruulKill(raid);
+    const prevBest  = prev.map(gruulKill).filter(Boolean);
+    if (thisGruul && prevBest.length > 0 && thisGruul < Math.min(...prevBest)) {
+      lines.push(`Gruul cae en <b>${fmtMs(thisGruul)}</b>: nuevo récord de velocidad.`);
+    }
+  }
+
+  return lines.slice(0, 3);
+}
+
 // ── JUGADOR ───────────────────────────────────────────────────────────────────
 
 function setupJugador() {
@@ -1342,6 +1520,12 @@ function openPlayer(name) {
   const clsColor = cls ? (CLASS_COLOR[cls] ?? 'var(--text-bright)') : 'var(--text-bright)';
   const clsLabel = [CLASS_ES[cls] ?? cls, spec].filter(Boolean).join(' · ');
 
+  const playerTitles = getPlayerTitles(name);
+  const badgesHTML = playerTitles.length ? `
+    <div class="titulo-badges">
+      ${playerTitles.map(t => `<span class="titulo-badge titulo-badge--${t.tipo}" title="${t.desc} · ${t.valor}">${t.icon} ${t.titulo}</span>`).join('')}
+    </div>` : '';
+
   const profile = document.getElementById('player-profile');
   profile.className = 'visible';
   profile.innerHTML = `
@@ -1352,6 +1536,7 @@ function openPlayer(name) {
         ${clsLabel ? `<div class="profile-class">${clsLabel}</div>` : ''}
       </div>
     </div>
+    ${badgesHTML}
     <div class="profile-meta">${raidsAttended.length} raids · ${portadorCount ? portadorCount + '× portador de la resaca' : 'nunca portador'} · ${firstCount ? firstCount + '× primero en morir' : ''}</div>
     <div class="profile-stats">
       <div class="pstat"><div class="plabel">Raids</div><div class="pval purple">${raidsAttended.length}</div></div>
