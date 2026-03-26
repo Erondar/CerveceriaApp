@@ -2138,11 +2138,25 @@ function generarTitulares(raid, allRaids) {
 
 // ── BOLETÍN DE NOTAS ──────────────────────────────────────────────────────────
 
+// Clases capaces de interrumpir / dispellear en TBC
+const INT_CAPABLE  = new Set(['Warrior', 'Rogue', 'Mage']);
+const DISP_CAPABLE = new Set(['Priest', 'Paladin', 'Shaman', 'Druid', 'Mage']);
+
+function canDoInterrupt(name) {
+  const cls  = getPlayerClass(name);
+  const spec = getPlayerSpec(name);
+  if (!cls) return false;
+  return INT_CAPABLE.has(cls) || (cls === 'Shaman' && ['Enhancement', 'Elemental'].includes(spec));
+}
+function canDoDispel(name) {
+  const cls = getPlayerClass(name);
+  return !!cls && DISP_CAPABLE.has(cls);
+}
+
 function calcBoletinScores(name) {
   const rcMap = raidCountMap();
   const allPlayers = [...rcMap.keys()];
-  const n = allPlayers.length;
-  if (n <= 1) return { ff: 50, deaths: 50, avoid: 50, interrupts: 50, dispels: 50, overall: 50 };
+  if (allPlayers.length <= 1) return { ff: 50, deaths: 50, avoid: 50, interrupts: null, dispels: null, overall: 50 };
 
   // Totales acumulados por jugador
   const ffTot = new Map(), deadTot = new Map(), avoidTot = new Map(), intTot = new Map(), dispTot = new Map();
@@ -2154,28 +2168,34 @@ function calcBoletinScores(name) {
     (r.dispels ?? []).forEach(e => dispTot.set(e.name, (dispTot.get(e.name) ?? 0) + e.total));
   });
 
-  // Media por raid para cada jugador
   const avg = (map, pname) => (map.get(pname) ?? 0) / (rcMap.get(pname) ?? 1);
 
-  // Percentil 0-100 (100 = mejor de la banda)
-  // inverted=true → menor valor = mejor (FF, muertes, daño evitable)
+  // Percentil 0-100 dentro de un subset de jugadores (100 = mejor del subset)
+  // inverted=true → menor valor = mejor  (FF, muertes, daño evitable)
   // inverted=false → mayor valor = mejor (interrupts, dispels)
-  const score = (map, pname, inverted) => {
+  const computeScore = (map, subset, pname, inverted) => {
+    const n2 = subset.length;
+    if (n2 <= 1) return 50;
     const myVal = avg(map, pname);
-    const vals  = allPlayers.map(p => avg(map, p));
-    const worse = inverted
-      ? vals.filter(v => v > myVal).length
-      : vals.filter(v => v < myVal).length;
+    const vals  = subset.map(p => avg(map, p));
+    const worse = inverted ? vals.filter(v => v > myVal).length : vals.filter(v => v < myVal).length;
     const equal = vals.filter(v => v === myVal).length;
-    return Math.round(((worse + (equal - 1) / 2) / (n - 1)) * 100);
+    // Dividir por (n-1): el mejor tiene n-1 peores → 100%, el peor tiene 0 → 0%
+    return Math.round(((worse + (equal - 1) / 2) / (n2 - 1)) * 100);
   };
 
-  const ff      = score(ffTot,    name, true);
-  const deaths  = score(deadTot,  name, true);
-  const avoid   = score(avoidTot, name, true);
-  const ints    = score(intTot,   name, false);
-  const disps   = score(dispTot,  name, false);
-  const overall = Math.round((ff + deaths + avoid + ints + disps) / 5);
+  // Subsets solo con clases capaces
+  const intSubset  = allPlayers.filter(canDoInterrupt);
+  const dispSubset = allPlayers.filter(canDoDispel);
+
+  const ff     = computeScore(ffTot,    allPlayers, name, true);
+  const deaths = computeScore(deadTot,  allPlayers, name, true);
+  const avoid  = computeScore(avoidTot, allPlayers, name, true);
+  const ints   = canDoInterrupt(name) && intSubset.length > 1  ? computeScore(intTot,  intSubset,  name, false) : null;
+  const disps  = canDoDispel(name)    && dispSubset.length > 1 ? computeScore(dispTot, dispSubset, name, false) : null;
+
+  const active  = [ff, deaths, avoid, ints, disps].filter(v => v !== null);
+  const overall = Math.round(active.reduce((s, v) => s + v, 0) / active.length);
   return { ff, deaths, avoid, interrupts: ints, dispels: disps, overall };
 }
 
@@ -2194,29 +2214,46 @@ function buildBoletin(name, raidsAttended) {
   else if (s.overall >= 30) { notaLetra = 'Insuficiente';  notaColor = 'var(--red2)';     notaComentario = 'Suspenso técnico. Lo saben todos menos él.'; }
   else                       { notaLetra = 'Muy Deficiente'; notaColor = '#ff4040';        notaComentario = 'La academia de raiding ha decidido no hacer comentarios por respeto a los demás.'; }
 
-  const radar = drawRadarChart(
-    [s.ff, s.deaths, s.avoid, s.interrupts, s.dispels],
-    ['Lealtad\n(no FF)', 'Superviv.', 'Atención\n(mec.)', 'Reflejos\n(int.)', 'Solidaridad\n(disp.)']
-  );
+  // El radar solo incluye los ejes con dato real (excluye N/A)
+  const allAxes = [
+    { label: 'Lealtad\n(no FF)',       score: s.ff },
+    { label: 'Superviv.',              score: s.deaths },
+    { label: 'Atención\n(mec.)',       score: s.avoid },
+    { label: 'Reflejos\n(int.)',       score: s.interrupts },
+    { label: 'Solidaridad\n(disp.)',   score: s.dispels },
+  ];
+  const activeAxes = allAxes.filter(a => a.score !== null);
+  const radar = drawRadarChart(activeAxes.map(a => a.score), activeAxes.map(a => a.label));
 
   const barColor = v => v >= 70 ? 'var(--gold)' : v >= 45 ? 'var(--purple2)' : 'var(--red2)';
 
   const subjects = [
-    { label: 'Control de Aliados',    sub: '(Friendly Fire)',     val: s.ff },
-    { label: 'Instinto de Superv.',   sub: '(Muertes)',           val: s.deaths },
-    { label: 'Atención al Entorno',   sub: '(Mec. Evitables)',    val: s.avoid },
-    { label: 'Reflejos',              sub: '(Interrupts)',        val: s.interrupts },
-    { label: 'Espíritu Solidario',    sub: '(Dispels)',           val: s.dispels },
+    { label: 'Control de Aliados',   sub: '(Friendly Fire)',   val: s.ff },
+    { label: 'Instinto de Superv.',  sub: '(Muertes)',         val: s.deaths },
+    { label: 'Atención al Entorno',  sub: '(Mec. Evitables)',  val: s.avoid },
+    { label: 'Reflejos',             sub: '(Interrupts)',      val: s.interrupts },
+    { label: 'Espíritu Solidario',   sub: '(Dispels)',         val: s.dispels },
   ];
 
-  const subjectRows = subjects.map(sub => `
-    <div class="boletin-subject">
-      <div class="boletin-subject-label">
-        <span>${sub.label}</span><span class="boletin-subject-sub">${sub.sub}</span>
-      </div>
-      <div class="boletin-bar-wrap"><div class="boletin-bar" style="width:${sub.val}%;background:${barColor(sub.val)}"></div></div>
-      <div class="boletin-subject-val" style="color:${barColor(sub.val)}">${sub.val}</div>
-    </div>`).join('');
+  const subjectRows = subjects.map(sub => {
+    if (sub.val === null) return `
+      <div class="boletin-subject">
+        <div class="boletin-subject-label">
+          <span style="color:var(--text-muted)">${sub.label}</span>
+          <span class="boletin-subject-sub">${sub.sub}</span>
+        </div>
+        <div class="boletin-bar-wrap"><div class="boletin-bar" style="width:0;background:var(--border)"></div></div>
+        <div class="boletin-subject-val" style="color:var(--text-muted);font-family:'Barlow',sans-serif;font-size:.72rem">N/A</div>
+      </div>`;
+    return `
+      <div class="boletin-subject">
+        <div class="boletin-subject-label">
+          <span>${sub.label}</span><span class="boletin-subject-sub">${sub.sub}</span>
+        </div>
+        <div class="boletin-bar-wrap"><div class="boletin-bar" style="width:${sub.val}%;background:${barColor(sub.val)}"></div></div>
+        <div class="boletin-subject-val" style="color:${barColor(sub.val)}">${sub.val}</div>
+      </div>`;
+  }).join('');
 
   return `
     <div class="section-title" style="margin-top:1.75rem">Boletín de Notas</div>
