@@ -55,6 +55,7 @@ function initDashboard() {
   buildMuertes();
   buildMecanicas();
   buildHistorial();
+  buildPorRaid();
   buildProgresion();
   buildVerguenza();
   buildTimeRecords();
@@ -507,6 +508,175 @@ function drawStackedBar(xLabels, series) {
 
 const DPS_COLOR = '#7ec8e3';
 const HPS_COLOR = '#4ec97e';
+
+// ── POR RAID ──────────────────────────────────────────────────────────────────
+
+function buildPorRaid() {
+  const el = document.getElementById('tab-por-raid');
+  if (!DATA.length) { el.innerHTML = '<div class="empty-msg">No hay raids registradas.</div>'; return; }
+
+  const raids = [...DATA].sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap">
+      <span style="color:var(--text-dim);font-size:0.9rem">Raid:</span>
+      <select id="raid-selector" class="loot-select" style="min-width:160px">
+        ${raids.map((r, i) => `<option value="${i}">${fmtDate(r.fecha)}</option>`).join('')}
+      </select>
+    </div>
+    <div id="por-raid-content"></div>
+  `;
+
+  function bossShort(n) {
+    if (n.includes('Maulgar'))     return 'Maulgar';
+    if (n.includes('Gruul'))       return 'Gruul';
+    if (n.includes('Magtheridon')) return 'Magth';
+    return n;
+  }
+
+  function miniTable(headers, rows, emptyMsg) {
+    if (!rows.length) return `<div class="section-note">${emptyMsg}</div>`;
+    return `<table class="ranked-list"><thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>`;
+  }
+
+  function renderRaid(raid) {
+    const bs  = raid.bossStats;
+    const dps = calcRaidDpsHps(raid);
+
+    // ── Stat cards ──
+    const dur = bs?.totalRaidTimeMs > 0 ? fmtMs(bs.totalRaidTimeMs) : '—';
+    const statCards = `
+      <div class="stat-cards" style="margin-bottom:1.5rem">
+        <div class="stat-card">
+          <div class="label">Duración</div>
+          <div class="value" style="font-size:1.3rem">${dur}</div>
+          <div class="sub">tiempo total de raid</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Resultado</div>
+          <div class="value">${bs?.totalKills ?? 0} <span style="font-size:.85rem;color:var(--text-dim)">kills</span></div>
+          <div class="sub">${bs?.totalWipes ?? 0} wipes</div>
+        </div>
+        ${dps ? `
+        <div class="stat-card">
+          <div class="label">DPS Medio</div>
+          <div class="value" style="color:${DPS_COLOR}">${fmtDmg(dps.dps)}</div>
+          <div class="sub">media 3 kills</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">HPS Medio</div>
+          <div class="value" style="color:${HPS_COLOR}">${fmtDmg(dps.hps)}</div>
+          <div class="sub">media 3 kills</div>
+        </div>` : ''}
+      </div>`;
+
+    // ── Boss cards ──
+    const bossCards = (raid.dpsStats ?? []).map(b => {
+      const wipes     = (bs?.bosses ?? []).find(x => x.name === b.name)?.wipes ?? 0;
+      const bossIdx   = PROG_BOSSES.indexOf(b.name);
+      const bossColor = bossIdx >= 0 ? PROG_COLORS[bossIdx] : 'var(--text-bright)';
+      return `<div class="stat-card">
+        <div class="label" style="color:${bossColor}">${bossShort(b.name)}</div>
+        <div class="value" style="font-size:1.2rem">${fmtMs(b.durationMs)}</div>
+        <div class="sub">${fmtDmg(b.dps)} DPS · ${fmtDmg(b.hps)} HPS</div>
+        ${wipes > 0 ? `<div class="sub" style="color:var(--red2)">${wipes} wipe${wipes > 1 ? 's' : ''} antes del kill</div>` : '<div class="sub" style="color:var(--green)">sin wipes ✓</div>'}
+      </div>`;
+    }).join('');
+
+    // ── FF ──
+    const ff    = raid.leaderboard ?? [];
+    const ffMax = ff[0]?.damage ?? 1;
+    const ffRows = ff.slice(0, 10).map((e, i) => `<tr>
+      <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
+      <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
+      <td class="bar-cell">${makeBar(e.damage / ffMax * 100)}</td>
+      <td class="val-cell red">${fmtDmg(e.damage)}</td>
+    </tr>`);
+
+    // ── Muertes ──
+    const deaths   = raid.deathStats?.deaths ?? [];
+    const deathMax = deaths[0]?.count ?? 1;
+    const deathRows = deaths.slice(0, 10).map((e, i) => `<tr>
+      <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
+      <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
+      <td class="bar-cell">${makeBar(e.count / deathMax * 100, 'red')}</td>
+      <td class="val-cell red">${e.count} ×</td>
+    </tr>`);
+
+    // ── Interrupts ──
+    const ints   = raid.interrupts ?? [];
+    const intMax = ints[0]?.total ?? 1;
+    const intRows = ints.slice(0, 10).map((e, i) => `<tr>
+      <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
+      <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
+      <td class="bar-cell">${makeBar(e.total / intMax * 100, 'purple')}</td>
+      <td class="val-cell purple">${e.total}</td>
+    </tr>`);
+
+    // ── Dispels ──
+    const disps   = raid.dispels ?? [];
+    const dispMax = disps[0]?.total ?? 1;
+    const dispRows = disps.slice(0, 10).map((e, i) => `<tr>
+      <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
+      <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
+      <td class="bar-cell">${makeBar(e.total / dispMax * 100, 'purple')}</td>
+      <td class="val-cell purple">${e.total}</td>
+    </tr>`);
+
+    // ── Bigger hits ──
+    const bh = raid.biggestHits;
+    const hitCard = (icon, label, name, amount, secondary, ability) => `
+      <div class="record-card">
+        <div class="record-icon">${icon}</div>
+        <div class="record-label">${label}</div>
+        <div class="record-amount">${fmtDmg(amount)}</div>
+        <div class="record-who">${name}</div>
+        <div class="record-ability" style="color:var(--text-dim)">${secondary}</div>
+        ${ability ? `<div class="record-ability">${ability}</div>` : ''}
+      </div>`;
+
+    const hitsHTML = bh ? `
+      <div class="section-title" style="margin-top:2rem">Golpes de la Noche</div>
+      <div class="records-grid">
+        ${bh.biggestDealt    ? hitCard('⚔️', 'Golpe más fuerte',          bh.biggestDealt.heroe,          bh.biggestDealt.amount,    '→ ' + bh.biggestDealt.objetivo,    bh.biggestDealt.ability ?? '')    : ''}
+        ${bh.biggestHeal     ? hitCard('💚', 'Cura más gorda',            bh.biggestHeal.healer,           bh.biggestHeal.amount,     '→ ' + bh.biggestHeal.target,       bh.biggestHeal.ability ?? '')     : ''}
+        ${bh.biggestReceived ? hitCard('💀', 'Golpe más bestia recibido', bh.biggestReceived.victima,      bh.biggestReceived.amount, '← ' + bh.biggestReceived.agresor,  bh.biggestReceived.ability ?? '') : ''}
+      </div>` : '';
+
+    document.getElementById('por-raid-content').innerHTML = `
+      ${statCards}
+      <div class="section-title">Boss Kills</div>
+      <div class="stat-cards" style="margin-bottom:2rem">${bossCards || '<div class="section-note">Sin datos de boss kills.</div>'}</div>
+      <div class="two-col" style="margin-bottom:2rem">
+        <div>
+          <div class="section-title">Friendly Fire</div>
+          ${miniTable(['', 'Jugador', '', 'Daño'], ffRows, '¡Nadie hizo friendly fire! 🎉')}
+        </div>
+        <div>
+          <div class="section-title">Muertes</div>
+          ${miniTable(['', 'Jugador', '', 'Muertes'], deathRows, '¡Nadie murió! 🎉')}
+        </div>
+      </div>
+      <div class="two-col" style="margin-bottom:2rem">
+        <div>
+          <div class="section-title">Interrupts</div>
+          ${miniTable(['', 'Jugador', '', 'Total'], intRows, 'Sin datos de interrupts.')}
+        </div>
+        <div>
+          <div class="section-title">Dispels</div>
+          ${miniTable(['', 'Jugador', '', 'Total'], dispRows, 'Sin datos de dispels.')}
+        </div>
+      </div>
+      ${hitsHTML}
+    `;
+
+    document.getElementById('por-raid-content').querySelectorAll('.player-link')
+      .forEach(el => el.addEventListener('click', () => openPlayer(el.dataset.player)));
+  }
+
+  renderRaid(raids[0]);
+  document.getElementById('raid-selector').addEventListener('change', e => renderRaid(raids[+e.target.value]));
+}
 
 function buildDpsHpsChart(raids, xLabels) {
   const raidStats = raids.map(r => calcRaidDpsHps(r));
