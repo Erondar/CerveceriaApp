@@ -311,11 +311,6 @@ function buildFF() {
         <div class="sub">${raidMaxFF.sum ? fmtDmg(raidMaxFF.sum) + ' de FF total' : ''}</div>
       </div>
       <div class="stat-card">
-        <div class="label">Jugadores con FF</div>
-        <div class="value purple">${uniqueFF}</div>
-        <div class="sub">han dañado a un aliado</div>
-      </div>
-      <div class="stat-card">
         <div class="label">Rey de la Resaca</div>
         <div class="value red" style="font-size:1.3rem">${maxFF.name ?? '—'}</div>
         <div class="sub">${maxFF.name ? fmtDmg(maxFF.damage) + ' FF en una sola raid' : ''}</div>
