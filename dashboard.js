@@ -573,6 +573,38 @@ function buildVerguenza() {
   const data = calcShame();
   const max  = data[0]?.score ?? 1;
 
+  // Peor y mejor actuación individual en una sola raid
+  let worstRaid = null, bestRaid = null;
+  DATA.forEach(raid => {
+    const participants = raid.roster ? new Set(raid.roster)
+      : new Set([...raid.leaderboard.map(e=>e.name), ...(raid.deathStats?.deaths??[]).map(e=>e.name), ...(raid.deathStats?.timeDead??[]).map(e=>e.name)]);
+    const n = participants.size;
+    if (n <= 1) return;
+    const pct = (list, name) => {
+      const idx = list.findIndex(e => e.name === name);
+      return idx === -1 ? 0 : (n - 1 - idx) / (n - 1);
+    };
+    for (const name of participants) {
+      const score = (pct(raid.leaderboard, name) + pct(raid.deathStats?.deaths??[], name) + pct(raid.deathStats?.timeDead??[], name)) / 3;
+      if (!worstRaid || score > worstRaid.score) worstRaid = { name, score, fecha: raid.fecha };
+      if (!bestRaid  || score < bestRaid.score)  bestRaid  = { name, score, fecha: raid.fecha };
+    }
+  });
+
+  document.getElementById('tab-verguenza').insertAdjacentHTML('afterbegin', `
+    <div class="stat-cards" style="margin-bottom:2rem">
+      <div class="stat-card">
+        <div class="label">Noche más Vergonzosa</div>
+        <div class="value red" style="font-size:1.3rem">${worstRaid?.name ?? '—'}</div>
+        <div class="sub">${worstRaid ? (worstRaid.score*100).toFixed(1) + '% · ' + fmtDate(worstRaid.fecha) : ''}</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Noche más Ejemplar</div>
+        <div class="value" style="font-size:1.3rem">${bestRaid?.name ?? '—'}</div>
+        <div class="sub">${bestRaid ? (bestRaid.score*100).toFixed(1) + '% · ' + fmtDate(bestRaid.fecha) : ''}</div>
+      </div>
+    </div>`);
+
   document.getElementById('shame-explanation').innerHTML = `
     <div style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:1rem 1.2rem;margin-bottom:1.2rem;font-size:0.85rem;color:var(--text-dim);line-height:1.6">
       <strong style="color:var(--text-bright)">¿Cómo se calcula?</strong><br>
