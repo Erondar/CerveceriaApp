@@ -1024,7 +1024,8 @@
   #cita-del-dia-resumen {
     display: flex;
     justify-content: center;
-    margin-bottom: 1.5rem;
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
   }
   #cita-del-dia-resumen .cita-del-dia {
     padding: 0.9rem 1.8rem;
