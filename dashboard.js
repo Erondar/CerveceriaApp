@@ -1319,9 +1319,14 @@ function calcTitulos() {
   if (topGhost) titles.push({ id:'fantasma', icon:'👻', titulo:'El Fantasma',     desc:'Mayor tiempo muerto histórico',         jugador: topGhost.name, valor: fmtMs(topGhost.val),                tipo:'shame' });
 
   // El Mudo: menos interrupts entre clases capaces con min raids
-  const CAPABLE = new Set(['Warrior','Rogue','Mage','Shaman']);
+  // Capaces nativos: Warrior, Rogue, Mage, Shaman Enhancement/Elemental (no Restoration)
+  const CAPABLE_CLASS = new Set(['Warrior','Rogue','Mage']);
+  const SHAMAN_CAPABLE = new Set(['Enhancement','Elemental']);
   const capable = Object.entries(PLAYER_CLASS_MAP)
-    .filter(([n, cls]) => CAPABLE.has(cls) && (rcMap.get(n) ?? 0) >= minRaids)
+    .filter(([n, cls]) => {
+      if (!CAPABLE_CLASS.has(cls) && !(cls === 'Shaman' && SHAMAN_CAPABLE.has(PLAYER_SPEC_MAP[n]))) return false;
+      return (rcMap.get(n) ?? 0) >= minRaids;
+    })
     .map(([n]) => ({ name: n, val: intTotals.get(n) ?? 0 }))
     .sort((a, b) => a.val - b.val);
   if (capable.length > 0) titles.push({ id:'mudo', icon:'🤐', titulo:'El Mudo', desc:'Menos interrupts entre los capaces', jugador: capable[0].name, valor: capable[0].val + ' interrupts', tipo:'shame' });
@@ -1354,7 +1359,7 @@ function getPlayerTitles(name) {
 // ── GALERÍA DE INFAMIA ────────────────────────────────────────────────────────
 
 function buildGaleriaInfamia() {
-  const el = document.getElementById('tab-galeria');
+  const el = document.getElementById('titulos-section');
   if (!el) return;
   if (!TITULOS.length) { el.innerHTML = '<div class="empty-msg">Sin datos suficientes.</div>'; return; }
 
@@ -1426,13 +1431,23 @@ function generarTitulares(raid, allRaids) {
   const topDead = raid.deathStats?.deaths?.[0];
   if (topDead?.count >= 4) lines.push(`${topDead.name} muere <b>${topDead.count} veces</b> en una sola noche. Arte.`);
 
-  // 5. Kill rápido de Gruul
+  // 5. Récord de velocidad en cualquier boss (elige el más impresionante por % de mejora)
   if (bs && prev.length > 0) {
-    const gruulKill = (r) => (r.bossStats?.bosses ?? []).find(b => b.name === 'Gruul the Dragonkiller')?.killTimeMs;
-    const thisGruul = gruulKill(raid);
-    const prevBest  = prev.map(gruulKill).filter(Boolean);
-    if (thisGruul && prevBest.length > 0 && thisGruul < Math.min(...prevBest)) {
-      lines.push(`Gruul cae en <b>${fmtMs(thisGruul)}</b>: nuevo récord de velocidad.`);
+    const thisBosses = raid.bossStats?.bosses ?? [];
+    let bestRecord = null; // { bossName, thisMs, prevBestMs, pct }
+    for (const boss of thisBosses) {
+      if (!boss.killTimeMs) continue;
+      const shortName = boss.name.replace('Gruul the Dragonkiller','Gruul').replace("High King Maulgar","Maulgar");
+      const prevTimes = prev.map(r => (r.bossStats?.bosses ?? []).find(b => b.name === boss.name)?.killTimeMs).filter(Boolean);
+      if (!prevTimes.length) continue;
+      const prevBest = Math.min(...prevTimes);
+      if (boss.killTimeMs < prevBest) {
+        const pct = (prevBest - boss.killTimeMs) / prevBest;
+        if (!bestRecord || pct > bestRecord.pct) bestRecord = { bossName: shortName, thisMs: boss.killTimeMs, prevBestMs: prevBest, pct };
+      }
+    }
+    if (bestRecord) {
+      lines.push(`${bestRecord.bossName} cae en <b>${fmtMs(bestRecord.thisMs)}</b>: nuevo récord de velocidad (antes ${fmtMs(bestRecord.prevBestMs)}).`);
     }
   }
 
