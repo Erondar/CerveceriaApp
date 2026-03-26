@@ -801,15 +801,15 @@ function buildPorRaid() {
     const mvpHazHTML = (mvp && hazmerreir && hazmerreir.name !== mvp.name) ? `
       <div class="two-col" style="margin-bottom:2rem">
         <div class="panel" style="border-color:var(--red2);text-align:center;padding:1.5rem 1.2rem">
-          <div style="font-size:2rem;margin-bottom:.4rem">🤡</div>
-          <div style="font-family:'Barlow',sans-serif;font-size:.85rem;font-weight:600;color:var(--red2);letter-spacing:.04em;text-transform:uppercase;margin-bottom:.6rem">Hazmerreír de la Noche</div>
-          <div style="font-size:1.4rem;font-weight:700;color:var(--gold)"><span class="player-link" data-player="${hazmerreir.name}">${hazmerreir.name}</span></div>
+          <div style="font-size:2rem;margin-bottom:.4rem">🤦</div>
+          <div style="font-family:'Barlow',sans-serif;font-size:.85rem;font-weight:600;color:var(--red2);letter-spacing:.04em;text-transform:uppercase;margin-bottom:.6rem">Artista del Desastre</div>
+          <div style="font-size:1.4rem;font-weight:700;color:var(--gold)"><span class="player-link" data-player="${hazmerreir.name}" style="font-size:inherit">${hazmerreir.name}</span></div>
           <div style="color:var(--text-dim);font-size:.82rem;margin-top:.4rem">${(hazmerreir.score * 100).toFixed(0)}% de vergüenza</div>
         </div>
         <div class="panel" style="border-color:var(--green);text-align:center;padding:1.5rem 1.2rem">
           <div style="font-size:2rem;margin-bottom:.4rem">🌟</div>
           <div style="font-family:'Barlow',sans-serif;font-size:.85rem;font-weight:600;color:var(--green);letter-spacing:.04em;text-transform:uppercase;margin-bottom:.6rem">MVP de la Noche</div>
-          <div style="font-size:1.4rem;font-weight:700;color:var(--gold)"><span class="player-link" data-player="${mvp.name}">${mvp.name}</span></div>
+          <div style="font-size:1.4rem;font-weight:700;color:var(--gold)"><span class="player-link" data-player="${mvp.name}" style="font-size:inherit">${mvp.name}</span></div>
           <div style="color:var(--text-dim);font-size:.82rem;margin-top:.4rem">${(mvp.score * 100).toFixed(0)}% de vergüenza</div>
         </div>
       </div>` : '';
@@ -2136,156 +2136,6 @@ function generarTitulares(raid, allRaids) {
   return lines.slice(0, 5);
 }
 
-// ── BOLETÍN DE NOTAS ──────────────────────────────────────────────────────────
-
-// Clases capaces de interrumpir / dispellear en TBC
-const INT_CAPABLE  = new Set(['Warrior', 'Rogue', 'Mage']);
-const DISP_CAPABLE = new Set(['Priest', 'Paladin', 'Shaman', 'Druid', 'Mage']);
-
-function canDoInterrupt(name) {
-  const cls  = getPlayerClass(name);
-  const spec = getPlayerSpec(name);
-  if (!cls) return false;
-  return INT_CAPABLE.has(cls) || (cls === 'Shaman' && ['Enhancement', 'Elemental'].includes(spec));
-}
-function canDoDispel(name) {
-  const cls = getPlayerClass(name);
-  return !!cls && DISP_CAPABLE.has(cls);
-}
-
-function calcBoletinScores(name) {
-  const rcMap = raidCountMap();
-  const allPlayers = [...rcMap.keys()];
-  if (allPlayers.length <= 1) return { ff: 50, deaths: 50, avoid: 50, interrupts: null, dispels: null, overall: 50 };
-
-  // Totales acumulados por jugador
-  const ffTot = new Map(), deadTot = new Map(), avoidTot = new Map(), intTot = new Map(), dispTot = new Map();
-  DATA.forEach(r => {
-    r.leaderboard.forEach(e => ffTot.set(e.name, (ffTot.get(e.name) ?? 0) + e.damage));
-    (r.deathStats?.deaths ?? []).forEach(e => deadTot.set(e.name, (deadTot.get(e.name) ?? 0) + e.count));
-    (r.avoidableDamage ?? []).forEach(m => m.players.forEach(p => avoidTot.set(p.name, (avoidTot.get(p.name) ?? 0) + p.total)));
-    (r.interrupts ?? []).forEach(e => intTot.set(e.name, (intTot.get(e.name) ?? 0) + e.total));
-    (r.dispels ?? []).forEach(e => dispTot.set(e.name, (dispTot.get(e.name) ?? 0) + e.total));
-  });
-
-  const avg = (map, pname) => (map.get(pname) ?? 0) / (rcMap.get(pname) ?? 1);
-
-  // Percentil 0-100 dentro de un subset de jugadores (100 = mejor del subset)
-  // inverted=true → menor valor = mejor  (FF, muertes, daño evitable)
-  // inverted=false → mayor valor = mejor (interrupts, dispels)
-  const computeScore = (map, subset, pname, inverted) => {
-    const n2 = subset.length;
-    if (n2 <= 1) return 50;
-    const myVal = avg(map, pname);
-    const vals  = subset.map(p => avg(map, p));
-    const worse = inverted ? vals.filter(v => v > myVal).length : vals.filter(v => v < myVal).length;
-    const equal = vals.filter(v => v === myVal).length;
-    // Dividir por (n-1): el mejor tiene n-1 peores → 100%, el peor tiene 0 → 0%
-    return Math.round(((worse + (equal - 1) / 2) / (n2 - 1)) * 100);
-  };
-
-  // Solo comparar contra jugadores con asistencia mínima (≥30% de raids), igual que el ranking de vergüenza
-  const minRaids     = Math.max(1, Math.ceil(DATA.length * 0.3));
-  const qualified    = allPlayers.filter(p => (rcMap.get(p) ?? 0) >= minRaids);
-  const base         = qualified.length > 1 ? qualified : allPlayers; // fallback si hay muy pocos
-
-  // Subsets: asistencia mínima + clase capaz
-  const intSubset  = base.filter(canDoInterrupt);
-  const dispSubset = base.filter(canDoDispel);
-
-  const ff     = computeScore(ffTot,    base, name, true);
-  const deaths = computeScore(deadTot,  base, name, true);
-  const avoid  = computeScore(avoidTot, base, name, true);
-  const ints   = canDoInterrupt(name) && intSubset.length > 1  ? computeScore(intTot,  intSubset,  name, false) : null;
-  const disps  = canDoDispel(name)    && dispSubset.length > 1 ? computeScore(dispTot, dispSubset, name, false) : null;
-
-  const active    = [ff, deaths, avoid, ints, disps].filter(v => v !== null);
-  const overall   = Math.round(active.reduce((s, v) => s + v, 0) / active.length);
-  const playerRaids = rcMap.get(name) ?? 0;
-  return { ff, deaths, avoid, interrupts: ints, dispels: disps, overall, qualified: playerRaids >= minRaids, minRaids, playerRaids };
-}
-
-function buildBoletin(name, raidsAttended) {
-  if (raidsAttended.length < 2) return '';
-
-  const s = calcBoletinScores(name);
-
-  // Nota final 0-10 con texto sarcástico
-  const nota10 = (s.overall / 10).toFixed(1);
-  let notaLetra, notaColor, notaComentario;
-  if      (s.overall >= 88) { notaLetra = 'Sobresaliente'; notaColor = 'var(--gold)';    notaComentario = 'Rendimiento impecable. Revisad los logs dos veces, por si acaso.'; }
-  else if (s.overall >= 72) { notaLetra = 'Notable';       notaColor = '#7ec8e3';         notaComentario = 'Encomiable. No borra el historial, pero es un buen intento.'; }
-  else if (s.overall >= 58) { notaLetra = 'Bien';          notaColor = '#4ec97e';         notaComentario = 'Aprobado con matices. El terapeuta de la banda respira un poco más tranquilo.'; }
-  else if (s.overall >= 45) { notaLetra = 'Suficiente';    notaColor = 'var(--purple2)';  notaComentario = 'El mínimo indispensable. Ni uno más, ni uno menos. Literalmente.'; }
-  else if (s.overall >= 30) { notaLetra = 'Insuficiente';  notaColor = 'var(--red2)';     notaComentario = 'Suspenso técnico. Lo saben todos menos él.'; }
-  else                       { notaLetra = 'Muy Deficiente'; notaColor = '#ff4040';        notaComentario = 'La academia de raiding ha decidido no hacer comentarios por respeto a los demás.'; }
-
-  // El radar solo incluye los ejes con dato real (excluye N/A)
-  const allAxes = [
-    { label: 'Lealtad\n(no FF)',       score: s.ff },
-    { label: 'Superviv.',              score: s.deaths },
-    { label: 'Atención\n(mec.)',       score: s.avoid },
-    { label: 'Reflejos\n(int.)',       score: s.interrupts },
-    { label: 'Solidaridad\n(disp.)',   score: s.dispels },
-  ];
-  const activeAxes = allAxes.filter(a => a.score !== null);
-  const radar = drawRadarChart(activeAxes.map(a => a.score), activeAxes.map(a => a.label));
-
-  const barColor = v => v >= 70 ? 'var(--gold)' : v >= 45 ? 'var(--purple2)' : 'var(--red2)';
-
-  const subjects = [
-    { label: 'Control de Aliados',   sub: '(Friendly Fire)',   val: s.ff },
-    { label: 'Instinto de Superv.',  sub: '(Muertes)',         val: s.deaths },
-    { label: 'Atención al Entorno',  sub: '(Mec. Evitables)',  val: s.avoid },
-    { label: 'Reflejos',             sub: '(Interrupts)',      val: s.interrupts },
-    { label: 'Espíritu Solidario',   sub: '(Dispels)',         val: s.dispels },
-  ];
-
-  const subjectRows = subjects.map(sub => {
-    if (sub.val === null) return `
-      <div class="boletin-subject">
-        <div class="boletin-subject-label">
-          <span style="color:var(--text-muted)">${sub.label}</span>
-          <span class="boletin-subject-sub">${sub.sub}</span>
-        </div>
-        <div class="boletin-bar-wrap"><div class="boletin-bar" style="width:0;background:var(--border)"></div></div>
-        <div class="boletin-subject-val" style="color:var(--text-muted);font-family:'Barlow',sans-serif;font-size:.72rem">N/A</div>
-      </div>`;
-    return `
-      <div class="boletin-subject">
-        <div class="boletin-subject-label">
-          <span>${sub.label}</span><span class="boletin-subject-sub">${sub.sub}</span>
-        </div>
-        <div class="boletin-bar-wrap"><div class="boletin-bar" style="width:${sub.val}%;background:${barColor(sub.val)}"></div></div>
-        <div class="boletin-subject-val" style="color:${barColor(sub.val)}">${sub.val}</div>
-      </div>`;
-  }).join('');
-
-  const muestraAviso = !s.qualified
-    ? `<div style="font-size:.78rem;color:var(--text-muted);font-style:italic;margin-top:.5rem;padding:.5rem .75rem;border:1px solid var(--border);border-radius:5px;background:var(--bg3)">
-        ⚠ Muestra insuficiente: ${s.playerRaids} raid${s.playerRaids !== 1 ? 's' : ''} asistida${s.playerRaids !== 1 ? 's' : ''} de ${s.minRaids} mínimas.
-        Los datos son orientativos, no comparables con el resto de la banda.
-       </div>` : '';
-
-  return `
-    <div class="section-title" style="margin-top:1.75rem">Boletín de Notas</div>
-    <div class="boletin-panel">
-      <div class="boletin-left">${radar}</div>
-      <div class="boletin-right">
-        <div class="boletin-subjects">${subjectRows}</div>
-        <div class="boletin-nota" style="border-color:${notaColor}">
-          <div class="boletin-nota-num" style="color:${notaColor}">${nota10}</div>
-          <div>
-            <div class="boletin-nota-letra" style="color:${notaColor}">${notaLetra}</div>
-            <div class="boletin-nota-comment">${notaComentario}</div>
-          </div>
-        </div>
-        ${muestraAviso}
-      </div>
-    </div>`;
-}
-
-// ── JUGADOR ───────────────────────────────────────────────────────────────────
 
 function setupJugador() {
   const input = document.getElementById('player-search');
@@ -2321,7 +2171,7 @@ function openPlayer(name) {
 
   const raidsAttended = DATA.filter(r => (r.roster ?? [...r.leaderboard.map(e=>e.name), ...(r.deathStats?.deaths??[]).map(e=>e.name)]).includes(name));
 
-  let totalFF = 0, totalDeaths = 0, totalTimeDead = 0, totalInts = 0, totalDisp = 0, totalAvoid = 0, portadorCount = 0, firstCount = 0;
+  let totalFF = 0, totalDeaths = 0, totalTimeDead = 0, totalInts = 0, totalDisp = 0, totalAvoid = 0;
 
   const rows = raidsAttended.map(r => {
     const ffEntry  = r.leaderboard.find(e => e.name === name);
@@ -2342,8 +2192,6 @@ function openPlayer(name) {
     const avoid = (r.avoidableDamage ?? []).reduce((s, m) => s + (m.players.find(p => p.name === name)?.total ?? 0), 0);
     totalAvoid += avoid;
     totalFF += ff; totalDeaths += d; totalTimeDead += td; totalInts += int; totalDisp += dis;
-    if (isPort) portadorCount++;
-    if (isFirst) firstCount++;
 
     // Vergüenza de esta raid
     const participants = r.roster ? new Set(r.roster)
@@ -2396,7 +2244,6 @@ function openPlayer(name) {
       </div>
     </div>
     ${badgesHTML}
-    <div class="profile-meta">${raidsAttended.length} raids · ${portadorCount ? portadorCount + '× portador de la resaca' : 'nunca portador'} · ${firstCount ? firstCount + '× primero en morir' : ''}</div>
     <div class="profile-stats">
       <div class="pstat"><div class="plabel">Raids</div><div class="pval purple">${raidsAttended.length}</div></div>
       <div class="pstat"><div class="plabel">Fuego Amigo (Gruul)</div><div class="pval">${fmtDmg(totalFF)}</div></div>
@@ -2405,8 +2252,6 @@ function openPlayer(name) {
       <div class="pstat"><div class="plabel">Interrupts</div><div class="pval purple">${totalInts}</div></div>
       <div class="pstat"><div class="plabel">Dispels</div><div class="pval purple">${totalDisp}</div></div>
     </div>
-
-    ${buildBoletin(name, raidsAttended)}
 
     ${hasHitData ? `
     <div class="section-title">Récords Personales</div>
