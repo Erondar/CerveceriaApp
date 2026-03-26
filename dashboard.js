@@ -186,14 +186,12 @@ function buildResumen() {
     <div class="stat-card">
       <div class="label">Mejor DPS de Raid</div>
       <div class="value" style="color:#7ec8e3">${bestDpsRaid ? fmtDmg(bestDpsRaid.dps) : '—'}</div>
-      <div class="sub">${bestDpsRaid ? fmtDate(bestDpsRaid.fecha) : 'Sin datos'}</div>
-      <div class="sub td-dim" style="font-size:0.75rem">media de los 3 boss kills</div>
+      <div class="sub">${bestDpsRaid ? fmtDate(bestDpsRaid.fecha) + ' · media 3 kills' : 'Sin datos'}</div>
     </div>
     <div class="stat-card">
       <div class="label">Mejor HPS de Raid</div>
       <div class="value" style="color:#4ec97e">${bestHpsRaid ? fmtDmg(bestHpsRaid.hps) : '—'}</div>
-      <div class="sub">${bestHpsRaid ? fmtDate(bestHpsRaid.fecha) : 'Sin datos'}</div>
-      <div class="sub td-dim" style="font-size:0.75rem">media de los 3 boss kills</div>
+      <div class="sub">${bestHpsRaid ? fmtDate(bestHpsRaid.fecha) + ' · media 3 kills' : 'Sin datos'}</div>
     </div>
   `;
 
