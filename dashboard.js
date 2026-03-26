@@ -154,6 +154,14 @@ function buildResumen() {
 
   const avgDeaths = DATA.length > 0 ? (totalDeaths / DATA.length).toFixed(1) : 0;
 
+  let bestDpsRaid = null, bestHpsRaid = null;
+  DATA.forEach(raid => {
+    const s = calcRaidDpsHps(raid);
+    if (!s) return;
+    if (!bestDpsRaid || s.dps > bestDpsRaid.dps) bestDpsRaid = { dps: s.dps, fecha: raid.fecha };
+    if (!bestHpsRaid || s.hps > bestHpsRaid.hps) bestHpsRaid = { hps: s.hps, fecha: raid.fecha };
+  });
+
   document.getElementById('stat-cards').innerHTML = `
     <div class="stat-card">
       <div class="label">Jugadores</div>
@@ -174,6 +182,16 @@ function buildResumen() {
       <div class="label">Rey de la Resaca</div>
       <div class="value red" style="font-size:1.3rem">${maxFF.name ?? '-'}</div>
       <div class="sub">${maxFF.name ? fmtDmg(maxFF.damage) + ' FF en una sola raid' : ''}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Mejor DPS de Raid</div>
+      <div class="value" style="color:#f0c84a">${bestDpsRaid ? fmtDmg(bestDpsRaid.dps) : '—'}</div>
+      <div class="sub">${bestDpsRaid ? fmtDate(bestDpsRaid.fecha) : 'Sin datos'}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Mejor HPS de Raid</div>
+      <div class="value" style="color:#4ec97e">${bestHpsRaid ? fmtDmg(bestHpsRaid.hps) : '—'}</div>
+      <div class="sub">${bestHpsRaid ? fmtDate(bestHpsRaid.fecha) : 'Sin datos'}</div>
     </div>
   `;
 
@@ -226,6 +244,16 @@ function buildResumen() {
     </div>
   `;
   recEl.querySelectorAll('.record-link').forEach(el => el.addEventListener('click', () => openPlayer(el.dataset.player)));
+}
+
+function calcRaidDpsHps(raid) {
+  const bosses = raid.dpsStats ?? [];
+  if (!bosses.length) return null;
+  const totalDmg  = bosses.reduce((s, b) => s + b.totalDmg,  0);
+  const totalHeal = bosses.reduce((s, b) => s + b.totalHeal, 0);
+  const totalSec  = bosses.reduce((s, b) => s + b.durationMs / 1000, 0);
+  if (totalSec <= 0) return null;
+  return { dps: Math.round(totalDmg / totalSec), hps: Math.round(totalHeal / totalSec) };
 }
 
 function calcGlobalRecords() {
@@ -477,6 +505,64 @@ function drawStackedBar(xLabels, series) {
   </svg>`;
 }
 
+function buildDpsHpsSection(raids, xLabels) {
+  const raidStats = raids.map(r => calcRaidDpsHps(r));
+  if (raidStats.every(s => s === null)) return '';
+
+  // Line chart: total DPS and HPS per raid
+  const dpsSeries = [
+    { label: 'DPS', color: '#f0c84a', values: raidStats.map(s => s?.dps ?? null) },
+    { label: 'HPS', color: '#4ec97e', values: raidStats.map(s => s?.hps ?? null) },
+  ];
+
+  // Per-boss table: each raid row, boss columns
+  const bossNames = [...new Set(raids.flatMap(r => (r.dpsStats ?? []).map(b => b.name)))];
+  const shortName = n => {
+    if (n.includes('Maulgar'))   return 'Maulgar';
+    if (n.includes('Gruul'))     return 'Gruul';
+    if (n.includes('Magtheridon')) return 'Magtheridon';
+    return n.split(' ').pop();
+  };
+
+  const tableRows = raids.map((raid, i) => {
+    const bossCells = bossNames.map(bn => {
+      const b = (raid.dpsStats ?? []).find(b => b.name === bn);
+      if (!b) return `<td class="td-dim">—</td><td class="td-dim">—</td>`;
+      return `<td class="val-cell" style="color:#f0c84a">${fmtDmg(b.dps)}</td><td class="val-cell" style="color:#4ec97e">${fmtDmg(b.hps)}</td>`;
+    });
+    const total = raidStats[i];
+    return `<tr>
+      <td class="td-dim">${xLabels[i]}</td>
+      ${bossCells.join('')}
+      <td class="val-cell" style="color:#f0c84a;font-weight:600">${total ? fmtDmg(total.dps) : '—'}</td>
+      <td class="val-cell" style="color:#4ec97e;font-weight:600">${total ? fmtDmg(total.hps) : '—'}</td>
+    </tr>`;
+  });
+
+  const bossHeaders = bossNames.flatMap(bn => [
+    `<th style="color:#f0c84a">${shortName(bn)} DPS</th>`,
+    `<th style="color:#4ec97e">${shortName(bn)} HPS</th>`,
+  ]).join('');
+
+  return `
+    <div class="section-title" style="margin-top:2rem">DPS y HPS por Raid</div>
+    <div class="prog-chart">
+      <div class="prog-chart-title">DPS y HPS Total (todos los boss kills)</div>
+      ${drawLineChart(xLabels, dpsSeries, v => fmtDmg(Math.round(v)))}
+      ${progLegend(['DPS', 'HPS'], ['#f0c84a', '#4ec97e'])}
+    </div>
+    <table class="ranked-list" style="margin-bottom:2rem">
+      <thead><tr>
+        <th>Fecha</th>
+        ${bossHeaders}
+        <th style="color:#f0c84a">Total DPS</th>
+        <th style="color:#4ec97e">Total HPS</th>
+      </tr></thead>
+      <tbody>${tableRows.join('')}</tbody>
+    </table>
+  `;
+}
+
 function buildProgresion() {
   const raids = DATA.filter(r => r.bossStats).sort((a, b) => a.fecha.localeCompare(b.fecha));
   const el = document.getElementById('tab-progresion');
@@ -598,6 +684,8 @@ function buildProgresion() {
         </tr>`).join('')}
       </tbody>
     </table>
+
+    ${buildDpsHpsSection(raids, xLabels)}
 
     <div id="prog-tooltip" class="prog-tooltip"></div>
   `;
