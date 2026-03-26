@@ -2184,19 +2184,25 @@ function calcBoletinScores(name) {
     return Math.round(((worse + (equal - 1) / 2) / (n2 - 1)) * 100);
   };
 
-  // Subsets solo con clases capaces
-  const intSubset  = allPlayers.filter(canDoInterrupt);
-  const dispSubset = allPlayers.filter(canDoDispel);
+  // Solo comparar contra jugadores con asistencia mínima (≥30% de raids), igual que el ranking de vergüenza
+  const minRaids     = Math.max(1, Math.ceil(DATA.length * 0.3));
+  const qualified    = allPlayers.filter(p => (rcMap.get(p) ?? 0) >= minRaids);
+  const base         = qualified.length > 1 ? qualified : allPlayers; // fallback si hay muy pocos
 
-  const ff     = computeScore(ffTot,    allPlayers, name, true);
-  const deaths = computeScore(deadTot,  allPlayers, name, true);
-  const avoid  = computeScore(avoidTot, allPlayers, name, true);
+  // Subsets: asistencia mínima + clase capaz
+  const intSubset  = base.filter(canDoInterrupt);
+  const dispSubset = base.filter(canDoDispel);
+
+  const ff     = computeScore(ffTot,    base, name, true);
+  const deaths = computeScore(deadTot,  base, name, true);
+  const avoid  = computeScore(avoidTot, base, name, true);
   const ints   = canDoInterrupt(name) && intSubset.length > 1  ? computeScore(intTot,  intSubset,  name, false) : null;
   const disps  = canDoDispel(name)    && dispSubset.length > 1 ? computeScore(dispTot, dispSubset, name, false) : null;
 
-  const active  = [ff, deaths, avoid, ints, disps].filter(v => v !== null);
-  const overall = Math.round(active.reduce((s, v) => s + v, 0) / active.length);
-  return { ff, deaths, avoid, interrupts: ints, dispels: disps, overall };
+  const active    = [ff, deaths, avoid, ints, disps].filter(v => v !== null);
+  const overall   = Math.round(active.reduce((s, v) => s + v, 0) / active.length);
+  const playerRaids = rcMap.get(name) ?? 0;
+  return { ff, deaths, avoid, interrupts: ints, dispels: disps, overall, qualified: playerRaids >= minRaids, minRaids, playerRaids };
 }
 
 function buildBoletin(name, raidsAttended) {
@@ -2255,6 +2261,12 @@ function buildBoletin(name, raidsAttended) {
       </div>`;
   }).join('');
 
+  const muestraAviso = !s.qualified
+    ? `<div style="font-size:.78rem;color:var(--text-muted);font-style:italic;margin-top:.5rem;padding:.5rem .75rem;border:1px solid var(--border);border-radius:5px;background:var(--bg3)">
+        ⚠ Muestra insuficiente: ${s.playerRaids} raid${s.playerRaids !== 1 ? 's' : ''} asistida${s.playerRaids !== 1 ? 's' : ''} de ${s.minRaids} mínimas.
+        Los datos son orientativos, no comparables con el resto de la banda.
+       </div>` : '';
+
   return `
     <div class="section-title" style="margin-top:1.75rem">Boletín de Notas</div>
     <div class="boletin-panel">
@@ -2268,6 +2280,7 @@ function buildBoletin(name, raidsAttended) {
             <div class="boletin-nota-comment">${notaComentario}</div>
           </div>
         </div>
+        ${muestraAviso}
       </div>
     </div>`;
 }
