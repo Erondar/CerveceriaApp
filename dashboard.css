@@ -172,6 +172,13 @@
   .tab-btn:hover { color: var(--text-bright); }
   .tab-btn.active { color: var(--text-bright); font-family: 'Barlow', system-ui, sans-serif; font-weight: 700; border-bottom-color: var(--gold); border-bottom-width: 3px; }
 
+  .sub-nav { display: flex; gap: .25rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0; }
+  .sub-tab-btn { padding: .45rem 1.1rem; background: none; border: none; border-bottom: 2px solid transparent; margin-bottom: -1px; color: var(--text-dim); cursor: pointer; font-family: 'Barlow', sans-serif; font-size: .88rem; font-weight: 500; letter-spacing: .03em; transition: color .15s, border-color .15s; }
+  .sub-tab-btn:hover { color: var(--text-bright); }
+  .sub-tab-btn.active { color: var(--text-bright); font-weight: 700; border-bottom-color: var(--gold); }
+  .sub-tab-content { display: none; }
+  .sub-tab-content.active { display: block; }
+
   .nav-separator {
     width: 1px;
     background: var(--border2);
