@@ -84,11 +84,12 @@
     <div id="raid-list"></div>
   </div>
 
-  <!-- VERGÜENZA (con sub-tabs: Vergüenza | FF | Muertes) -->
+  <!-- VERGÜENZA (con sub-tabs: Vergüenza | FF | Muertes | Mecánicas) -->
   <div class="tab-content" id="tab-verguenza">
     <div id="verguenza-header"></div>
     <div class="sub-nav" id="sub-nav-verguenza">
       <button class="sub-tab-btn active" data-subtab="shame">Vergüenza</button>
+      <button class="sub-tab-btn" data-subtab="evitables">Mecánicas Evitables</button>
       <button class="sub-tab-btn" data-subtab="ff">Friendly Fire</button>
       <button class="sub-tab-btn" data-subtab="muertes">Muertes</button>
     </div>
@@ -119,6 +120,9 @@
       <div class="panel" style="max-width:420px">
         <table class="ranked-list" id="table-firstdie"></table>
       </div>
+    </div>
+    <div class="sub-tab-content" id="subtab-evitables">
+      <div id="avoidable-section"></div>
     </div>
   </div>
 
