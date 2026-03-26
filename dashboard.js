@@ -512,6 +512,9 @@ function buildPorRaid() {
       <select id="raid-selector" class="loot-select" style="min-width:160px;width:auto;margin-bottom:0">
         ${raids.map((r, i) => `<option value="${i}">${fmtDate(r.fecha)}</option>`).join('')}
       </select>
+      <button id="btn-export-png" style="margin-left:auto;padding:.55rem 1.1rem;background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--text-bright);font-family:'Barlow',sans-serif;font-size:.9rem;cursor:pointer;display:flex;align-items:center;gap:.5rem">
+        📷 Exportar imagen
+      </button>
     </div>
     <div id="por-raid-content"></div>
   `;
@@ -711,6 +714,31 @@ function buildPorRaid() {
 
   renderRaid(raids[0]);
   document.getElementById('raid-selector').addEventListener('change', e => renderRaid(raids[+e.target.value]));
+
+  document.getElementById('btn-export-png').addEventListener('click', () => {
+    const btn      = document.getElementById('btn-export-png');
+    const content  = document.getElementById('por-raid-content');
+    const selector = document.getElementById('raid-selector');
+    const fecha    = raids[+selector.value]?.fecha ?? 'raid';
+
+    btn.textContent = '⏳ Generando...';
+    btn.disabled    = true;
+
+    html2canvas(content, {
+      backgroundColor: '#0f1117',
+      scale: 2,
+      useCORS: true,
+      logging: false,
+    }).then(canvas => {
+      const link    = document.createElement('a');
+      link.download = `resaca-${fecha}.png`;
+      link.href     = canvas.toDataURL('image/png');
+      link.click();
+    }).finally(() => {
+      btn.innerHTML = '📷 Exportar imagen';
+      btn.disabled  = false;
+    });
+  });
 }
 
 function buildDpsHpsChart(raids, xLabels) {
