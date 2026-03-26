@@ -536,7 +536,8 @@ function buildPorRaid() {
     const dps = calcRaidDpsHps(raid);
 
     // ── Stat cards ──
-    const dur = bs?.totalRaidTimeMs > 0 ? fmtMs(bs.totalRaidTimeMs) : '—';
+    const dur      = bs?.totalRaidTimeMs > 0 ? fmtMs(bs.totalRaidTimeMs) : '—';
+    const firstDie = raid.deathStats?.firstToDie;
     const statCards = `
       <div class="stat-cards" style="margin-bottom:1.5rem">
         <div class="stat-card">
@@ -549,6 +550,12 @@ function buildPorRaid() {
           <div class="value">${bs?.totalKills ?? 0} <span style="font-size:.85rem;color:var(--text-dim)">kills</span></div>
           <div class="sub">${bs?.totalWipes ?? 0} wipes</div>
         </div>
+        ${firstDie?.name ? `
+        <div class="stat-card">
+          <div class="label">Primero en Morir</div>
+          <div class="value" style="font-size:1.05rem;color:var(--red2)">${firstDie.name}</div>
+          <div class="sub">${firstDie.timeMs ? `a los ${(firstDie.timeMs/1000).toFixed(1)}s del pull` : 'abrió el marcador'}</div>
+        </div>` : ''}
         ${dps ? `
         <div class="stat-card">
           <div class="label">DPS Medio</div>
@@ -609,27 +616,40 @@ function buildPorRaid() {
     const participants = raid.roster ? new Set(raid.roster)
       : new Set([...ff.map(e => e.name), ...deaths.map(e => e.name), ...timeDead.map(e => e.name)]);
     const n = participants.size;
-    const shameRows = (() => {
-      if (n <= 1) return [];
-      const pct = (list, name, valKey) => {
-        const idx = list.findIndex(e => e.name === name);
-        return idx === -1 ? 0 : (n - 1 - idx) / (n - 1);
-      };
-      return [...participants]
-        .map(name => ({
-          name,
-          score: (pct(ff, name) + pct(deaths, name) + pct(timeDead, name)) / 3,
-        }))
-        .filter(e => e.score > 0)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 5)
-        .map((e, i) => `<tr>
-          <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
-          <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
-          <td class="bar-cell">${makeBar(e.score * 100)}</td>
-          <td class="val-cell">${(e.score * 100).toFixed(0)}%</td>
-        </tr>`);
-    })();
+    const pct = (list, name) => {
+      const idx = list.findIndex(e => e.name === name);
+      return idx === -1 ? 0 : (n - 1 - idx) / (n - 1);
+    };
+    const allShameScores = n > 1 ? [...participants]
+      .map(name => ({ name, score: (pct(ff, name) + pct(deaths, name) + pct(timeDead, name)) / 3 }))
+      .sort((a, b) => b.score - a.score) : [];
+    const shameRows = allShameScores
+      .filter(e => e.score > 0)
+      .slice(0, 5)
+      .map((e, i) => `<tr>
+        <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
+        <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
+        <td class="bar-cell">${makeBar(e.score * 100)}</td>
+        <td class="val-cell">${(e.score * 100).toFixed(0)}%</td>
+      </tr>`);
+
+    const hazmerreir = allShameScores[0] ?? null;
+    const mvp = allShameScores.length > 1 ? allShameScores[allShameScores.length - 1] : null;
+    const mvpHazHTML = (mvp && hazmerreir && hazmerreir.name !== mvp.name) ? `
+      <div class="two-col" style="margin-bottom:2rem">
+        <div class="panel" style="border-color:var(--red2);text-align:center;padding:1.2rem 1rem">
+          <div style="font-size:1.6rem;margin-bottom:.3rem">🤡</div>
+          <div style="font-family:'Cinzel',serif;font-size:.72rem;color:var(--red2);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem">Hazmerreír de la Noche</div>
+          <div style="font-size:1.1rem;font-weight:600"><span class="player-link" data-player="${hazmerreir.name}">${hazmerreir.name}</span></div>
+          <div style="color:var(--text-dim);font-size:.8rem;margin-top:.3rem">${(hazmerreir.score * 100).toFixed(0)}% de vergüenza</div>
+        </div>
+        <div class="panel" style="border-color:var(--green);text-align:center;padding:1.2rem 1rem">
+          <div style="font-size:1.6rem;margin-bottom:.3rem">🌟</div>
+          <div style="font-family:'Cinzel',serif;font-size:.72rem;color:var(--green);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem">MVP de la Noche</div>
+          <div style="font-size:1.1rem;font-weight:600"><span class="player-link" data-player="${mvp.name}">${mvp.name}</span></div>
+          <div style="color:var(--text-dim);font-size:.8rem;margin-top:.3rem">${(mvp.score * 100).toFixed(0)}% de vergüenza</div>
+        </div>
+      </div>` : '';
 
     // ── Interrupts ──
     const ints   = raid.interrupts ?? [];
@@ -680,6 +700,7 @@ function buildPorRaid() {
     document.getElementById('por-raid-content').innerHTML = `
       ${titularesHTML}
       ${statCards}
+      ${mvpHazHTML}
       <div class="section-title">Boss Kills</div>
       <div class="stat-cards" style="margin-bottom:2rem">${bossCards || '<div class="section-note">Sin datos de boss kills.</div>'}</div>
       <div class="two-col" style="margin-bottom:2rem">
@@ -962,8 +983,8 @@ function buildVerguenza() {
     }
   });
 
-  document.getElementById('tab-verguenza').insertAdjacentHTML('afterbegin', `
-    <div class="stat-cards" style="margin-bottom:2rem">
+  document.getElementById('verguenza-header').innerHTML = `
+    <div class="stat-cards" style="margin-bottom:1.5rem">
       <div class="stat-card">
         <div class="label">Noche más Vergonzosa</div>
         <div class="value red" style="font-size:1.3rem">${worstRaid?.name ?? '—'}</div>
@@ -974,7 +995,17 @@ function buildVerguenza() {
         <div class="value" style="font-size:1.3rem">${bestRaid?.name ?? '—'}</div>
         <div class="sub">${bestRaid ? (bestRaid.score*100).toFixed(1) + '% · ' + fmtDate(bestRaid.fecha) : ''}</div>
       </div>
-    </div>`);
+    </div>`;
+
+  // Sub-tab switching
+  document.querySelectorAll('#sub-nav-verguenza .sub-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#sub-nav-verguenza .sub-tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('#tab-verguenza .sub-tab-content').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('subtab-' + btn.dataset.subtab).classList.add('active');
+    });
+  });
 
   document.getElementById('shame-explanation').innerHTML = `
     <div style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:1rem 1.2rem;margin-bottom:1.2rem;font-size:0.85rem;color:var(--text-dim);line-height:1.6">
@@ -1431,16 +1462,31 @@ function generarTitulares(raid, allRaids) {
   const prev     = sorted.slice(0, raidIdx);
   const lines    = [];
 
+  // Seed determinista por raid para elegir variante de texto
+  const seed = [...(raid.report ?? 'x')].reduce((s, c) => s + c.charCodeAt(0), 0);
+  const pick = arr => arr[seed % arr.length];
+
   // 1. Racha del portador
   const winner = raid.leaderboard[0]?.name;
   if (winner) {
     let streak = 0;
     for (let i = raidIdx; i >= 0; i--) { if (sorted[i].leaderboard[0]?.name === winner) streak++; else break; }
-    if (streak >= 3)      lines.push(`${winner} lleva <b>${streak} semanas consecutivas</b> portando la Resaca. Alguien que lo pare.`);
-    else if (streak === 2) lines.push(`${winner} repite como Portador de la Resaca. Va para racha.`);
-    else                   lines.push(`${winner} se corona nuevo Portador con <b>${fmtDmg(raid.leaderboard[0].damage)}</b> de daño a sus propios compañeros.`);
+    if (streak >= 4)      lines.push(`${winner} lleva <b>${streak} semanas seguidas</b> portando la Resaca. A estas alturas ya es patrimonio cultural.`);
+    else if (streak >= 3) lines.push(`${winner} lleva <b>${streak} semanas consecutivas</b> portando la Resaca. Alguien que lo pare.`);
+    else if (streak === 2) lines.push(pick([
+      `${winner} repite como Portador de la Resaca. Va para racha.`,
+      `${winner} vuelve a liderar el friendly fire. La consistencia es una virtud, supongo.`,
+    ]));
+    else lines.push(pick([
+      `${winner} se corona nuevo Portador con <b>${fmtDmg(raid.leaderboard[0].damage)}</b> de daño a sus propios compañeros.`,
+      `<b>${fmtDmg(raid.leaderboard[0].damage)}</b> de friendly fire. ${winner} se lleva la Resaca sin esfuerzo aparente.`,
+      `${winner} demuestra que el mayor enemigo de la banda es ${winner}. <b>${fmtDmg(raid.leaderboard[0].damage)}</b> de ff.`,
+    ]));
   } else {
-    lines.push('Noche sin culpables: nadie hizo daño a aliados. ¿Sigue siendo la misma banda?');
+    lines.push(pick([
+      'Noche sin culpables: nadie hizo daño a aliados. ¿Sigue siendo la misma banda?',
+      'Cero friendly fire. O hemos madurado mucho, o alguien está manipulando los logs.',
+    ]));
   }
 
   // 2. Wipes
@@ -1449,33 +1495,38 @@ function generarTitulares(raid, allRaids) {
     if (bs.totalWipes === 0) {
       let cleanStreak = 0;
       for (let i = raidIdx; i >= 0; i--) { if ((sorted[i].bossStats?.totalWipes ?? 1) === 0) cleanStreak++; else break; }
-      if (cleanStreak >= 2) lines.push(`<b>${cleanStreak} raids seguidas sin un solo wipe.</b> La banda ha madurado. O los bosses se han vuelto más blandos.`);
-      else                  lines.push('Raid impoluta: cero wipes. Guárdalo porque no dura.');
-    } else if (bs.totalWipes >= 6) {
-      lines.push(`Noche de sufrimiento colectivo: <b>${bs.totalWipes} wipes</b>. El terapeuta de la banda está haciendo horas extra.`);
+      if (cleanStreak >= 3) lines.push(`<b>${cleanStreak} raids seguidas sin un solo wipe.</b> Los bosses han pedido reunión de emergencia.`);
+      else if (cleanStreak >= 2) lines.push(`<b>${cleanStreak} raids seguidas sin un solo wipe.</b> La banda ha madurado. O los bosses se han vuelto más blandos.`);
+      else lines.push(pick([
+        'Raid impoluta: cero wipes. Guárdalo porque no dura.',
+        'Sin wipes esta noche. Los bosses lo están tomando como algo personal.',
+        'Cero wipes. El récord está en peligro de seguir siendo récord.',
+      ]));
+    } else if (bs.totalWipes >= 8) {
+      lines.push(pick([
+        `<b>${bs.totalWipes} wipes</b>. En algún punto hay que preguntarse si el problema son los bosses o nosotros.`,
+        `${bs.totalWipes} wipes. El gremio de fantasmas está considerando abrir sede permanente aquí.`,
+      ]));
+    } else if (bs.totalWipes >= 5) {
+      lines.push(pick([
+        `Noche de sufrimiento colectivo: <b>${bs.totalWipes} wipes</b>. El terapeuta de la banda está haciendo horas extra.`,
+        `${bs.totalWipes} wipes antes del kill. Los bosses ya nos conocen por el nombre.`,
+      ]));
     } else if (bs.totalWipes >= 3) {
-      lines.push(`${bs.totalWipes} wipes en la noche. Se puede hacer mejor.`);
+      lines.push(pick([
+        `${bs.totalWipes} wipes en la noche. Se puede hacer mejor.`,
+        `${bs.totalWipes} wipes. "Estábamos calentando", dijeron. Siempre dicen eso.`,
+      ]));
     }
   }
 
-  // 3. Nuevo récord DPS
-  const dps = calcRaidDpsHps(raid);
-  if (dps && prev.length > 0) {
-    const prevBest = prev.reduce((best, r) => { const s = calcRaidDpsHps(r); return s && s.dps > best ? s.dps : best; }, 0);
-    if (prevBest > 0 && dps.dps > prevBest) lines.push(`Nuevo récord de daño: la banda supera los <b>${fmtDmg(dps.dps)} DPS</b> por primera vez.`);
-  }
-
-  // 4. Top muerte
-  const topDead = raid.deathStats?.deaths?.[0];
-  if (topDead?.count >= 4) lines.push(`${topDead.name} muere <b>${topDead.count} veces</b> en una sola noche. Arte.`);
-
-  // 5. Récord de velocidad en cualquier boss (elige el más impresionante por % de mejora)
+  // 3. Récord de velocidad en cualquier boss (elige el más impresionante por % de mejora)
   if (bs && prev.length > 0) {
     const thisBosses = raid.bossStats?.bosses ?? [];
-    let bestRecord = null; // { bossName, thisMs, prevBestMs, pct }
+    let bestRecord = null;
     for (const boss of thisBosses) {
       if (!boss.killTimeMs) continue;
-      const shortName = boss.name.replace('Gruul the Dragonkiller','Gruul').replace("High King Maulgar","Maulgar");
+      const shortName = boss.name.replace('Gruul the Dragonkiller','Gruul').replace('High King Maulgar','Maulgar');
       const prevTimes = prev.map(r => (r.bossStats?.bosses ?? []).find(b => b.name === boss.name)?.killTimeMs).filter(Boolean);
       if (!prevTimes.length) continue;
       const prevBest = Math.min(...prevTimes);
@@ -1485,11 +1536,47 @@ function generarTitulares(raid, allRaids) {
       }
     }
     if (bestRecord) {
-      lines.push(`${bestRecord.bossName} cae en <b>${fmtMs(bestRecord.thisMs)}</b>: nuevo récord de velocidad (antes ${fmtMs(bestRecord.prevBestMs)}).`);
+      const pctStr = (bestRecord.pct * 100).toFixed(0);
+      lines.push(pick([
+        `${bestRecord.bossName} cae en <b>${fmtMs(bestRecord.thisMs)}</b>: nuevo récord de velocidad (antes ${fmtMs(bestRecord.prevBestMs)}, −${pctStr}%).`,
+        `Nuevo récord en ${bestRecord.bossName}: <b>${fmtMs(bestRecord.thisMs)}</b>. Antes tardábamos ${fmtMs(bestRecord.prevBestMs)}. Algo hemos aprendido.`,
+      ]));
     }
   }
 
-  return lines.slice(0, 3);
+  // 4. Top muerte
+  const topDead = raid.deathStats?.deaths?.[0];
+  if (topDead?.count >= 5) {
+    lines.push(pick([
+      `${topDead.name} muere <b>${topDead.count} veces</b> en una sola noche. Ya tiene más experiencia muriendo que matando.`,
+      `${topDead.name}: <b>${topDead.count} muertes</b>. Está explorando activamente el sistema de respawn.`,
+    ]));
+  } else if (topDead?.count >= 3) {
+    lines.push(`${topDead.name} muere <b>${topDead.count} veces</b> esta noche. Constancia.`);
+  }
+
+  // 5. Primer muerto muy rápido
+  const firstDie = raid.deathStats?.firstToDie;
+  if (firstDie?.name && firstDie.timeMs) {
+    if (firstDie.timeMs < 12000) lines.push(`${firstDie.name} palma a los <b>${(firstDie.timeMs/1000).toFixed(1)}s</b> del pull. Ni terminó de colocarse.`);
+    else if (firstDie.timeMs < 25000) lines.push(`${firstDie.name} abre el marcador de muertes a los <b>${(firstDie.timeMs/1000).toFixed(0)}s</b>. Un clásico.`);
+  }
+
+  // 6. Nuevo récord DPS
+  const dps = calcRaidDpsHps(raid);
+  if (dps && prev.length > 0) {
+    const prevBest = prev.reduce((best, r) => { const s = calcRaidDpsHps(r); return s && s.dps > best ? s.dps : best; }, 0);
+    if (prevBest > 0 && dps.dps > prevBest) lines.push(`Nuevo récord de daño: la banda supera los <b>${fmtDmg(dps.dps)} DPS</b>. El esfuerzo a veces da frutos.`);
+  }
+
+  // 7. Cero muertes
+  const totalDeaths = (raid.deathStats?.deaths ?? []).reduce((s, e) => s + e.count, 0);
+  if (totalDeaths === 0) lines.push(pick([
+    'Noche histórica: nadie murió. Revisad los logs, seguro que hay algún error.',
+    'Cero muertes en la raid. Los sanadores piden que conste en acta.',
+  ]));
+
+  return lines.slice(0, 4);
 }
 
 // ── JUGADOR ───────────────────────────────────────────────────────────────────
