@@ -118,8 +118,12 @@ function calcShame() {
       const idx = list.findIndex(e => e.name === name);
       return idx === -1 ? 0 : (n - 1 - idx) / (n - 1);
     };
+    // Avoidable damage: aggregate all mechanics per player, sorted desc
+    const avoidMap = new Map();
+    (raid.avoidableDamage ?? []).forEach(m => m.players.forEach(p => avoidMap.set(p.name, (avoidMap.get(p.name) ?? 0) + p.total)));
+    const avoidSorted = [...avoidMap.entries()].map(([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total);
     for (const name of participants) {
-      const avg = (pct(raid.leaderboard, name) + pct(raid.deathStats?.deaths??[], name) + pct(raid.deathStats?.timeDead??[], name)) / 3;
+      const avg = (pct(raid.leaderboard, name) + pct(raid.deathStats?.deaths??[], name) + pct(raid.deathStats?.timeDead??[], name) + pct(avoidSorted, name)) / 4;
       const curr = scores.get(name) ?? {total:0, count:0};
       scores.set(name, {total: curr.total + avg, count: curr.count + 1});
     }
@@ -184,26 +188,33 @@ function buildResumen() {
     </div>
   `;
 
-  const ffPodio    = aggregateMap('leaderboard', 'name').slice(0,3);
   const dMap = new Map();
   DATA.forEach(r => (r.deathStats?.deaths??[]).forEach(e => dMap.set(e.name,(dMap.get(e.name)??0)+e.count)));
   const deathArr = [...dMap.entries()].map(([name,val])=>({name,val})).sort((a,b)=>b.val-a.val).slice(0,3);
   const shame = calcShame().slice(0,3);
+  const intMap = new Map(), disMap = new Map();
+  DATA.forEach(r => {
+    (r.interrupts??[]).forEach(e => intMap.set(e.name,(intMap.get(e.name)??0)+e.total));
+    (r.dispels??[]).forEach(e => disMap.set(e.name,(disMap.get(e.name)??0)+e.total));
+  });
+  const intArr = [...intMap.entries()].map(([name,val])=>({name,val})).sort((a,b)=>b.val-a.val).slice(0,3);
+  const disArr = [...disMap.entries()].map(([name,val])=>({name,val})).sort((a,b)=>b.val-a.val).slice(0,3);
 
-  const podiumHTML = (title, arr, valFn) => `
-    <div class="podium-card">
+  const podiumHTML = (title, arr, valFn, honorStyle = false) => `
+    <div class="podium-card${honorStyle ? ' podium-card--honor' : ''}">
       <div class="podium-title">${title}</div>
-      ${arr.map((e,i) => `<div class="podium-entry">
+      ${arr.length ? arr.map((e,i) => `<div class="podium-entry">
         <span class="medal">${medalEmoji(i)}</span>
         <span class="podium-name player-link" data-player="${e.name}">${e.name}</span>
         <span class="podium-val">${valFn(e)}</span>
-      </div>`).join('')}
+      </div>`).join('') : '<div class="td-dim" style="font-size:.82rem;padding:.5rem 0">Sin datos</div>'}
     </div>`;
 
   document.getElementById('podiums').innerHTML =
-    podiumHTML('Podio Friendly Fire (Gruul)', ffPodio, e => fmtDmg(e.val)) +
-    podiumHTML('Podio Muertes', deathArr, e => e.val + ' muertes') +
-    podiumHTML('Podio Vergüenza', shame, e => (e.score*100).toFixed(0)+'% vergüenza');
+    podiumHTML('Vergüenza General', shame, e => (e.score*100).toFixed(0)+'%') +
+    podiumHTML('Más Muertes', deathArr, e => e.val + '') +
+    podiumHTML('Top Interrupts', intArr, e => e.val + '', true) +
+    podiumHTML('Top Dispels', disArr, e => e.val + '', true);
 
   document.querySelectorAll('.player-link').forEach(el => {
     el.addEventListener('click', () => openPlayer(el.dataset.player));
@@ -393,7 +404,7 @@ function progLegend(labels, colors) {
   ).join('')}</div>`;
 }
 
-function drawLineChart(xLabels, series, yFormat) {
+function drawLineChart(xLabels, series, yFormat, yFixedMin, yFixedMax) {
   const W = 800, H = 240;
   const pad = { top: 20, right: 20, bottom: 44, left: 64 };
   const cW = W - pad.left - pad.right, cH = H - pad.top - pad.bottom;
@@ -402,8 +413,8 @@ function drawLineChart(xLabels, series, yFormat) {
   const allVals = series.flatMap(s => s.values.filter(v => v != null));
   if (!allVals.length) return '<p class="section-note">Sin datos suficientes.</p>';
 
-  const yMax = Math.max(...allVals);
-  const yBottom = Math.max(0, Math.min(...allVals) * 0.8);
+  const yMax = yFixedMax != null ? yFixedMax : Math.max(...allVals);
+  const yBottom = yFixedMin != null ? yFixedMin : Math.max(0, Math.min(...allVals) * 0.8);
   const yRange = yMax - yBottom || 1;
 
   const xPos = i => pad.left + (n <= 1 ? cW / 2 : i * cW / (n - 1));
@@ -614,6 +625,40 @@ function buildPorRaid() {
       <td class="val-cell red">${fmtMs(e.ms)}</td>
     </tr>`);
 
+    // ── Mecánicas evitables (esta raid) ──
+    const AVOIDABLE_MECHS_R = ['Blast Wave', 'Whirlwind', 'Cave In', 'Debris', 'Conflagration'];
+    const avoidMapR = new Map();
+    (raid.avoidableDamage ?? []).forEach(m => {
+      m.players.forEach(p => {
+        if (!avoidMapR.has(p.name)) { const obj = { total: 0 }; AVOIDABLE_MECHS_R.forEach(k => { obj[k] = 0; }); avoidMapR.set(p.name, obj); }
+        const obj = avoidMapR.get(p.name);
+        obj.total += p.total;
+        if (m.mechanic in obj) obj[m.mechanic] += p.total;
+      });
+    });
+    const avoidSortedR = [...avoidMapR.entries()].map(([name, d]) => ({ name, ...d })).sort((a, b) => b.total - a.total);
+    const avoidSortedSimple = avoidSortedR.map(e => ({ name: e.name, total: e.total }));
+
+    // Full-width avoidable table HTML
+    const avoidFullTable = avoidSortedR.length ? (() => {
+      return `<div style="overflow-x:auto">
+        <table class="ranked-list">
+          <thead><tr>
+            <th></th><th>Jugador</th>
+            <th class="val-cell" style="color:var(--red2)">Total</th>
+            ${AVOIDABLE_MECHS_R.map(m => `<th class="val-cell td-dim" style="white-space:nowrap">${m}</th>`).join('')}
+          </tr></thead>
+          <tbody>${avoidSortedR.slice(0, 5).map((e, i) => `<tr>
+            <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
+            <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
+            <td class="val-cell red">${fmtDmg(e.total)}</td>
+            ${AVOIDABLE_MECHS_R.map(m => `<td class="val-cell td-dim">${e[m] ? fmtDmg(e[m]) : '—'}</td>`).join('')}
+          </tr>`).join('')}</tbody>
+        </table>
+      </div>`;
+    })() : '<div class="section-note">¡Nadie recibió daño evitable! 🎉</div>';
+
+
     // ── Vergüenza (esta raid) ──
     const participants = raid.roster ? new Set(raid.roster)
       : new Set([...ff.map(e => e.name), ...deaths.map(e => e.name), ...timeDead.map(e => e.name)]);
@@ -623,7 +668,7 @@ function buildPorRaid() {
       return idx === -1 ? 0 : (n - 1 - idx) / (n - 1);
     };
     const allShameScores = n > 1 ? [...participants]
-      .map(name => ({ name, score: (pct(ff, name) + pct(deaths, name) + pct(timeDead, name)) / 3 }))
+      .map(name => ({ name, score: (pct(ff, name) + pct(deaths, name) + pct(timeDead, name) + pct(avoidSortedSimple, name)) / 4 }))
       .sort((a, b) => b.score - a.score) : [];
     const shameRows = allShameScores
       .filter(e => e.score > 0)
@@ -707,13 +752,17 @@ function buildPorRaid() {
       <div class="stat-cards" style="margin-bottom:2rem">${bossCards || '<div class="section-note">Sin datos de boss kills.</div>'}</div>
       <div class="two-col" style="margin-bottom:2rem">
         <div>
-          <div class="section-title">Friendly Fire</div>
-          ${miniTable(['', 'Jugador', '', 'Daño'], ffRows, '¡Nadie hizo friendly fire! 🎉')}
-        </div>
-        <div>
           <div class="section-title">Vergüenza</div>
           ${miniTable(['', 'Jugador', '', 'Score'], shameRows, 'Sin datos suficientes.')}
         </div>
+        <div>
+          <div class="section-title">Friendly Fire</div>
+          ${miniTable(['', 'Jugador', '', 'Daño'], ffRows, '¡Nadie hizo friendly fire! 🎉')}
+        </div>
+      </div>
+      <div style="margin-bottom:2rem">
+        <div class="section-title">Mecánicas Evitables</div>
+        ${avoidFullTable}
       </div>
       <div class="two-col" style="margin-bottom:2rem">
         <div>
@@ -932,6 +981,15 @@ function buildProgresion() {
     ${buildDpsHpsChart(raids, xLabels)}
 
     <div class="prog-chart">
+      <div class="prog-chart-title">Daño Evitable Total por Raid</div>
+      <div class="prog-chart-note">Suma de todo el daño recibido de mecánicas evitables en cada raid (Blast Wave, Whirlwind, Cave In, Debris, Conflagration)</div>
+      ${drawLineChart(xLabels, [{
+        label: 'Daño evitable', color: 'var(--red2)',
+        values: raids.map(r => (r.avoidableDamage ?? []).reduce((s, m) => s + m.players.reduce((ss, p) => ss + p.total, 0), 0) || null),
+      }], v => fmtDmg(Math.round(v)))}
+    </div>
+
+    <div class="prog-chart">
       <div class="prog-chart-title">Wipes por Raid</div>
       <div class="prog-chart-note">Barras apiladas por boss. El número sobre la barra es el total de wipes de esa raid.</div>
       ${drawStackedBar(xLabels, wipeSeries)}
@@ -982,8 +1040,11 @@ function buildVerguenza() {
       const idx = list.findIndex(e => e.name === name);
       return idx === -1 ? 0 : (n - 1 - idx) / (n - 1);
     };
+    const avoidMap2 = new Map();
+    (raid.avoidableDamage ?? []).forEach(m => m.players.forEach(p => avoidMap2.set(p.name, (avoidMap2.get(p.name) ?? 0) + p.total)));
+    const avoidSorted2 = [...avoidMap2.entries()].map(([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total);
     for (const name of participants) {
-      const score = (pct(raid.leaderboard, name) + pct(raid.deathStats?.deaths??[], name) + pct(raid.deathStats?.timeDead??[], name)) / 3;
+      const score = (pct(raid.leaderboard, name) + pct(raid.deathStats?.deaths??[], name) + pct(raid.deathStats?.timeDead??[], name) + pct(avoidSorted2, name)) / 4;
       if (!worstRaid || score > worstRaid.score) worstRaid = { name, score, fecha: raid.fecha };
       if (!bestRaid  || score < bestRaid.score)  bestRaid  = { name, score, fecha: raid.fecha };
     }
@@ -1016,10 +1077,11 @@ function buildVerguenza() {
   document.getElementById('shame-explanation').innerHTML = `
     <div style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:1rem 1.2rem;margin-bottom:1.2rem;font-size:0.85rem;color:var(--text-dim);line-height:1.6">
       <strong style="color:var(--text-bright)">¿Cómo se calcula?</strong><br>
-      Por cada raid, a cada jugador se le asigna un percentil en tres categorías:
+      Por cada raid, a cada jugador se le asigna un percentil en cuatro categorías:
       <strong style="color:var(--gold)">daño a aliados (Gruul)</strong>,
-      <strong style="color:var(--red2)">número de muertes</strong> y
-      <strong style="color:var(--red2)">tiempo muerto</strong>.
+      <strong style="color:var(--red2)">número de muertes</strong>,
+      <strong style="color:var(--red2)">tiempo muerto</strong> y
+      <strong style="color:var(--red2)">daño recibido de mecánicas evitables</strong>.
       El percentil indica qué porcentaje de compañeros tuvo un resultado mejor que el tuyo
       (0% = el menos vergonzoso, 100% = el peor de la raid).
       La puntuación final es la media de esos percentiles promediada sobre todas las raids asistidas.
@@ -1036,6 +1098,8 @@ function buildVerguenza() {
     </tr>`).join('')}
   </tbody>`;
   tbl.querySelectorAll('.player-link').forEach(el => el.addEventListener('click', () => openPlayer(el.dataset.player)));
+
+  buildAvoidable();
 }
 
 // ── MUERTES ───────────────────────────────────────────────────────────────────
@@ -1115,6 +1179,119 @@ function buildMecanicas() {
   };
   mkTable('table-interrupts', ints);
   mkTable('table-dispels', disp);
+}
+
+function buildAvoidable() {
+  const container = document.getElementById('avoidable-section');
+  if (!container) return;
+
+  const hasData = DATA.some(r => (r.avoidableDamage ?? []).length > 0);
+  if (!hasData) { container.innerHTML = ''; return; }
+
+  const MECHS = [
+    { mechanic: 'Blast Wave',    boss: 'Maulgar'     },
+    { mechanic: 'Whirlwind',     boss: 'Maulgar'     },
+    { mechanic: 'Cave In',       boss: 'Gruul'        },
+    { mechanic: 'Debris',        boss: 'Magtheridon'  },
+    { mechanic: 'Conflagration', boss: 'Magtheridon'  },
+  ];
+
+  // Aggregate per player: total + per mechanic
+  const playerMap = new Map();
+  DATA.forEach(r => {
+    (r.avoidableDamage ?? []).forEach(mech => {
+      mech.players.forEach(p => {
+        if (!playerMap.has(p.name)) {
+          const obj = { total: 0 };
+          MECHS.forEach(m => { obj[m.mechanic] = 0; });
+          playerMap.set(p.name, obj);
+        }
+        const obj = playerMap.get(p.name);
+        obj.total += p.total;
+        if (mech.mechanic in obj) obj[mech.mechanic] += p.total;
+      });
+    });
+  });
+
+  const allRows = [...playerMap.entries()].map(([name, d]) => ({ name, ...d }));
+  let sortCol = 'total';
+
+  const renderBody = () => {
+    const sorted = [...allRows].sort((a, b) => (b[sortCol] ?? 0) - (a[sortCol] ?? 0));
+    return sorted.map((e, i) => `<tr>
+      <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
+      <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
+      <td class="val-cell ${sortCol === 'total' ? 'red' : 'td-dim'}">${fmtDmg(e.total)}</td>
+      ${MECHS.map(m => `<td class="val-cell ${sortCol === m.mechanic ? 'red' : 'td-dim'}">${e[m.mechanic] ? fmtDmg(e[m.mechanic]) : '—'}</td>`).join('')}
+    </tr>`).join('');
+  };
+
+  const thStyle = 'cursor:pointer;white-space:nowrap;user-select:none';
+  const mechTh = MECHS.map(m =>
+    `<th class="avd-th" data-col="${m.mechanic}" title="${m.boss}" style="${thStyle}">${m.mechanic}</th>`
+  ).join('');
+
+  // Stat cards
+  const totalAvoid = allRows.reduce((s, e) => s + e.total, 0);
+  const mediaAvoidRaid = DATA.length > 0 ? DATA.reduce((s, r) => s + (r.avoidableDamage ?? []).reduce((ss, m) => ss + m.players.reduce((sss, p) => sss + p.total, 0), 0), 0) / DATA.length : 0;
+  const raidMaxAvoid = DATA.reduce((best, r) => {
+    const sum = (r.avoidableDamage ?? []).reduce((s, m) => s + m.players.reduce((ss, p) => ss + p.total, 0), 0);
+    return sum > (best.sum ?? 0) ? { sum, fecha: r.fecha } : best;
+  }, {});
+  const topPlayer = allRows.length > 0 ? allRows.reduce((best, e) => e.total > (best?.total ?? 0) ? e : best, null) : null;
+
+  container.innerHTML = `
+    <div class="stat-cards" style="margin-bottom:2rem">
+      <div class="stat-card">
+        <div class="label">Daño Evitable Histórico</div>
+        <div class="value">${fmtDmg(totalAvoid)}</div>
+        <div class="sub">daño evitable acumulado</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Media por Raid</div>
+        <div class="value">${fmtDmg(Math.round(mediaAvoidRaid))}</div>
+        <div class="sub">daño evitable medio por raid</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Raid más Caótica</div>
+        <div class="value red" style="font-size:1.3rem">${raidMaxAvoid.fecha ? fmtDate(raidMaxAvoid.fecha) : '—'}</div>
+        <div class="sub">${raidMaxAvoid.sum ? fmtDmg(raidMaxAvoid.sum) + ' de daño evitable' : ''}</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Rey del Sufrimiento</div>
+        <div class="value red" style="font-size:1.3rem">${topPlayer?.name ?? '—'}</div>
+        <div class="sub">${topPlayer ? fmtDmg(topPlayer.total) + ' en total' : ''}</div>
+      </div>
+    </div>
+    <div class="section-title">Ranking Global</div>
+    <div class="section-note">Daño recibido de mecánicas evitables · acumulado de todos los raids · clic en columna para ordenar</div>
+    <div style="overflow-x:auto;margin-top:1.25rem">
+      <table class="ranked-list" id="avd-table">
+        <thead><tr>
+          <th></th>
+          <th>Jugador</th>
+          <th class="avd-th" data-col="total" style="${thStyle}">Total</th>
+          ${mechTh}
+        </tr></thead>
+        <tbody id="avd-tbody">${renderBody()}</tbody>
+      </table>
+    </div>`;
+
+  const bindLinks = () => container.querySelectorAll('.player-link').forEach(el =>
+    el.addEventListener('click', () => openPlayer(el.dataset.player))
+  );
+
+  const updateSort = col => {
+    sortCol = col;
+    document.getElementById('avd-tbody').innerHTML = renderBody();
+    container.querySelectorAll('.avd-th').forEach(th =>
+      th.style.color = th.dataset.col === sortCol ? 'var(--gold)' : ''
+    );
+    bindLinks();
+  };
+
+  container.querySelectorAll('.avd-th').forEach(th => th.addEventListener('click', () => updateSort(th.dataset.col)));
+  updateSort('total'); // apply initial highlight
 }
 
 // ── HISTORIAL ─────────────────────────────────────────────────────────────────
@@ -1320,6 +1497,8 @@ function calcTitulos() {
   const portadorCount  = new Map();
   const dispelTotals   = new Map();
   const intTotals      = new Map();
+  const avoidTotal     = new Map();
+  const avoidByMech    = { 'Blast Wave': new Map(), 'Whirlwind': new Map(), 'Cave In': new Map(), 'Debris': new Map(), 'Conflagration': new Map() };
 
   DATA.forEach(raid => {
     (raid.leaderboard ?? []).forEach(e => ffTotals.set(e.name, (ffTotals.get(e.name) ?? 0) + e.damage));
@@ -1328,6 +1507,12 @@ function calcTitulos() {
     if (raid.leaderboard[0]) portadorCount.set(raid.leaderboard[0].name, (portadorCount.get(raid.leaderboard[0].name) ?? 0) + 1);
     (raid.dispels    ?? []).forEach(e => dispelTotals.set(e.name, (dispelTotals.get(e.name) ?? 0) + e.total));
     (raid.interrupts ?? []).forEach(e => intTotals.set(e.name, (intTotals.get(e.name) ?? 0) + e.total));
+    (raid.avoidableDamage ?? []).forEach(mech => {
+      mech.players.forEach(p => {
+        avoidTotal.set(p.name, (avoidTotal.get(p.name) ?? 0) + p.total);
+        if (mech.mechanic in avoidByMech) avoidByMech[mech.mechanic].set(p.name, (avoidByMech[mech.mechanic].get(p.name) ?? 0) + p.total);
+      });
+    });
   });
 
   const rcMap    = raidCountMap();
@@ -1343,21 +1528,99 @@ function calcTitulos() {
   };
 
   // ── Vergüenza ──
-  const topFF = topOf(ffTotals);
-  if (topFF) titles.push({ id:'kamikaze',   icon:'🩸', titulo:'El Kamikaze',     desc:'Mayor daño a aliados histórico',        jugador: topFF.name,    valor: fmtDmg(topFF.val) + ' FF',          tipo:'shame' });
+  const nameSeed = name => [...(name ?? 'x')].reduce((s, c) => s + c.charCodeAt(0), 0);
+  const pickFor  = (name, arr) => arr[nameSeed(name) % arr.length];
 
-  // El Portador: todos los empatados
-  if (portadorCount.size > 0) {
-    const portMax = Math.max(...portadorCount.values());
-    const portadores = [...portadorCount.entries()].filter(([, c]) => c === portMax).map(([n]) => n);
-    titles.push({ id:'portador', icon:'🏆', titulo:'El Portador', desc:'Más veces con la Resaca', jugadores: portadores, valor: portMax + (portMax === 1 ? ' raid' : ' raids'), tipo:'shame' });
-  }
+  const topAvoid = topOf(avoidTotal);
+  if (topAvoid) titles.push({ id:'kamikaze', icon:'💥', titulo:'El Kamikaze', desc:'Más daño recibido de mecánicas evitables', jugador: topAvoid.name,
+    comentario: pickFor(topAvoid.name, [
+      'Las mecánicas son sugerencias, no obligaciones.',
+      '¿Por qué esquivar cuando puedes absorber?',
+      'Coleccionista de daño evitable desde sus inicios.',
+      'Un artista del sufrimiento autoinfligido.',
+    ]),
+    valor: fmtDmg(topAvoid.val), tipo:'shame' });
+
+  const topBlast = topOf(avoidByMech['Blast Wave']);
+  if (topBlast) titles.push({ id:'temerario', icon:'🔥', titulo:'El Temerario', desc:'Más daño de Blast Wave · demasiado cerca de Krosh', jugador: topBlast.name,
+    comentario: pickFor(topBlast.name, [
+      'Krosh solo quería un abrazo.',
+      'La distancia de seguridad es para cobardes.',
+      'Se acercó tanto que Krosh le tomó cariño.',
+      'Rompe récords de proximidad con magos furiosos.',
+    ]),
+    valor: fmtDmg(topBlast.val), tipo:'shame' });
+
+  const topWhirl = topOf(avoidByMech['Whirlwind']);
+  if (topWhirl) titles.push({ id:'picadora', icon:'🌀', titulo:'El Picadora', desc:'Más daño de Whirlwind en Maulgar', jugador: topWhirl.name,
+    comentario: pickFor(topWhirl.name, [
+      'El torbellino le parece acogedor.',
+      'Cree que Whirlwind es un baile de pareja.',
+      'Si gira él, yo giro.',
+      'Baila con el boss desde el primer día.',
+    ]),
+    valor: fmtDmg(topWhirl.val), tipo:'shame' });
+
+  const topCaveIn = topOf(avoidByMech['Cave In']);
+  if (topCaveIn) titles.push({ id:'estalactita', icon:'🪨', titulo:'El Estalactita', desc:'Más daño de Cave In · rocas de Gruul', jugador: topCaveIn.name,
+    comentario: pickFor(topCaveIn.name, [
+      'Las rocas le buscan a él específicamente.',
+      'Tiene un acuerdo especial con la geología.',
+      'El techo de Gruul no miente.',
+      'Imán certificado para proyectiles de piedra.',
+    ]),
+    valor: fmtDmg(topCaveIn.val), tipo:'shame' });
+
+  const topDebris = topOf(avoidByMech['Debris']);
+  if (topDebris) titles.push({ id:'albanil', icon:'🧱', titulo:'El Albañil', desc:'Más daño de Debris · techo de Magtheridon', jugador: topDebris.name,
+    comentario: pickFor(topDebris.name, [
+      'Le caen las vigas encima con regularidad sospechosa.',
+      'Inspecciona el techo de Magtheridon con la cabeza.',
+      'La fase de las palancas es lo de menos.',
+      'El debris le tiene manía personal.',
+    ]),
+    valor: fmtDmg(topDebris.val), tipo:'shame' });
+
+  const topConf = topOf(avoidByMech['Conflagration']);
+  if (topConf) titles.push({ id:'tostado', icon:'🍖', titulo:'El Tostado', desc:'Más daño de Conflagration · fuego en el suelo', jugador: topConf.name,
+    comentario: pickFor(topConf.name, [
+      'El fuego en el suelo le parece decorativo.',
+      '¿Para qué moverse si el suelo está calentito?',
+      'Campista profesional en zonas en llamas.',
+      'El fuego es su elemento. Literalmente.',
+    ]),
+    valor: fmtDmg(topConf.val), tipo:'shame' });
+
+  // El Traidor: más daño total a aliados
+  const topFF = topOf(ffTotals);
+  if (topFF) titles.push({ id:'portador', icon:'🗡️', titulo:'El Traidor', desc:'Más daño total a aliados histórico', jugador: topFF.name,
+    comentario: pickFor(topFF.name, [
+      'Sus aliados le temen más que a los bosses.',
+      'La banda sobrevive a Gruul. A él, no siempre.',
+      'Con amigos así, los bosses sobran.',
+      'Juró lealtad a la banda. Los logs cuentan otra historia.',
+    ]),
+    valor: fmtDmg(topFF.val) + ' de FF total', tipo:'shame' });
 
   const topDead = topOf(deathTotals);
-  if (topDead) titles.push({ id:'martir',    icon:'💀', titulo:'El Mártir',       desc:'Más muertes históricas',                jugador: topDead.name,  valor: topDead.val + ' muertes',           tipo:'shame' });
+  if (topDead) titles.push({ id:'martir', icon:'💀', titulo:'El Mártir', desc:'Más muertes históricas', jugador: topDead.name,
+    comentario: pickFor(topDead.name, [
+      'Conoce el suelo de cada boss mejor que nadie.',
+      'La muerte es para él un estado temporal.',
+      'Muere por los demás. Y por los jefes. Y por las rocas.',
+      'Contribuye al kill a su manera: siendo contado como baja.',
+    ]),
+    valor: topDead.val + ' muertes', tipo:'shame' });
 
   const topGhost = topOf(timeDeadTotals);
-  if (topGhost) titles.push({ id:'fantasma', icon:'👻', titulo:'El Fantasma',     desc:'Mayor tiempo muerto histórico',         jugador: topGhost.name, valor: fmtMs(topGhost.val),                tipo:'shame' });
+  if (topGhost) titles.push({ id:'fantasma', icon:'👻', titulo:'El Fantasma', desc:'Mayor tiempo muerto histórico', jugador: topGhost.name,
+    comentario: pickFor(topGhost.name, [
+      'Pasa más tiempo de espectador que de jugador.',
+      'Su fantasma tiene más experiencia que muchos vivos.',
+      'La perspectiva aérea de los jefes: su especialidad.',
+      'Murió tan pronto que tuvo tiempo de ver el final sentado.',
+    ]),
+    valor: fmtMs(topGhost.val), tipo:'shame' });
 
   // El Primero: más veces primer muerto de la raid, mínimo 2
   const firstToDieCount = new Map();
@@ -1366,7 +1629,14 @@ function calcTitulos() {
     if (name) firstToDieCount.set(name, (firstToDieCount.get(name) ?? 0) + 1);
   });
   const topFirst = [...firstToDieCount.entries()].filter(([, c]) => c >= 2).sort((a, b) => b[1] - a[1]);
-  if (topFirst.length > 0) titles.push({ id:'primero', icon:'💨', titulo:'El Primero', desc:'Más veces siendo el primer muerto', jugador: topFirst[0][0], valor: topFirst[0][1] + ' veces', tipo:'shame' });
+  if (topFirst.length > 0) titles.push({ id:'primero', icon:'💨', titulo:'El Primero', desc:'Más veces siendo el primer muerto', jugador: topFirst[0][0],
+    comentario: pickFor(topFirst[0][0], [
+      'El canario de la mina. Siempre el primero en probar el veneno.',
+      'Su muerte es el aviso para los demás de que va en serio.',
+      'Estadísticamente, el boss le detecta primero.',
+      'Abre el marcador con una consistencia envidiable.',
+    ]),
+    valor: topFirst[0][1] + ' veces', tipo:'shame' });
 
   // El Masoca: mayor golpe recibido de un aliado
   let masoca = null;
@@ -1374,10 +1644,16 @@ function calcTitulos() {
     const br = raid.biggestHits?.biggestReceived;
     if (br?.amount > (masoca?.amount ?? 0)) masoca = { ...br, fecha: raid.fecha };
   });
-  if (masoca) titles.push({ id:'masoca', icon:'🤕', titulo:'El Masoca', desc:'Mayor golpe recibido de un aliado', jugador: masoca.victima, valor: fmtDmg(masoca.amount) + (masoca.ability ? ` · ${masoca.ability}` : ''), tipo:'shame' });
+  if (masoca) titles.push({ id:'masoca', icon:'🤕', titulo:'El Masoca', desc:'Mayor golpe recibido en toda la temporada', jugador: masoca.victima,
+    comentario: pickFor(masoca.victima, [
+      'El boss le eligió a él para el mensaje más contundente.',
+      'Ese golpe lo sintió hasta el teclado.',
+      'Récord histórico de daño recibido en un solo impacto.',
+      'Una cifra que impresiona incluso al boss que la infligió.',
+    ]),
+    valor: fmtDmg(masoca.amount) + (masoca.ability ? ` · ${masoca.ability}` : ''), tipo:'shame' });
 
   // El Mudo: menos interrupts entre clases capaces con min raids
-  // Capaces nativos: Warrior, Rogue, Mage, Shaman Enhancement/Elemental (no Restoration)
   const CAPABLE_CLASS = new Set(['Warrior','Rogue','Mage']);
   const SHAMAN_CAPABLE = new Set(['Enhancement','Elemental']);
   const capable = Object.entries(PLAYER_CLASS_MAP)
@@ -1390,28 +1666,61 @@ function calcTitulos() {
   if (capable.length > 0) {
     const mudoMin = capable[0].val;
     const mudos = capable.filter(e => e.val === mudoMin).map(e => e.name);
-    titles.push({ id:'mudo', icon:'🤐', titulo:'El Mudo', desc:'Menos interrupts entre los capaces', jugadores: mudos, valor: mudoMin + ' interrupts', tipo:'shame' });
+    titles.push({ id:'mudo', icon:'🤐', titulo:'El Mudo', desc:'Menos interrupts entre los capaces', jugadores: mudos,
+      comentario: pickFor(mudos[0], [
+        'Los interrupts son para los que se aburren.',
+        'Prefiere observar cómo los demás interrumpen.',
+        'Tiene el botón de silencio activado desde el primer día.',
+        'La barra de casteo del boss: su forma de meditar.',
+      ]),
+      valor: mudoMin + ' interrupts', tipo:'shame' });
   }
-
-  // El Invisible: asiduo con más raids sin aparecer en ningún ranking
 
   // ── Honor ──
   const topDisp = topOf(dispelTotals);
-  if (topDisp) titles.push({ id:'escudo',      icon:'🛡️', titulo:'El Escudo',       desc:'Más dispels históricos',               jugador: topDisp.name,  valor: topDisp.val + ' dispels',           tipo:'honor' });
+  if (topDisp) titles.push({ id:'escudo', icon:'🛡️', titulo:'El Escudo', desc:'Más dispels históricos', jugador: topDisp.name,
+    comentario: pickFor(topDisp.name, [
+      'El grupo respira tranquilo cuando él está presente.',
+      'Dispela más rápido que la mayoría piensa en hacerlo.',
+      'El MVP silencioso que nadie menciona pero todos necesitan.',
+      'Su barra de acción tiene más botones de dispel que de cura. Y eso es mucho decir.',
+    ]),
+    valor: topDisp.val + ' dispels', tipo:'honor' });
 
   const topInt = topOf(intTotals);
-  if (topInt) titles.push({ id:'centinela',    icon:'⚡', titulo:'El Centinela',    desc:'Más interrupts históricos',            jugador: topInt.name,   valor: topInt.val + ' interrupts',         tipo:'honor' });
+  if (topInt) titles.push({ id:'centinela', icon:'⚡', titulo:'El Centinela', desc:'Más interrupts históricos', jugador: topInt.name,
+    comentario: pickFor(topInt.name, [
+      'Ningún casteo pasa sin su permiso.',
+      'El boss empieza a castear y ya siente el interrupt llegar.',
+      'Interrumpir es su idioma materno.',
+      'Los demás reaccionan, él ya ha actuado.',
+    ]),
+    valor: topInt.val + ' interrupts', tipo:'honor' });
 
   const survivors = [...rcMap.entries()]
     .filter(([, c]) => c >= minRaids)
     .map(([n]) => ({ name: n, val: deathTotals.get(n) ?? 0 }))
     .sort((a, b) => a.val - b.val);
-  if (survivors.length > 0) titles.push({ id:'superviviente', icon:'🌿', titulo:'El Superviviente', desc:'Menos muertes entre los asiduos', jugador: survivors[0].name, valor: survivors[0].val + ' muertes', tipo:'honor' });
+  if (survivors.length > 0) titles.push({ id:'superviviente', icon:'🌿', titulo:'El Superviviente', desc:'Menos muertes entre los asiduos', jugador: survivors[0].name,
+    comentario: pickFor(survivors[0].name, [
+      'En la catástrofe general, él sale caminando.',
+      'Mientras el grupo muere, él toma nota.',
+      'La muerte le conoce de oídas, nada más.',
+      'Sobrevivir donde otros caen: su talento oculto.',
+    ]),
+    valor: survivors[0].val + ' muertes', tipo:'honor' });
 
   const pacifistas = [...rcMap.entries()]
     .filter(([n, c]) => c >= minRaids && (ffTotals.get(n) ?? 0) === 0)
     .sort((a, b) => b[1] - a[1]);
-  if (pacifistas.length > 0) titles.push({ id:'pacifista', icon:'☮️', titulo:'El Pacifista', desc:'Nunca ha dañado a un aliado', jugador: pacifistas[0][0], valor: rcMap.get(pacifistas[0][0]) + ' raids sin FF', tipo:'honor' });
+  if (pacifistas.length > 0) titles.push({ id:'pacifista', icon:'☮️', titulo:'El Pacifista', desc:'Nunca ha dañado a un aliado', jugador: pacifistas[0][0],
+    comentario: pickFor(pacifistas[0][0], [
+      'Nunca ha rozado a un aliado. Ni de broma.',
+      'Sus compañeros confían plenamente en él. Con razón.',
+      'El único que puede decir que sus golpes solo duelen al boss.',
+      'En el caos del Whirlwind, él es la calma.',
+    ]),
+    valor: rcMap.get(pacifistas[0][0]) + ' raids sin FF', tipo:'honor' });
 
   // El Espartano: más raids sin morir ni una vez (entre asiduos)
   const spartanCount = new Map();
@@ -1424,7 +1733,45 @@ function calcTitulos() {
   const topSpartan = [...spartanCount.entries()]
     .filter(([n]) => (rcMap.get(n) ?? 0) >= minRaids)
     .sort((a, b) => b[1] - a[1]);
-  if (topSpartan.length > 0) titles.push({ id:'espartano', icon:'⚔️', titulo:'El Espartano', desc:'Más raids sin morir ni una vez', jugador: topSpartan[0][0], valor: topSpartan[0][1] + ' raids limpias', tipo:'honor' });
+  if (topSpartan.length > 0) titles.push({ id:'espartano', icon:'⚔️', titulo:'El Espartano', desc:'Más raids sin morir ni una vez', jugador: topSpartan[0][0],
+    comentario: pickFor(topSpartan[0][0], [
+      'Muerto no. Herido tampoco. Perfecto.',
+      'El suelo de los bosses no le conoce la cara.',
+      'Mientras el grupo cae, él sigue en pie.',
+      'Termina la raid tan entero como la empezó.',
+    ]),
+    valor: topSpartan[0][1] + ' raids limpias', tipo:'honor' });
+
+  // El Intocable: menos daño evitable entre los asiduos
+  const intocables = [...rcMap.entries()]
+    .filter(([, c]) => c >= minRaids)
+    .map(([n]) => ({ name: n, val: avoidTotal.get(n) ?? 0 }))
+    .sort((a, b) => a.val - b.val);
+  if (intocables.length > 0) titles.push({ id:'intocable', icon:'🧘', titulo:'El Intocable', desc:'Menos daño recibido de mecánicas evitables', jugador: intocables[0].name,
+    comentario: pickFor(intocables[0].name, [
+      'Lee las mecánicas antes de la raid. Los demás leen los logs después.',
+      'Se mueve antes de que el suelo le dé motivos.',
+      'Juega como si el daño evitable no existiera. Porque para él no existe.',
+      'Donde otros ven fuego, él ya no está.',
+    ]),
+    valor: intocables[0].val === 0 ? 'sin daño evitable' : fmtDmg(intocables[0].val), tipo:'honor' });
+
+  // El Verdugo: mayor golpe único infligido a un enemigo
+  let verdugo = null;
+  DATA.forEach(raid => {
+    Object.entries(raid.playerHitStats ?? {}).forEach(([pname, stats]) => {
+      if (stats.biggestHit?.amount > (verdugo?.amount ?? 0))
+        verdugo = { ...stats.biggestHit, jugador: pname, fecha: raid.fecha };
+    });
+  });
+  if (verdugo) titles.push({ id:'verdugo', icon:'🗡️', titulo:'El Verdugo', desc:'Mayor golpe único infligido en toda la temporada', jugador: verdugo.jugador,
+    comentario: pickFor(verdugo.jugador, [
+      'Un solo golpe que el boss no olvidará. Si pudiera recordar.',
+      'El log no mentía. Ese número es real.',
+      'Hay golpes que hacen historia. Este es uno de ellos.',
+      'El boss sintió ese en particular.',
+    ]),
+    valor: fmtDmg(verdugo.amount) + (verdugo.ability ? ` · ${verdugo.ability}` : '') + (verdugo.target ? ` → ${verdugo.target}` : ''), tipo:'honor' });
 
   return titles;
 }
@@ -1449,17 +1796,20 @@ function buildGaleriaInfamia() {
     return `
     <div class="titulo-card titulo-card--${t.tipo}">
       <div class="titulo-icon">${t.icon}</div>
-      <div class="titulo-titulo">${t.titulo}</div>
-      <div class="titulo-jugador">${playerHTML}</div>
-      <div class="titulo-desc">${t.desc}</div>
-      <div class="titulo-valor">${t.valor}</div>
+      <div class="titulo-body">
+        <div class="titulo-titulo">${t.titulo}</div>
+        <div class="titulo-jugador">${playerHTML}</div>
+        <div class="titulo-desc">${t.desc}</div>
+        ${t.comentario ? `<div class="titulo-comentario">${t.comentario}</div>` : ''}
+        <div class="titulo-valor">${t.valor}</div>
+      </div>
     </div>`;
   };
 
   el.innerHTML = `
-    <div class="section-title">Títulos de la Infamia</div>
+    <div class="section-title" style="font-size:1.4rem">Títulos de la Infamia</div>
     <div class="titulos-grid">${shames.map(card).join('')}</div>
-    <div class="section-title" style="margin-top:2rem">Títulos de Honor</div>
+    <div class="section-title" style="margin-top:2rem;font-size:1.4rem">Títulos de Honor</div>
     <div class="titulos-grid">${honors.map(card).join('')}</div>
   `;
 
@@ -1491,28 +1841,28 @@ function generarTitulares(raid, allRaids) {
     let streak = 0;
     for (let i = raidIdx; i >= 0; i--) { if (sorted[i].leaderboard[0]?.name === winner) streak++; else break; }
     if (streak >= 4) lines.push(pick([
-      `${winner} lleva <b>${streak} semanas seguidas</b> portando la Resaca. A estas alturas ya es patrimonio cultural.`,
-      `<b>${streak} raids consecutivas</b> con ${winner} al frente del friendly fire. El resto ya ni se molesta en competir.`,
-      `${winner} lleva <b>${streak} semanas</b> siendo el mayor peligro de la banda. Los bosses lo miran con respeto.`,
+      `<b>${winner}</b> lleva <b>${streak} semanas seguidas</b> portando la Resaca. A estas alturas ya es patrimonio cultural.`,
+      `<b>${streak} raids consecutivas</b> con <b>${winner}</b> al frente del friendly fire. El resto ya ni se molesta en competir.`,
+      `<b>${winner}</b> lleva <b>${streak} semanas</b> siendo el mayor peligro de la banda. Los bosses lo miran con respeto.`,
     ]));
     else if (streak >= 3) lines.push(pick([
-      `${winner} lleva <b>${streak} semanas consecutivas</b> portando la Resaca. Alguien que lo pare.`,
-      `Tres raids, mismo ganador. ${winner} ha convertido el friendly fire en una costumbre. Una muy cara.`,
-      `<b>${streak} en fila</b> para ${winner}. El Portador ya no es un título, es una identidad.`,
+      `<b>${winner}</b> lleva <b>${streak} semanas consecutivas</b> portando la Resaca. Alguien que lo pare.`,
+      `Tres raids, mismo ganador. <b>${winner}</b> ha convertido el friendly fire en una costumbre. Una muy cara.`,
+      `<b>${streak} en fila</b> para <b>${winner}</b>. El Traidor ya no es un título, es una identidad.`,
     ]));
     else if (streak === 2) lines.push(pick([
-      `${winner} repite como Portador de la Resaca. Va para racha.`,
-      `${winner} vuelve a liderar el friendly fire. La consistencia es una virtud, supongo.`,
-      `Segunda raid seguida para ${winner}. Con <b>${dmg}</b> de daño a aliados. Progresión inversa.`,
-      `${winner} defiende el título. <b>${dmg}</b> de ff y ni una disculpa. Clásico.`,
+      `<b>${winner}</b> repite como Portador de la Resaca. Va para racha.`,
+      `<b>${winner}</b> vuelve a liderar el friendly fire. La consistencia es una virtud, supongo.`,
+      `Segunda raid seguida para <b>${winner}</b>. Con <b>${dmg}</b> de daño a aliados. Progresión inversa.`,
+      `<b>${winner}</b> defiende el título. <b>${dmg}</b> de ff y ni una disculpa. Clásico.`,
     ]));
     else lines.push(pick([
-      `${winner} se corona nuevo Portador con <b>${dmg}</b> de daño a sus propios compañeros.`,
-      `<b>${dmg}</b> de friendly fire. ${winner} se lleva la Resaca sin esfuerzo aparente.`,
-      `${winner} demuestra que el mayor enemigo de la banda es ${winner}. <b>${dmg}</b> de ff.`,
-      `La Resaca de esta noche es para ${winner}, con <b>${dmg}</b> de daño a los suyos. Gruul toma nota.`,
-      `${winner} aparentemente confundió a sus compañeros con el boss. <b>${dmg}</b> de daño a aliados.`,
-      `Con <b>${dmg}</b> de ff, ${winner} se lleva la Resaca. Sin aparente esfuerzo y sin aparente vergüenza.`,
+      `<b>${winner}</b> se corona nuevo Portador con <b>${dmg}</b> de daño a sus propios compañeros.`,
+      `<b>${dmg}</b> de friendly fire. <b>${winner}</b> se lleva la Resaca sin esfuerzo aparente.`,
+      `<b>${winner}</b> demuestra que el mayor enemigo de la banda es <b>${winner}</b>. <b>${dmg}</b> de ff.`,
+      `La Resaca de esta noche es para <b>${winner}</b>, con <b>${dmg}</b> de daño a los suyos. Gruul toma nota.`,
+      `<b>${winner}</b> aparentemente confundió a sus compañeros con el boss. <b>${dmg}</b> de daño a aliados.`,
+      `Con <b>${dmg}</b> de ff, <b>${winner}</b> se lleva la Resaca. Sin aparente esfuerzo y sin aparente vergüenza.`,
     ]));
   } else {
     lines.push(pick([
@@ -1602,33 +1952,33 @@ function generarTitulares(raid, allRaids) {
   // 4. Top muerte
   if (topDead?.count >= 5) {
     lines.push(pick([
-      `${topDead.name} muere <b>${topDead.count} veces</b> esta noche. Ya tiene más experiencia muriendo que matando.`,
-      `${topDead.name}: <b>${topDead.count} muertes</b>. Está explorando activamente el sistema de respawn.`,
-      `<b>${topDead.count} veces</b> en el suelo para ${topDead.name}. Gruul tampoco lo mata tanto a él.`,
-      `${topDead.name} decidió que vivir era opcional esta noche. ${topDead.count} veces para demostrarlo.`,
-      `${topDead.name} muere <b>${topDead.count} veces</b>. El cementerio ya le tiene reservado sitio fijo.`,
+      `<b>${topDead.name}</b> muere <b>${topDead.count} veces</b> esta noche. Ya tiene más experiencia muriendo que matando.`,
+      `<b>${topDead.name}</b>: <b>${topDead.count} muertes</b>. Está explorando activamente el sistema de respawn.`,
+      `<b>${topDead.count} veces</b> en el suelo para <b>${topDead.name}</b>. Gruul tampoco lo mata tanto a él.`,
+      `<b>${topDead.name}</b> decidió que vivir era opcional esta noche. ${topDead.count} veces para demostrarlo.`,
+      `<b>${topDead.name}</b> muere <b>${topDead.count} veces</b>. El cementerio ya le tiene reservado sitio fijo.`,
     ]));
   } else if (topDead?.count >= 3) {
     lines.push(pick([
-      `${topDead.name} muere <b>${topDead.count} veces</b> esta noche. Constancia.`,
-      `<b>${topDead.count} muertes</b> para ${topDead.name}. Spoiler: no mejoró con la práctica.`,
-      `${topDead.name} probó a morir <b>${topDead.count} veces</b>. El boss se lo está tomando bien.`,
-      `${topDead.name} con <b>${topDead.count} muertes</b>. Los compañeros, silencio cómplice.`,
-      `${topDead.name} muere <b>${topDead.count} veces</b>. Ya se sabe el camino del cementerio de memoria.`,
+      `<b>${topDead.name}</b> muere <b>${topDead.count} veces</b> esta noche. Constancia.`,
+      `<b>${topDead.count} muertes</b> para <b>${topDead.name}</b>. Spoiler: no mejoró con la práctica.`,
+      `<b>${topDead.name}</b> probó a morir <b>${topDead.count} veces</b>. El boss se lo está tomando bien.`,
+      `<b>${topDead.name}</b> con <b>${topDead.count} muertes</b>. Los compañeros, silencio cómplice.`,
+      `<b>${topDead.name}</b> muere <b>${topDead.count} veces</b>. Ya se sabe el camino del cementerio de memoria.`,
     ]));
   }
 
   // 5. Primer muerto rápido
   if (firstDie?.name && firstDie.timeMs) {
     if (firstDie.timeMs < 12000) lines.push(pick([
-      `${firstDie.name} palma a los <b>${(firstDie.timeMs/1000).toFixed(1)}s</b> del pull. Ni terminó de colocarse.`,
-      `<b>${(firstDie.timeMs/1000).toFixed(1)} segundos</b>. ${firstDie.name} no esperó ni al primer trash para caer.`,
-      `${firstDie.name} al suelo en <b>${(firstDie.timeMs/1000).toFixed(1)}s</b>. El pull todavía no había terminado de resolverse.`,
+      `<b>${firstDie.name}</b> palma a los <b>${(firstDie.timeMs/1000).toFixed(1)}s</b> del pull. Ni terminó de colocarse.`,
+      `<b>${(firstDie.timeMs/1000).toFixed(1)} segundos</b>. <b>${firstDie.name}</b> no esperó ni al primer trash para caer.`,
+      `<b>${firstDie.name}</b> al suelo en <b>${(firstDie.timeMs/1000).toFixed(1)}s</b>. El pull todavía no había terminado de resolverse.`,
     ]));
     else if (firstDie.timeMs < 30000) lines.push(pick([
-      `${firstDie.name} abre el marcador de muertes a los <b>${(firstDie.timeMs/1000).toFixed(0)}s</b>. Un clásico.`,
-      `Alguien tenía que ser el primero. ${firstDie.name} se ofreció a los <b>${(firstDie.timeMs/1000).toFixed(0)}s</b>, sin saberlo.`,
-      `${firstDie.name} inaugura el cementerio a los <b>${(firstDie.timeMs/1000).toFixed(0)}s</b>. Tradición de guild.`,
+      `<b>${firstDie.name}</b> abre el marcador de muertes a los <b>${(firstDie.timeMs/1000).toFixed(0)}s</b>. Un clásico.`,
+      `Alguien tenía que ser el primero. <b>${firstDie.name}</b> se ofreció a los <b>${(firstDie.timeMs/1000).toFixed(0)}s</b>, sin saberlo.`,
+      `<b>${firstDie.name}</b> inaugura el cementerio a los <b>${(firstDie.timeMs/1000).toFixed(0)}s</b>. Tradición de guild.`,
     ]));
   }
 
@@ -1650,7 +2000,24 @@ function generarTitulares(raid, allRaids) {
     'Sin muertes. Los bosses se preguntan qué han hecho mal.',
   ]));
 
-  return lines.slice(0, 4);
+  // 8. Mecánicas evitables
+  const avoidMapT = new Map();
+  (raid.avoidableDamage ?? []).forEach(m => m.players.forEach(p => avoidMapT.set(p.name, (avoidMapT.get(p.name) ?? 0) + p.total)));
+  const topAvoidT = [...avoidMapT.entries()].sort((a, b) => b[1] - a[1])[0];
+  if (topAvoidT && topAvoidT[1] > 0) {
+    const [avName, avDmg] = topAvoidT;
+    lines.push(pick([
+      `<b>${avName}</b> recibió ${fmtDmg(avDmg)} de daño evitable. Evitable, sí. Evitado, no.`,
+      `${fmtDmg(avDmg)} de daño evitable para <b>${avName}</b>. El suelo estaba en llamas. Él también.`,
+      `<b>${avName}</b> lidera las mecánicas evitables con ${fmtDmg(avDmg)}. A estas alturas ya son mecánicas inevitables para él.`,
+      `El ganador de "¿quién se pone donde no debe?" es <b>${avName}</b>, con ${fmtDmg(avDmg)} de pruebas.`,
+      `<b>${avName}</b> interpreta las mecánicas evitables como opcionales. ${fmtDmg(avDmg)} de daño después, sigue pensando lo mismo.`,
+      `Con ${fmtDmg(avDmg)}, <b>${avName}</b> demuestra que los avisos visuales son decorativos.`,
+      `<b>${avName}</b> y las mecánicas evitables: una relación complicada. ${fmtDmg(avDmg)} de daño. Muy complicada.`,
+    ]));
+  }
+
+  return lines.slice(0, 5);
 }
 
 // ── JUGADOR ───────────────────────────────────────────────────────────────────
@@ -1689,7 +2056,7 @@ function openPlayer(name) {
 
   const raidsAttended = DATA.filter(r => (r.roster ?? [...r.leaderboard.map(e=>e.name), ...(r.deathStats?.deaths??[]).map(e=>e.name)]).includes(name));
 
-  let totalFF = 0, totalDeaths = 0, totalTimeDead = 0, totalInts = 0, totalDisp = 0, portadorCount = 0, firstCount = 0;
+  let totalFF = 0, totalDeaths = 0, totalTimeDead = 0, totalInts = 0, totalDisp = 0, totalAvoid = 0, portadorCount = 0, firstCount = 0;
 
   const rows = raidsAttended.map(r => {
     const ffEntry  = r.leaderboard.find(e => e.name === name);
@@ -1707,11 +2074,24 @@ function openPlayer(name) {
     const int = intEntry?.total ?? 0;
     const dis = disEntry?.total ?? 0;
 
+    const avoid = (r.avoidableDamage ?? []).reduce((s, m) => s + (m.players.find(p => p.name === name)?.total ?? 0), 0);
+    totalAvoid += avoid;
     totalFF += ff; totalDeaths += d; totalTimeDead += td; totalInts += int; totalDisp += dis;
     if (isPort) portadorCount++;
     if (isFirst) firstCount++;
 
-    return { fecha: r.fecha, report: r.report, ff, d, td, int, dis, isPort, isFirst, hitStats };
+    // Vergüenza de esta raid
+    const participants = r.roster ? new Set(r.roster)
+      : new Set([...r.leaderboard.map(e=>e.name), ...(r.deathStats?.deaths??[]).map(e=>e.name), ...(r.deathStats?.timeDead??[]).map(e=>e.name)]);
+    const n = participants.size;
+    let shameScore = null;
+    if (n > 1) {
+      const pct = (list) => { const idx = list.findIndex(e=>e.name===name); return idx===-1?0:(n-1-idx)/(n-1); };
+      const avoidSortedS = [...(()=>{ const m2=new Map(); (r.avoidableDamage??[]).forEach(m=>m.players.forEach(p=>m2.set(p.name,(m2.get(p.name)??0)+p.total))); return [...m2.entries()].map(([n2,t])=>({name:n2,total:t})).sort((a,b)=>b.total-a.total); })()];
+      shameScore = (pct(r.leaderboard) + pct(r.deathStats?.deaths??[]) + pct(r.deathStats?.timeDead??[]) + pct(avoidSortedS)) / 4 * 100;
+    }
+
+    return { fecha: r.fecha, report: r.report, ff, d, td, int, dis, avoid, shameScore, isPort, isFirst, hitStats };
   });
 
   // Personal records from playerHitStats
@@ -1755,8 +2135,8 @@ function openPlayer(name) {
     <div class="profile-stats">
       <div class="pstat"><div class="plabel">Raids</div><div class="pval purple">${raidsAttended.length}</div></div>
       <div class="pstat"><div class="plabel">Fuego Amigo (Gruul)</div><div class="pval">${fmtDmg(totalFF)}</div></div>
+      <div class="pstat"><div class="plabel">Mecánicas Evitables</div><div class="pval red">${fmtDmg(totalAvoid)}</div></div>
       <div class="pstat"><div class="plabel">Muertes</div><div class="pval red">${totalDeaths}</div></div>
-      <div class="pstat"><div class="plabel">Tiempo Muerto</div><div class="pval red">${fmtMs(totalTimeDead)}</div></div>
       <div class="pstat"><div class="plabel">Interrupts</div><div class="pval purple">${totalInts}</div></div>
       <div class="pstat"><div class="plabel">Dispels</div><div class="pval purple">${totalDisp}</div></div>
     </div>
@@ -1779,19 +2159,24 @@ function openPlayer(name) {
         const n = participants.size;
         if (n <= 1) return null;
         const pct = (list) => { const idx = list.findIndex(e=>e.name===name); return idx===-1?0:(n-1-idx)/(n-1); };
-        return (pct(r.leaderboard) + pct(r.deathStats?.deaths??[]) + pct(r.deathStats?.timeDead??[])) / 3 * 100;
+        const avoidMap3 = new Map();
+        (r.avoidableDamage ?? []).forEach(m => m.players.forEach(p => avoidMap3.set(p.name, (avoidMap3.get(p.name) ?? 0) + p.total)));
+        const avoidSorted3 = [...avoidMap3.entries()].map(([n2, total]) => ({ name: n2, total })).sort((a, b) => b.total - a.total);
+        return (pct(r.leaderboard) + pct(r.deathStats?.deaths??[]) + pct(r.deathStats?.timeDead??[]) + pct(avoidSorted3)) / 4 * 100;
       });
       const series = [{ label: 'Vergüenza', color: 'var(--red2)', values: shameValues }];
       return `
         <div class="section-title">Evolución del Score de Vergüenza</div>
         <div class="prog-chart" style="margin-bottom:1.5rem">
-          ${drawLineChart(xLabels, series, v => v.toFixed(0) + '%')}
+          ${drawLineChart(xLabels, series, v => v.toFixed(0) + '%', 0, 100)}
         </div>`;
     })()}
     <div class="section-title">Histórico por Raid</div>
     <table class="raid-table">
       <thead><tr>
         <th>Fecha</th>
+        <th>Vergüenza</th>
+        <th>Mec. Evitables</th>
         <th>FF Daño (Gruul)</th>
         <th>Muertes</th>
         <th>T. Muerto</th>
@@ -1802,15 +2187,17 @@ function openPlayer(name) {
       <tbody>
         ${rows.map(r => `<tr>
           <td class="td-gold">${fmtDate(r.fecha)}</td>
-          <td class="td-gold">${r.ff ? fmtDmg(r.ff) : '<span class="td-dim">—</span>'} ${r.isPort ? '<span class="shame-badge">resaca</span>' : ''}</td>
-          <td class="td-red">${r.d || '<span class="td-dim">0</span>'} ${r.isFirst ? '<span class="shame-badge">1º</span>' : ''}</td>
+          <td class="td-red">${r.shameScore != null ? r.shameScore.toFixed(0) + '%' : '<span class="td-dim">—</span>'}</td>
+          <td class="td-red">${r.avoid ? fmtDmg(r.avoid) : '<span class="td-dim">—</span>'}</td>
+          <td class="td-gold">${r.ff ? fmtDmg(r.ff) : '<span class="td-dim">—</span>'}</td>
+          <td class="td-red">${r.d || '<span class="td-dim">0</span>'}</td>
           <td class="td-red">${r.td ? fmtMs(r.td) : '<span class="td-dim">—</span>'}</td>
           <td class="td-purple">${r.int || '<span class="td-dim">0</span>'}</td>
           <td class="td-purple">${r.dis || '<span class="td-dim">0</span>'}</td>
           ${hasHitData ? `
-          <td class="td-gold" title="${[r.hitStats?.biggestHit?.ability, r.hitStats?.biggestHit?.target ? '→ ' + r.hitStats.biggestHit.target : ''].filter(Boolean).join(' ')}">${r.hitStats?.biggestHit?.amount ? fmtDmg(r.hitStats.biggestHit.amount) : '<span class="td-dim">—</span>'}</td>
-          <td style="color:var(--purple2)" title="${[r.hitStats?.biggestHeal?.ability, r.hitStats?.biggestHeal?.target ? '→ ' + r.hitStats.biggestHeal.target : ''].filter(Boolean).join(' ')}">${r.hitStats?.biggestHeal?.amount ? fmtDmg(r.hitStats.biggestHeal.amount) : '<span class="td-dim">—</span>'}</td>
-          <td class="td-red" title="${[r.hitStats?.biggestReceived?.ability, r.hitStats?.biggestReceived?.source ? '← ' + r.hitStats.biggestReceived.source : ''].filter(Boolean).join(' ')}">${r.hitStats?.biggestReceived?.amount ? fmtDmg(r.hitStats.biggestReceived.amount) : '<span class="td-dim">—</span>'}</td>` : ''}
+          <td style="color:var(--gold)" title="${[r.hitStats?.biggestHit?.ability, r.hitStats?.biggestHit?.target ? '→ ' + r.hitStats.biggestHit.target : ''].filter(Boolean).join(' ')}">${r.hitStats?.biggestHit?.amount ? fmtDmg(r.hitStats.biggestHit.amount) : '<span class="td-dim">—</span>'}</td>
+          <td style="color:#4ec97e" title="${[r.hitStats?.biggestHeal?.ability, r.hitStats?.biggestHeal?.target ? '→ ' + r.hitStats.biggestHeal.target : ''].filter(Boolean).join(' ')}">${r.hitStats?.biggestHeal?.amount ? fmtDmg(r.hitStats.biggestHeal.amount) : '<span class="td-dim">—</span>'}</td>
+          <td style="color:var(--red2)" title="${[r.hitStats?.biggestReceived?.ability, r.hitStats?.biggestReceived?.source ? '← ' + r.hitStats.biggestReceived.source : ''].filter(Boolean).join(' ')}">${r.hitStats?.biggestReceived?.amount ? fmtDmg(r.hitStats.biggestReceived.amount) : '<span class="td-dim">—</span>'}</td>` : ''}
         </tr>`).join('')}
       </tbody>
     </table>
@@ -1878,7 +2265,16 @@ function _calcMimado() {
   const mimados = [...count.entries()].filter(([, c]) => c === max).map(([n]) => n);
   // Quitar título anterior si existe y añadir el nuevo
   TITULOS = TITULOS.filter(t => t.id !== 'mimado');
-  TITULOS.push({ id:'mimado', icon:'💸', titulo:'El Mimado', desc:'Más ítems de loot recibidos', jugadores: mimados, valor: max + (max === 1 ? ' ítem' : ' ítems'), tipo:'shame' });
+  const _mimadoSeed = [...(mimados[0] ?? 'x')].reduce((s, c) => s + c.charCodeAt(0), 0);
+  const _mimadoComments = [
+    'El loot le conoce por el nombre.',
+    'El banco del personaje necesita ampliación urgente.',
+    'Cada raid es Navidad para él.',
+    'Los demás farmean experiencia, él farmea ítems.',
+  ];
+  TITULOS.push({ id:'mimado', icon:'💸', titulo:'El Mimado', desc:'Más ítems de loot recibidos', jugadores: mimados,
+    comentario: _mimadoComments[_mimadoSeed % _mimadoComments.length],
+    valor: max + (max === 1 ? ' ítem' : ' ítems'), tipo:'shame' });
   buildGaleriaInfamia();
 }
 
