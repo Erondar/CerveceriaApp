@@ -1309,14 +1309,35 @@ function calcTitulos() {
   const topFF = topOf(ffTotals);
   if (topFF) titles.push({ id:'kamikaze',   icon:'🩸', titulo:'El Kamikaze',     desc:'Mayor daño a aliados histórico',        jugador: topFF.name,    valor: fmtDmg(topFF.val) + ' FF',          tipo:'shame' });
 
-  const topPort = topOf(portadorCount, false);
-  if (topPort) titles.push({ id:'portador',  icon:'🏆', titulo:'El Portador',     desc:'Más veces con la Resaca',               jugador: topPort.name,  valor: topPort.val + ' raids',             tipo:'shame' });
+  // El Portador: todos los empatados
+  if (portadorCount.size > 0) {
+    const portMax = Math.max(...portadorCount.values());
+    const portadores = [...portadorCount.entries()].filter(([, c]) => c === portMax).map(([n]) => n);
+    titles.push({ id:'portador', icon:'🏆', titulo:'El Portador', desc:'Más veces con la Resaca', jugadores: portadores, valor: portMax + (portMax === 1 ? ' raid' : ' raids'), tipo:'shame' });
+  }
 
   const topDead = topOf(deathTotals);
   if (topDead) titles.push({ id:'martir',    icon:'💀', titulo:'El Mártir',       desc:'Más muertes históricas',                jugador: topDead.name,  valor: topDead.val + ' muertes',           tipo:'shame' });
 
   const topGhost = topOf(timeDeadTotals);
   if (topGhost) titles.push({ id:'fantasma', icon:'👻', titulo:'El Fantasma',     desc:'Mayor tiempo muerto histórico',         jugador: topGhost.name, valor: fmtMs(topGhost.val),                tipo:'shame' });
+
+  // El Primero: más veces primer muerto de la raid, mínimo 2
+  const firstToDieCount = new Map();
+  DATA.forEach(raid => {
+    const name = raid.deathStats?.firstToDie?.name;
+    if (name) firstToDieCount.set(name, (firstToDieCount.get(name) ?? 0) + 1);
+  });
+  const topFirst = [...firstToDieCount.entries()].filter(([, c]) => c >= 2).sort((a, b) => b[1] - a[1]);
+  if (topFirst.length > 0) titles.push({ id:'primero', icon:'💨', titulo:'El Primero', desc:'Más veces siendo el primer muerto', jugador: topFirst[0][0], valor: topFirst[0][1] + ' veces', tipo:'shame' });
+
+  // El Masoca: mayor golpe recibido de un aliado
+  let masoca = null;
+  DATA.forEach(raid => {
+    const br = raid.biggestHits?.biggestReceived;
+    if (br?.amount > (masoca?.amount ?? 0)) masoca = { ...br, fecha: raid.fecha };
+  });
+  if (masoca) titles.push({ id:'masoca', icon:'🤕', titulo:'El Masoca', desc:'Mayor golpe recibido de un aliado', jugador: masoca.victima, valor: fmtDmg(masoca.amount) + (masoca.ability ? ` · ${masoca.ability}` : ''), tipo:'shame' });
 
   // El Mudo: menos interrupts entre clases capaces con min raids
   // Capaces nativos: Warrior, Rogue, Mage, Shaman Enhancement/Elemental (no Restoration)
@@ -1349,31 +1370,48 @@ function calcTitulos() {
     .sort((a, b) => b[1] - a[1]);
   if (pacifistas.length > 0) titles.push({ id:'pacifista', icon:'☮️', titulo:'El Pacifista', desc:'Nunca ha dañado a un aliado', jugador: pacifistas[0][0], valor: rcMap.get(pacifistas[0][0]) + ' raids sin FF', tipo:'honor' });
 
+  // El Espartano: más raids sin morir ni una vez (entre asiduos)
+  const spartanCount = new Map();
+  DATA.forEach(raid => {
+    const deadInRaid = new Set((raid.deathStats?.deaths ?? []).filter(e => e.count > 0).map(e => e.name));
+    (raid.roster ?? []).forEach(name => {
+      if (!deadInRaid.has(name)) spartanCount.set(name, (spartanCount.get(name) ?? 0) + 1);
+    });
+  });
+  const topSpartan = [...spartanCount.entries()]
+    .filter(([n]) => (rcMap.get(n) ?? 0) >= minRaids)
+    .sort((a, b) => b[1] - a[1]);
+  if (topSpartan.length > 0) titles.push({ id:'espartano', icon:'⚔️', titulo:'El Espartano', desc:'Más raids sin morir ni una vez', jugador: topSpartan[0][0], valor: topSpartan[0][1] + ' raids limpias', tipo:'honor' });
+
   return titles;
 }
 
 function getPlayerTitles(name) {
-  return TITULOS.filter(t => t.jugador === name);
+  return TITULOS.filter(t => t.jugador === name || (t.jugadores ?? []).includes(name));
 }
 
 // ── GALERÍA DE INFAMIA ────────────────────────────────────────────────────────
 
 function buildGaleriaInfamia() {
-  const el = document.getElementById('titulos-section');
+  const el = document.getElementById('tab-logros');
   if (!el) return;
   if (!TITULOS.length) { el.innerHTML = '<div class="empty-msg">Sin datos suficientes.</div>'; return; }
 
   const shames = TITULOS.filter(t => t.tipo === 'shame');
   const honors = TITULOS.filter(t => t.tipo === 'honor');
 
-  const card = t => `
+  const card = t => {
+    const players = t.jugadores ?? [t.jugador];
+    const playerHTML = players.map(p => `<span class="player-link" data-player="${p}">${p}</span>`).join(', ');
+    return `
     <div class="titulo-card titulo-card--${t.tipo}">
       <div class="titulo-icon">${t.icon}</div>
       <div class="titulo-titulo">${t.titulo}</div>
-      <div class="titulo-jugador"><span class="player-link" data-player="${t.jugador}">${t.jugador}</span></div>
+      <div class="titulo-jugador">${playerHTML}</div>
       <div class="titulo-desc">${t.desc}</div>
       <div class="titulo-valor">${t.valor}</div>
     </div>`;
+  };
 
   el.innerHTML = `
     <div class="section-title">Títulos de la Vergüenza</div>
