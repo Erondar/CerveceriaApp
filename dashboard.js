@@ -516,6 +516,12 @@ function buildPorRaid() {
       <select id="raid-selector" class="loot-select" style="min-width:160px;width:auto;margin-bottom:0">
         ${raids.map((r, i) => `<option value="${i}">${fmtDate(r.fecha)}</option>`).join('')}
       </select>
+      <a id="wcl-link" href="https://www.warcraftlogs.com/reports/${raids[0].report}" target="_blank" rel="noopener"
+         style="font-size:.82rem;color:var(--text-dim);text-decoration:none;border:1px solid var(--border2);border-radius:5px;padding:.3rem .7rem;transition:color .15s,border-color .15s"
+         onmouseover="this.style.color='var(--text-bright)';this.style.borderColor='var(--gold)'"
+         onmouseout="this.style.color='var(--text-dim)';this.style.borderColor='var(--border2)'">
+        Ver en WarcraftLogs ↗
+      </a>
     </div>
     <div id="por-raid-content"></div>
   `;
@@ -737,7 +743,11 @@ function buildPorRaid() {
   }
 
   renderRaid(raids[0]);
-  document.getElementById('raid-selector').addEventListener('change', e => renderRaid(raids[+e.target.value]));
+  document.getElementById('raid-selector').addEventListener('change', e => {
+    const raid = raids[+e.target.value];
+    document.getElementById('wcl-link').href = `https://www.warcraftlogs.com/reports/${raid.report}`;
+    renderRaid(raid);
+  });
 }
 
 function buildDpsHpsChart(raids, xLabels) {
@@ -1759,6 +1769,25 @@ function openPlayer(name) {
       ${prReceived ? `<div class="record-card"><div class="record-icon">💀</div><div class="record-label">Mayor golpe recibido</div><div class="record-amount">${fmtDmg(prReceived.amount)}</div><div class="record-who">${prReceived.source} → ${name}</div>${prReceived.ability ? `<div class="record-ability">${prReceived.ability}</div>` : ''}<div class="record-date">${fmtDate(prReceived.fecha)}</div></div>` : ''}
     </div>` : ''}
 
+    ${(() => {
+      if (raidsAttended.length < 2) return '';
+      const sorted = [...raidsAttended].sort((a, b) => a.fecha.localeCompare(b.fecha));
+      const xLabels = sorted.map(r => fmtDate(r.fecha));
+      const shameValues = sorted.map(r => {
+        const participants = r.roster ? new Set(r.roster)
+          : new Set([...r.leaderboard.map(e=>e.name), ...(r.deathStats?.deaths??[]).map(e=>e.name), ...(r.deathStats?.timeDead??[]).map(e=>e.name)]);
+        const n = participants.size;
+        if (n <= 1) return null;
+        const pct = (list) => { const idx = list.findIndex(e=>e.name===name); return idx===-1?0:(n-1-idx)/(n-1); };
+        return (pct(r.leaderboard) + pct(r.deathStats?.deaths??[]) + pct(r.deathStats?.timeDead??[])) / 3 * 100;
+      });
+      const series = [{ label: 'Vergüenza', color: 'var(--red2)', values: shameValues }];
+      return `
+        <div class="section-title">Evolución del Score de Vergüenza</div>
+        <div class="prog-chart" style="margin-bottom:1.5rem">
+          ${drawLineChart(xLabels, series, v => v.toFixed(0) + '%')}
+        </div>`;
+    })()}
     <div class="section-title">Histórico por Raid</div>
     <table class="raid-table">
       <thead><tr>
