@@ -568,9 +568,9 @@ function buildDpsHpsTable(raids, xLabels) {
 
   const bossHeaders = bossNames.map(bn => `<th>${shortName(bn)}</th>`).join('');
   const makeTable = (title, color, rows) => `
-    <div style="min-width:0">
+    <div style="flex-shrink:0">
       <div style="font-size:0.8rem;font-weight:600;color:${color};letter-spacing:.06em;text-transform:uppercase;margin-bottom:.4rem">${title}</div>
-      <table class="ranked-list">
+      <table class="ranked-list" style="width:auto">
         <thead><tr><th>Fecha</th>${bossHeaders}<th style="color:${MEDIA_COLOR}">Media</th></tr></thead>
         <tbody>${rows.join('')}</tbody>
       </table>
