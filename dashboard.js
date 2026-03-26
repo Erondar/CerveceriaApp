@@ -1459,7 +1459,7 @@ function buildGaleriaInfamia() {
   };
 
   el.innerHTML = `
-    <div class="section-title">Títulos de la Vergüenza</div>
+    <div class="section-title">Títulos de la Infamia</div>
     <div class="titulos-grid">${shames.map(card).join('')}</div>
     <div class="section-title" style="margin-top:2rem">Títulos de Honor</div>
     <div class="titulos-grid">${honors.map(card).join('')}</div>
