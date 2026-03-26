@@ -165,11 +165,6 @@ function buildResumen() {
 
   document.getElementById('stat-cards').innerHTML = `
     <div class="stat-card">
-      <div class="label">Jugadores</div>
-      <div class="value purple">${ALL_PLAYERS.length}</div>
-      <div class="sub">han pisado la raid</div>
-    </div>
-    <div class="stat-card">
       <div class="label">Boss Kills</div>
       <div class="value">${totalKills}</div>
       <div class="sub">${totalWipes} wipes · ${totalTries} intentos totales</div>
@@ -178,11 +173,6 @@ function buildResumen() {
       <div class="label">Efectividad Global</div>
       <div class="value" style="color:${effColor}">${totalTries > 0 ? globalEff + '%' : '—'}</div>
       <div class="sub">kills / (kills + wipes)</div>
-    </div>
-    <div class="stat-card">
-      <div class="label">Rey de la Resaca</div>
-      <div class="value red" style="font-size:1.3rem">${maxFF.name ?? '-'}</div>
-      <div class="sub">${maxFF.name ? fmtDmg(maxFF.damage) + ' FF en una sola raid' : ''}</div>
     </div>
     <div class="stat-card">
       <div class="label">Mejor DPS de Raid</div>
@@ -325,6 +315,11 @@ function buildFF() {
         <div class="label">Jugadores con FF</div>
         <div class="value purple">${uniqueFF}</div>
         <div class="sub">han dañado a un aliado</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Rey de la Resaca</div>
+        <div class="value red" style="font-size:1.3rem">${maxFF.name ?? '—'}</div>
+        <div class="sub">${maxFF.name ? fmtDmg(maxFF.damage) + ' FF en una sola raid' : ''}</div>
       </div>
     </div>
   `;
