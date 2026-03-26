@@ -512,8 +512,8 @@ function buildPorRaid() {
       <select id="raid-selector" class="loot-select" style="min-width:160px;width:auto;margin-bottom:0">
         ${raids.map((r, i) => `<option value="${i}">${fmtDate(r.fecha)}</option>`).join('')}
       </select>
-      <button id="btn-export-png" style="margin-left:auto;padding:.55rem 1.1rem;background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--text-bright);font-family:'Barlow',sans-serif;font-size:.9rem;cursor:pointer;line-height:1;vertical-align:middle">
-        Exportar imagen
+      <button id="btn-export-png" style="margin-left:auto;padding:.55rem 1.1rem;background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--text-bright);font-family:'Barlow',sans-serif;font-size:.9rem;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:.4rem;line-height:1">
+        <span style="font-size:1em;line-height:1;position:relative;top:0">📷</span><span>Exportar imagen</span>
       </button>
     </div>
     <div id="por-raid-content"></div>
