@@ -561,11 +561,6 @@ function buildPorRaid() {
           <div class="label">DPS Medio</div>
           <div class="value" style="color:${DPS_COLOR}">${fmtDmg(dps.dps)}</div>
           <div class="sub">media 3 kills</div>
-        </div>
-        <div class="stat-card">
-          <div class="label">HPS Medio</div>
-          <div class="value" style="color:${HPS_COLOR}">${fmtDmg(dps.hps)}</div>
-          <div class="sub">media 3 kills</div>
         </div>` : ''}
       </div>`;
 
