@@ -48,6 +48,7 @@ function initDashboard() {
   DATA.forEach(r => (r.roster ?? []).forEach(n => playerSet.add(n)));
   ALL_PLAYERS = Array.from(playerSet).sort();
 
+  buildPlayerMaps();
   buildHeaderMeta();
   buildResumen();
   buildFF();
@@ -171,7 +172,7 @@ function buildResumen() {
     </div>
     <div class="stat-card">
       <div class="label">Rey de la Resaca</div>
-      <div class="value red" style="font-size:1.3rem">${maxFF.name ?? '-'}</div>
+      <div class="value red" style="font-size:1.3rem;display:flex;align-items:center;gap:.4rem">${playerBadge(maxFF.name)}${maxFF.name ?? '-'}</div>
       <div class="sub">${maxFF.name ? fmtDmg(maxFF.damage) + ' FF en una sola raid' : ''}</div>
     </div>
   `;
@@ -187,7 +188,7 @@ function buildResumen() {
       <div class="podium-title">${title}</div>
       ${arr.map((e,i) => `<div class="podium-entry">
         <span class="medal">${medalEmoji(i)}</span>
-        <span class="podium-name player-link" data-player="${e.name}">${e.name}</span>
+        ${playerBadge(e.name)}<span class="podium-name player-link" data-player="${e.name}">${e.name}</span>
         <span class="podium-val">${valFn(e)}</span>
       </div>`).join('')}
     </div>`;
@@ -210,7 +211,7 @@ function buildResumen() {
       <div class="record-icon">${icon}</div>
       <div class="record-label">${label}</div>
       <div class="record-amount">${fmtDmg(rec.amount)}</div>
-      <div class="record-who"><span class="player-link record-link" data-player="${nameFn(rec)}">${nameFn(rec)}</span> → <span class="player-link record-link" data-player="${targetFn(rec)}">${targetFn(rec)}</span></div>
+      <div class="record-who">${playerBadge(nameFn(rec))}<span class="player-link record-link" data-player="${nameFn(rec)}">${nameFn(rec)}</span> → ${playerBadge(targetFn(rec))}<span class="player-link record-link" data-player="${targetFn(rec)}">${targetFn(rec)}</span></div>
       ${abilityLine}
       <div class="record-date">${fmtDate(rec.fecha)}</div>
     </div>`;
@@ -305,7 +306,7 @@ function buildFF() {
   tbl.innerHTML = `<thead><tr><th></th><th>Jugador</th><th class="bar-cell"></th><th>Daño</th><th>Media/Raid</th><th>Raids</th></tr></thead><tbody>
     ${data.map((e,i) => { const rc = rcMap.get(e.name) ?? 1; return `<tr>
       <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
-      <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
+      <td>${playerBadge(e.name)}<span class="player-link" data-player="${e.name}">${e.name}</span></td>
       <td class="bar-cell">${makeBar(e.val/max*100)}</td>
       <td class="val-cell">${fmtDmg(e.val)}</td>
       <td class="val-cell td-dim">${fmtDmg(Math.round(e.val / rc))}</td>
@@ -330,18 +331,34 @@ const CLASS_ES = {
   Druid:   'Druida',
 };
 
-function getPlayerClass(name) {
-  for (const r of DATA) {
-    const cls = r.playerClasses?.[name];
-    if (cls) return cls;
-  }
-  return null;
+let PLAYER_CLASS_MAP = {};
+let PLAYER_SPEC_MAP  = {};
+
+function buildPlayerMaps() {
+  PLAYER_CLASS_MAP = {};
+  PLAYER_SPEC_MAP  = {};
+  DATA.forEach(r => {
+    Object.entries(r.playerClasses ?? {}).forEach(([n, c]) => { if (!PLAYER_CLASS_MAP[n]) PLAYER_CLASS_MAP[n] = c; });
+    Object.entries(r.playerSpecs   ?? {}).forEach(([n, s]) => { if (!PLAYER_SPEC_MAP[n])  PLAYER_SPEC_MAP[n]  = s; });
+  });
 }
 
-function classIcon(cls) {
+function getPlayerClass(name) { return PLAYER_CLASS_MAP[name] ?? null; }
+function getPlayerSpec(name)  { return PLAYER_SPEC_MAP[name]  ?? null; }
+
+function classIcon(cls, spec) {
   if (!cls) return '';
-  const slug = cls.toLowerCase();
-  return `<img src="https://wow.zamimg.com/images/wow/icons/medium/classicon_${slug}.jpg" class="class-icon" title="${CLASS_ES[cls] ?? cls}">`;
+  const slug    = cls.toLowerCase();
+  const tooltip = [CLASS_ES[cls] ?? cls, spec].filter(Boolean).join(' · ');
+  return `<img src="https://wow.zamimg.com/images/wow/icons/medium/classicon_${slug}.jpg" class="class-icon" title="${tooltip}" alt="${cls}">`;
+}
+
+function playerBadge(name) {
+  const cls = PLAYER_CLASS_MAP[name];
+  if (!cls) return '';
+  const spec    = PLAYER_SPEC_MAP[name] ?? '';
+  const tooltip = [CLASS_ES[cls] ?? cls, spec].filter(Boolean).join(' · ');
+  return `<img src="https://wow.zamimg.com/images/wow/icons/medium/classicon_${cls.toLowerCase()}.jpg" class="class-icon-sm" title="${tooltip}" alt="${cls}">`;
 }
 
 const PROG_BOSSES = ['High King Maulgar', 'Gruul the Dragonkiller', 'Magtheridon'];
@@ -622,12 +639,12 @@ function buildVerguenza() {
     <div class="stat-cards" style="margin-bottom:2rem">
       <div class="stat-card">
         <div class="label">Noche más Vergonzosa</div>
-        <div class="value red" style="font-size:1.3rem">${worstRaid?.name ?? '—'}</div>
+        <div class="value red" style="font-size:1.3rem;display:flex;align-items:center;gap:.4rem">${playerBadge(worstRaid?.name)}${worstRaid?.name ?? '—'}</div>
         <div class="sub">${worstRaid ? (worstRaid.score*100).toFixed(1) + '% · ' + fmtDate(worstRaid.fecha) : ''}</div>
       </div>
       <div class="stat-card">
         <div class="label">Noche más Ejemplar</div>
-        <div class="value" style="font-size:1.3rem">${bestRaid?.name ?? '—'}</div>
+        <div class="value" style="font-size:1.3rem;display:flex;align-items:center;gap:.4rem">${playerBadge(bestRaid?.name)}${bestRaid?.name ?? '—'}</div>
         <div class="sub">${bestRaid ? (bestRaid.score*100).toFixed(1) + '% · ' + fmtDate(bestRaid.fecha) : ''}</div>
       </div>
     </div>`);
@@ -648,7 +665,7 @@ function buildVerguenza() {
   tbl.innerHTML = `<thead><tr><th></th><th>Jugador</th><th class="bar-cell"></th><th>Score</th><th>Raids</th></tr></thead><tbody>
     ${data.map((e,i) => `<tr>
       <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
-      <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
+      <td>${playerBadge(e.name)}<span class="player-link" data-player="${e.name}">${e.name}</span></td>
       <td class="bar-cell"><div class="bar-wrap"><div class="bar-fill" style="width:${(e.score/max*100).toFixed(1)}%;background:var(--red2)"></div></div></td>
       <td class="val-cell" style="color:var(--red2)">${(e.score*100).toFixed(1)}%</td>
       <td class="td-dim">${e.count}</td>
@@ -680,7 +697,7 @@ function buildMuertes() {
     el.innerHTML = `<thead><tr><th></th><th>Jugador</th><th class="bar-cell"></th><th>Total</th><th>Raids</th></tr></thead><tbody>
       ${arr.map((e,i)=>`<tr>
         <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
-        <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
+        <td>${playerBadge(e.name)}<span class="player-link" data-player="${e.name}">${e.name}</span></td>
         <td class="bar-cell">${makeBar(e.val/Math.max(...arr.map(x=>x.val))*100, cls)}</td>
         <td class="val-cell ${cls}">${valFn(e)}</td>
         <td class="td-dim">${rcMap.get(e.name) ?? '—'}</td>
@@ -696,7 +713,7 @@ function buildMuertes() {
   fd.innerHTML = `<thead><tr><th></th><th>Jugador</th><th class="bar-cell"></th><th>Veces</th></tr></thead><tbody>
     ${first.map((e,i)=>`<tr>
       <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
-      <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
+      <td>${playerBadge(e.name)}<span class="player-link" data-player="${e.name}">${e.name}</span></td>
       <td class="bar-cell">${makeBar(e.val/maxF*100,'red')}</td>
       <td class="val-cell red">${e.val} ×</td>
     </tr>`).join('')}
@@ -724,7 +741,7 @@ function buildMecanicas() {
     el.innerHTML = `<thead><tr><th></th><th>Jugador</th><th class="bar-cell"></th><th>Total</th><th>Raids</th></tr></thead><tbody>
       ${arr.map((e,i)=>`<tr>
         <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
-        <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
+        <td>${playerBadge(e.name)}<span class="player-link" data-player="${e.name}">${e.name}</span></td>
         <td class="bar-cell">${makeBar(e.val/maxV*100,'purple')}</td>
         <td class="val-cell purple">${e.val}</td>
         <td class="td-dim">${rcMap.get(e.name) ?? '—'}</td>
@@ -1004,14 +1021,15 @@ function openPlayer(name) {
   const hasHitData = rows.some(r => r.hitStats);
 
   const cls      = getPlayerClass(name);
+  const spec     = getPlayerSpec(name);
   const clsColor = cls ? (CLASS_COLOR[cls] ?? 'var(--text-bright)') : 'var(--text-bright)';
-  const clsLabel = cls ? (CLASS_ES[cls] ?? cls) : '';
+  const clsLabel = [CLASS_ES[cls] ?? cls, spec].filter(Boolean).join(' · ');
 
   const profile = document.getElementById('player-profile');
   profile.className = 'visible';
   profile.innerHTML = `
     <div class="profile-header">
-      ${classIcon(cls)}
+      ${classIcon(cls, spec)}
       <div>
         <div class="profile-name" style="color:${clsColor}">${name}</div>
         ${clsLabel ? `<div class="profile-class">${clsLabel}</div>` : ''}
