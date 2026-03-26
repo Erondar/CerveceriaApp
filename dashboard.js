@@ -390,7 +390,7 @@ function playerBadge(name) {
 }
 
 const PROG_BOSSES = ['High King Maulgar', 'Gruul the Dragonkiller', 'Magtheridon'];
-const PROG_SHORT  = ['Maulgar', 'Gruul', 'Magtheridon'];
+const PROG_SHORT  = ['Maulgar', 'Gruul', 'Magth'];
 const PROG_COLORS = ['#f0c84a', '#ff6060', '#c090f0'];
 
 function progLegend(labels, colors) {
@@ -533,7 +533,7 @@ function buildDpsHpsTable(raids, xLabels) {
   const shortName = n => {
     if (n.includes('Maulgar'))     return 'Maulgar';
     if (n.includes('Gruul'))       return 'Gruul';
-    if (n.includes('Magtheridon')) return 'Magtheridon';
+    if (n.includes('Magtheridon')) return 'Magth';
     return n.split(' ').pop();
   };
 
