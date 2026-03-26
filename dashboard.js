@@ -1378,6 +1378,25 @@ function calcTitulos() {
     .sort((a, b) => a.val - b.val);
   if (capable.length > 0) titles.push({ id:'mudo', icon:'🤐', titulo:'El Mudo', desc:'Menos interrupts entre los capaces', jugador: capable[0].name, valor: capable[0].val + ' interrupts', tipo:'shame' });
 
+  // El Invisible: asiduo con más raids sin aparecer en ningún ranking
+  const invisibleCount = new Map();
+  DATA.forEach(raid => {
+    const active = new Set([
+      ...raid.leaderboard.map(e => e.name),
+      ...(raid.deathStats?.deaths   ?? []).map(e => e.name),
+      ...(raid.deathStats?.timeDead ?? []).map(e => e.name),
+      ...(raid.interrupts ?? []).map(e => e.name),
+      ...(raid.dispels    ?? []).map(e => e.name),
+    ]);
+    (raid.roster ?? []).forEach(name => {
+      if (!active.has(name)) invisibleCount.set(name, (invisibleCount.get(name) ?? 0) + 1);
+    });
+  });
+  const topInvisible = [...invisibleCount.entries()]
+    .filter(([n, c]) => (rcMap.get(n) ?? 0) >= minRaids && c >= 1)
+    .sort((a, b) => b[1] - a[1]);
+  if (topInvisible.length > 0) titles.push({ id:'invisible', icon:'🎭', titulo:'El Invisible', desc:'Más raids sin aparecer en ningún ranking', jugador: topInvisible[0][0], valor: topInvisible[0][1] + ' raids sin rastro', tipo:'shame' });
+
   // ── Honor ──
   const topDisp = topOf(dispelTotals);
   if (topDisp) titles.push({ id:'escudo',      icon:'🛡️', titulo:'El Escudo',       desc:'Más dispels históricos',               jugador: topDisp.name,  valor: topDisp.val + ' dispels',           tipo:'honor' });
