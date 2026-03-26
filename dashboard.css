@@ -720,6 +720,8 @@
   .titulo-jugador { font-size: 1.25rem; font-weight: 700; color: var(--gold); }
   .titulo-card--shame .titulo-jugador { color: var(--gold); }
   .titulo-card--honor .titulo-jugador { color: var(--gold); }
+  .titulo-jugador .player-link { color: var(--gold); }
+  .titulo-jugador .player-link:hover { color: var(--gold2); }
   .titulo-desc  { font-size: .75rem; color: var(--text-dim); }
   .titulo-valor { font-size: .8rem; color: var(--text-muted); font-style: italic; }
 
