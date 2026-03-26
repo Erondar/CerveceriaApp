@@ -48,10 +48,10 @@ function buildCitaDelDia() {
   const seed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
   const cita = CITAS[seed % CITAS.length];
   const html = `<div class="cita-del-dia"><span class="cita-ornament">— ✦ —</span><blockquote class="cita-text">${cita}</blockquote></div>`;
-  const loaderEl = document.getElementById('cita-del-dia-loader');
+  const loaderEl  = document.getElementById('cita-del-dia-loader');
   if (loaderEl) loaderEl.innerHTML = html;
-  const appEl = document.getElementById('cita-del-dia-app');
-  if (appEl) appEl.innerHTML = html;
+  const resumenEl = document.getElementById('cita-del-dia-resumen');
+  if (resumenEl) resumenEl.innerHTML = html;
 }
 
 document.addEventListener('DOMContentLoaded', buildCitaDelDia);
