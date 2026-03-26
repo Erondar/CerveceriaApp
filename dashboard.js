@@ -2,6 +2,60 @@ let DATA = [];
 let ALL_PLAYERS = [];
 let TITULOS = [];
 
+// ── CITA DEL DÍA ──────────────────────────────────────────────────────────────
+
+const CITAS = [
+  '«La Resaca no se hereda. Se gana, raid a raid, con sangre de aliados.»',
+  '«En esta banda, el boss más peligroso siempre ha sido uno de los nuestros.»',
+  '«Gruul ha matado a mucha gente. Nosotros hemos matado a más.»',
+  '«El friendly fire no existe por accidente. Existe por costumbre.»',
+  '«El primer muerto de la raid siempre dice lo mismo: "yo no fui".»',
+  '«Hay mecánicas evitables. Y luego hay mecánicas inevitables para algunos.»',
+  '«El suelo en llamas es para los que leen los avisos. Los demás, a su bola.»',
+  '«Wipe rápido: aprendizaje. Wipe lento: arte moderno.»',
+  '«El mejor interrupt es el que no se necesita. El peor, el que nadie hace.»',
+  '«La eficiencia de esta banda es directamente proporcional a los wipes previos.»',
+  '«Un Whirlwind bien recibido dice más de una persona que mil palabras.»',
+  '«Las mecánicas no son difíciles. Algunos simplemente las ignoran con elegancia.»',
+  '«El log nunca miente. Las explicaciones posteriores, sí.»',
+  '«Si mueres el primero, al menos mueres con convicción.»',
+  '«La cura más gorda de la noche fue para alguien que no debería haberla necesitado.»',
+  '«Gruul mide 24 metros. Aun así, hay quien se le mete debajo sin querer.»',
+  '«El tiempo muerto es tiempo de reflexión. Algunos reflexionan más que otros.»',
+  '«No hay malos jugadores, hay malas posiciones. Algunas espectacularmente malas.»',
+  '«El dispel más importante es el que no llegó a tiempo.»',
+  '«Esta banda ha demostrado que los bosses no son el único peligro de la instancia.»',
+  '«El Portador de la Resaca no se elige. Emerge.»',
+  '«Cave In: el juego de los que se mueven versus los que confían en la RNG.»',
+  '«Tener buenos healers no te hace inmortal. Solo retarda lo inevitable.»',
+  '«El boss no habla. Pero si pudiera, ya habría pedido el traslado.»',
+  '«La raid termina cuando acaban los bosses o cuando acaba la paciencia. Esta noche, ambos.»',
+  '«Conflagration: el fuego decorativo que algunos pisan por si acaso.»',
+  '«Un wipe te enseña. Dos te recuerdan. Ocho ya son filosofía.»',
+  '«No es friendly fire si el aliado se lo merecía. Pero los logs no saben eso.»',
+  '«El roster cambia. La vergüenza, no.»',
+  '«Cada raid es una nueva oportunidad de superar los errores de la anterior. Oportunidad desaprovechada.»',
+  '«El boss lleva semanas estudiando nuestros patrones. Nosotros, no.»',
+  '«Hay dos tipos de jugadores: los que evitan el Whirlwind y los que confían en los healers.»',
+  '«El progreso de esta banda se mide en wipes por metro cuadrado de instancia.»',
+  '«Un interrupt a tiempo salva vidas. Uno a destiempo, las complica.»',
+  '«El ghost run más rápido de la historia lo tiene alguien de esta banda. No es motivo de orgullo.»',
+];
+
+function buildCitaDelDia() {
+  const today = new Date();
+  // Determinista: misma cita todo el día
+  const seed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
+  const cita = CITAS[seed % CITAS.length];
+  const html = `<div class="cita-del-dia"><span class="cita-ornament">— ✦ —</span><blockquote class="cita-text">${cita}</blockquote></div>`;
+  const loaderEl = document.getElementById('cita-del-dia-loader');
+  if (loaderEl) loaderEl.innerHTML = html;
+  const appEl = document.getElementById('cita-del-dia-app');
+  if (appEl) appEl.innerHTML = html;
+}
+
+document.addEventListener('DOMContentLoaded', buildCitaDelDia);
+
 // ── FILE LOADING ──────────────────────────────────────────────────────────────
 
 const dropZone  = document.getElementById('drop-zone');
@@ -512,6 +566,68 @@ function drawStackedBar(xLabels, series) {
 
 const DPS_COLOR = '#7ec8e3';
 const HPS_COLOR = '#4ec97e';
+
+// ── RADAR CHART ───────────────────────────────────────────────────────────────
+
+function drawRadarChart(scores, labels) {
+  // scores: array de N valores 0-100 (mayor = mejor)
+  const N = scores.length;
+  const W = 270, H = 255;
+  const cx = W / 2, cy = H / 2 + 8;
+  const R = 90;
+  const startAngle = -Math.PI / 2;
+  const angleStep  = (2 * Math.PI) / N;
+  const pt = (i, r) => {
+    const a = startAngle + i * angleStep;
+    return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+  };
+
+  // Rejilla
+  let grid = '';
+  [25, 50, 75, 100].forEach((pct, gi) => {
+    const r    = R * pct / 100;
+    const pts  = Array.from({length: N}, (_, i) => pt(i, r).map(v => v.toFixed(1)).join(',')).join(' ');
+    const col  = gi === 3 ? '#3d4a6a' : '#2a3148';
+    grid += `<polygon points="${pts}" fill="none" stroke="${col}" stroke-width="1"/>`;
+  });
+
+  // Ejes
+  let axes = '';
+  for (let i = 0; i < N; i++) {
+    const [x, y] = pt(i, R);
+    axes += `<line x1="${cx.toFixed(1)}" y1="${cy.toFixed(1)}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#2a3148" stroke-width="1"/>`;
+  }
+
+  // Polígono del jugador
+  const playerPts = scores.map((s, i) => pt(i, R * Math.max(0, s) / 100).map(v => v.toFixed(1)).join(',')).join(' ');
+
+  // Etiquetas
+  let labelsSVG = '';
+  labels.forEach((l, i) => {
+    const [x, y] = pt(i, R + 19);
+    const anchor = x < cx - 4 ? 'end' : x > cx + 4 ? 'start' : 'middle';
+    const lines  = l.split('\n');
+    if (lines.length > 1) {
+      labelsSVG += `<text x="${x.toFixed(1)}" y="${(y - 5).toFixed(1)}" text-anchor="${anchor}" fill="#a0aabc" font-size="10">`;
+      lines.forEach((ln, li) => { labelsSVG += `<tspan x="${x.toFixed(1)}" dy="${li === 0 ? 0 : 12}">${ln}</tspan>`; });
+      labelsSVG += '</text>';
+    } else {
+      labelsSVG += `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle" fill="#a0aabc" font-size="10.5">${l}</text>`;
+    }
+  });
+
+  // Puntos en vértices
+  const dots = scores.map((s, i) => {
+    const [x, y] = pt(i, R * Math.max(0, s) / 100);
+    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.5" fill="var(--purple2)" stroke="#0f1117" stroke-width="1.5"/>`;
+  }).join('');
+
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:270px;display:block;margin:0 auto">
+    ${grid}${axes}
+    <polygon points="${playerPts}" fill="rgba(138,92,184,0.22)" stroke="var(--purple2)" stroke-width="2" stroke-linejoin="round"/>
+    ${dots}${labelsSVG}
+  </svg>`;
+}
 
 // ── POR RAID ──────────────────────────────────────────────────────────────────
 
@@ -2020,6 +2136,105 @@ function generarTitulares(raid, allRaids) {
   return lines.slice(0, 5);
 }
 
+// ── BOLETÍN DE NOTAS ──────────────────────────────────────────────────────────
+
+function calcBoletinScores(name) {
+  const rcMap = raidCountMap();
+  const allPlayers = [...rcMap.keys()];
+  const n = allPlayers.length;
+  if (n <= 1) return { ff: 50, deaths: 50, avoid: 50, interrupts: 50, dispels: 50, overall: 50 };
+
+  // Totales acumulados por jugador
+  const ffTot = new Map(), deadTot = new Map(), avoidTot = new Map(), intTot = new Map(), dispTot = new Map();
+  DATA.forEach(r => {
+    r.leaderboard.forEach(e => ffTot.set(e.name, (ffTot.get(e.name) ?? 0) + e.damage));
+    (r.deathStats?.deaths ?? []).forEach(e => deadTot.set(e.name, (deadTot.get(e.name) ?? 0) + e.count));
+    (r.avoidableDamage ?? []).forEach(m => m.players.forEach(p => avoidTot.set(p.name, (avoidTot.get(p.name) ?? 0) + p.total)));
+    (r.interrupts ?? []).forEach(e => intTot.set(e.name, (intTot.get(e.name) ?? 0) + e.total));
+    (r.dispels ?? []).forEach(e => dispTot.set(e.name, (dispTot.get(e.name) ?? 0) + e.total));
+  });
+
+  // Media por raid para cada jugador
+  const avg = (map, pname) => (map.get(pname) ?? 0) / (rcMap.get(pname) ?? 1);
+
+  // Percentil 0-100 (100 = mejor de la banda)
+  // inverted=true → menor valor = mejor (FF, muertes, daño evitable)
+  // inverted=false → mayor valor = mejor (interrupts, dispels)
+  const score = (map, pname, inverted) => {
+    const myVal = avg(map, pname);
+    const vals  = allPlayers.map(p => avg(map, p));
+    const worse = inverted
+      ? vals.filter(v => v > myVal).length
+      : vals.filter(v => v < myVal).length;
+    const equal = vals.filter(v => v === myVal).length;
+    return Math.round(((worse + (equal - 1) / 2) / (n - 1)) * 100);
+  };
+
+  const ff      = score(ffTot,    name, true);
+  const deaths  = score(deadTot,  name, true);
+  const avoid   = score(avoidTot, name, true);
+  const ints    = score(intTot,   name, false);
+  const disps   = score(dispTot,  name, false);
+  const overall = Math.round((ff + deaths + avoid + ints + disps) / 5);
+  return { ff, deaths, avoid, interrupts: ints, dispels: disps, overall };
+}
+
+function buildBoletin(name, raidsAttended) {
+  if (raidsAttended.length < 2) return '';
+
+  const s = calcBoletinScores(name);
+
+  // Nota final 0-10 con texto sarcástico
+  const nota10 = (s.overall / 10).toFixed(1);
+  let notaLetra, notaColor, notaComentario;
+  if      (s.overall >= 88) { notaLetra = 'Sobresaliente'; notaColor = 'var(--gold)';    notaComentario = 'Rendimiento impecable. Revisad los logs dos veces, por si acaso.'; }
+  else if (s.overall >= 72) { notaLetra = 'Notable';       notaColor = '#7ec8e3';         notaComentario = 'Encomiable. No borra el historial, pero es un buen intento.'; }
+  else if (s.overall >= 58) { notaLetra = 'Bien';          notaColor = '#4ec97e';         notaComentario = 'Aprobado con matices. El terapeuta de la banda respira un poco más tranquilo.'; }
+  else if (s.overall >= 45) { notaLetra = 'Suficiente';    notaColor = 'var(--purple2)';  notaComentario = 'El mínimo indispensable. Ni uno más, ni uno menos. Literalmente.'; }
+  else if (s.overall >= 30) { notaLetra = 'Insuficiente';  notaColor = 'var(--red2)';     notaComentario = 'Suspenso técnico. Lo saben todos menos él.'; }
+  else                       { notaLetra = 'Muy Deficiente'; notaColor = '#ff4040';        notaComentario = 'La academia de raiding ha decidido no hacer comentarios por respeto a los demás.'; }
+
+  const radar = drawRadarChart(
+    [s.ff, s.deaths, s.avoid, s.interrupts, s.dispels],
+    ['Lealtad\n(no FF)', 'Superviv.', 'Atención\n(mec.)', 'Reflejos\n(int.)', 'Solidaridad\n(disp.)']
+  );
+
+  const barColor = v => v >= 70 ? 'var(--gold)' : v >= 45 ? 'var(--purple2)' : 'var(--red2)';
+
+  const subjects = [
+    { label: 'Control de Aliados',    sub: '(Friendly Fire)',     val: s.ff },
+    { label: 'Instinto de Superv.',   sub: '(Muertes)',           val: s.deaths },
+    { label: 'Atención al Entorno',   sub: '(Mec. Evitables)',    val: s.avoid },
+    { label: 'Reflejos',              sub: '(Interrupts)',        val: s.interrupts },
+    { label: 'Espíritu Solidario',    sub: '(Dispels)',           val: s.dispels },
+  ];
+
+  const subjectRows = subjects.map(sub => `
+    <div class="boletin-subject">
+      <div class="boletin-subject-label">
+        <span>${sub.label}</span><span class="boletin-subject-sub">${sub.sub}</span>
+      </div>
+      <div class="boletin-bar-wrap"><div class="boletin-bar" style="width:${sub.val}%;background:${barColor(sub.val)}"></div></div>
+      <div class="boletin-subject-val" style="color:${barColor(sub.val)}">${sub.val}</div>
+    </div>`).join('');
+
+  return `
+    <div class="section-title" style="margin-top:1.75rem">Boletín de Notas</div>
+    <div class="boletin-panel">
+      <div class="boletin-left">${radar}</div>
+      <div class="boletin-right">
+        <div class="boletin-subjects">${subjectRows}</div>
+        <div class="boletin-nota" style="border-color:${notaColor}">
+          <div class="boletin-nota-num" style="color:${notaColor}">${nota10}</div>
+          <div>
+            <div class="boletin-nota-letra" style="color:${notaColor}">${notaLetra}</div>
+            <div class="boletin-nota-comment">${notaComentario}</div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
 // ── JUGADOR ───────────────────────────────────────────────────────────────────
 
 function setupJugador() {
@@ -2140,6 +2355,8 @@ function openPlayer(name) {
       <div class="pstat"><div class="plabel">Interrupts</div><div class="pval purple">${totalInts}</div></div>
       <div class="pstat"><div class="plabel">Dispels</div><div class="pval purple">${totalDisp}</div></div>
     </div>
+
+    ${buildBoletin(name, raidsAttended)}
 
     ${hasHitData ? `
     <div class="section-title">Récords Personales</div>
