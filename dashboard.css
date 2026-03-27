@@ -372,10 +372,12 @@
   }
   .bar-fill.purple { background: linear-gradient(90deg, #3a1a60, var(--purple2)); }
   .bar-fill.red    { background: linear-gradient(90deg, #5a0a0a, var(--red2)); }
+  .bar-fill.green  { background: linear-gradient(90deg, #0a3a1a, #4ec97e); }
 
   .val-cell { font-family: 'Cinzel', serif; font-size: 0.9rem; color: var(--gold); text-align: right; white-space: nowrap; font-weight: 600; }
   .val-cell.purple { color: var(--purple2); }
   .val-cell.red    { color: var(--red2); }
+  .val-cell.green  { color: #4ec97e; }
 
   /* ── CHART CONTAINER ── */
   .chart-wrap {
