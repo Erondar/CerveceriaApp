@@ -2019,10 +2019,10 @@ function calcTitulos() {
     ]),
     valor: fmtDmg(verdugo.amount) + (verdugo.ability ? ` · ${verdugo.ability}` : '') + (verdugo.target ? ` → ${verdugo.target}` : ''), tipo:'honor' });
 
-  // El Exterminador: mayor DPS individual en un boss kill
+  // El Exterminador: mayor DPS global (todos los boss kills combinados)
   let extRecord = null;
-  DATA.forEach(raid => { if ((raid.topDps?.dps ?? 0) > (extRecord?.dps ?? 0)) extRecord = { ...raid.topDps, fecha: raid.fecha }; });
-  if (extRecord) titles.push({ id:'exterminador', icon:'⚔️', titulo:'El Exterminador', desc:'Mayor DPS registrado en un boss kill', jugador: extRecord.name,
+  DATA.forEach(raid => { if ((raid.globalDps?.dps ?? 0) > (extRecord?.dps ?? 0)) extRecord = { ...raid.globalDps, fecha: raid.fecha }; });
+  if (extRecord) titles.push({ id:'exterminador', icon:'⚔️', titulo:'El Exterminador', desc:'Mayor DPS global en una raid', jugador: extRecord.name,
     comentario: pickFor([
       'Cuando este señor pega, el boss lo siente.',
       'Gruul ya pidió que lo cambien de grupo.',
@@ -2033,12 +2033,12 @@ function calcTitulos() {
       'El boss vio ese número y supo que iba a perder.',
       'Nadie pegó más esta temporada. Nadie.',
     ]),
-    valor: fmtDmg(extRecord.dps) + ' DPS · ' + (extRecord.bossName ?? '') + ' · ' + fmtDate(extRecord.fecha), tipo:'honor' });
+    valor: fmtDmg(extRecord.dps) + ' DPS · ' + fmtDate(extRecord.fecha), tipo:'honor' });
 
-  // El Aerith: mayor HPS individual en un boss kill
+  // El Aerith: mayor HPS global (todos los boss kills combinados)
   let aerithRecord = null;
-  DATA.forEach(raid => { if ((raid.topHps?.hps ?? 0) > (aerithRecord?.hps ?? 0)) aerithRecord = { ...raid.topHps, fecha: raid.fecha }; });
-  if (aerithRecord) titles.push({ id:'aerith', icon:'💚', titulo:'El Aerith', desc:'Mayor HPS registrado en un boss kill', jugador: aerithRecord.name,
+  DATA.forEach(raid => { if ((raid.globalHps?.hps ?? 0) > (aerithRecord?.hps ?? 0)) aerithRecord = { ...raid.globalHps, fecha: raid.fecha }; });
+  if (aerithRecord) titles.push({ id:'aerith', icon:'💚', titulo:'El Aerith', desc:'Mayor HPS global en una raid', jugador: aerithRecord.name,
     comentario: pickFor([
       'Spoiler: igual muere al final de todas formas.',
       'La Materia de cura que todos necesitaban.',
@@ -2049,19 +2049,17 @@ function calcTitulos() {
       'HPS que los demás miran y no entienden cómo.',
       'La raid sobrevivió. Gracias a quién, ya se sabe.',
     ]),
-    valor: fmtDmg(aerithRecord.hps) + ' HPS · ' + (aerithRecord.bossName ?? '') + ' · ' + fmtDate(aerithRecord.fecha), tipo:'honor' });
+    valor: fmtDmg(aerithRecord.hps) + ' HPS · ' + fmtDate(aerithRecord.fecha), tipo:'honor' });
 
-  // El Muro: tanque con mayor % de mitigación en un boss kill
+  // El Muro: tanque con mayor % de mitigación global (todos los boss kills combinados)
   let muroRecord = null;
   DATA.forEach(raid => {
-    (raid.tankMitigations ?? []).forEach(bossKill => {
-      (bossKill.players ?? []).forEach(p => {
-        if (p.pct > (muroRecord?.pct ?? 0))
-          muroRecord = { name: p.name, pct: p.pct, reduced: p.reduced, bossName: bossKill.bossName, fecha: raid.fecha };
-      });
+    (raid.globalMitigation ?? []).forEach(p => {
+      if (p.pct > (muroRecord?.pct ?? 0))
+        muroRecord = { name: p.name, pct: p.pct, reduced: p.reduced, fecha: raid.fecha };
     });
   });
-  if (muroRecord) titles.push({ id:'guardian', icon:'🛡️', titulo:'El Muro', desc:'Mayor % de daño mitigado en un boss kill', jugador: muroRecord.name,
+  if (muroRecord) titles.push({ id:'guardian', icon:'🛡️', titulo:'El Muro', desc:'Mayor % de daño mitigado en una raid', jugador: muroRecord.name,
     comentario: pickFor([
       'El boss pegó con todo. Él absorbió con más.',
       'No es que sea duro. Es que el daño no llegó.',
@@ -2072,7 +2070,7 @@ function calcTitulos() {
       'Inamovible. Impenetrable. El Muro.',
       'Reducir el daño no es suerte. Es arte. Y él lo domina.',
     ]),
-    valor: muroRecord.pct + '% mitigado · ' + (muroRecord.bossName ?? '') + ' · ' + fmtDate(muroRecord.fecha), tipo:'honor' });
+    valor: muroRecord.pct + '% mitigado · ' + fmtDate(muroRecord.fecha), tipo:'honor' });
 
   return titles;
 }
