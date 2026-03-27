@@ -721,7 +721,7 @@ function buildPorRaid() {
       <div class="stat-cards" style="margin-bottom:1.5rem">
         <div class="stat-card">
           <div class="label">Duración</div>
-          <div class="value" style="font-size:1.3rem">${dur}</div>
+          <div class="value" style="font-size:1.7rem">${dur}</div>
           <div class="sub">tiempo total de raid</div>
         </div>
         <div class="stat-card">
@@ -732,7 +732,7 @@ function buildPorRaid() {
         ${firstDie?.name ? `
         <div class="stat-card">
           <div class="label">Primero en Morir</div>
-          <div class="value" style="font-size:1.05rem;color:var(--red2)">${firstDie.name}</div>
+          <div class="value" style="font-size:1.4rem;color:var(--red2);font-family:'Barlow',system-ui,sans-serif;font-weight:600">${firstDie.name}</div>
           <div class="sub">${firstDie.timeMs ? `a los ${(firstDie.timeMs/1000).toFixed(1)}s del pull` : 'abrió el marcador'}</div>
         </div>` : ''}
         ${dps ? `
@@ -749,7 +749,7 @@ function buildPorRaid() {
       const bossIdx   = PROG_BOSSES.indexOf(b.name);
       const bossColor = bossIdx >= 0 ? PROG_COLORS[bossIdx] : 'var(--text-bright)';
       return `<div class="stat-card">
-        <div class="label" style="color:${bossColor}">${bossShort(b.name)}</div>
+        <div class="label" style="color:${bossColor};font-size:0.95rem">${bossShort(b.name)}</div>
         <div class="value" style="font-size:1.2rem">${fmtMs(b.durationMs)}</div>
         <div class="sub">${fmtDmg(b.dps)} DPS · ${fmtDmg(b.hps)} HPS</div>
         ${wipes > 0 ? `<div class="sub" style="color:var(--red2)">${wipes} wipe${wipes > 1 ? 's' : ''} antes del kill</div>` : '<div class="sub" style="color:var(--green)">sin wipes ✓</div>'}
@@ -905,9 +905,9 @@ function buildPorRaid() {
       tdps ? nightCard('⚡', 'Top DPS', tdps.name, fmtDmg(tdps.dps) + ' DPS', tdps.bossName ?? '', '') : '',
       thps ? nightCard('💊', 'Top HPS', thps.name, fmtDmg(thps.hps) + ' HPS', thps.bossName ?? '', '') : '',
       topMit ? nightCard('🛡️', 'Mejor Mitigación', topMit.name, topMit.pct + '%', topMitBoss, '') : '',
-      bh?.biggestDealt    ? nightCard('⚔️', 'Golpe más fuerte',          bh.biggestDealt.heroe,     fmtDmg(bh.biggestDealt.amount),    '→ ' + bh.biggestDealt.objetivo,   bh.biggestDealt.ability ?? '')    : '',
-      bh?.biggestHeal     ? nightCard('💚', 'Cura más gorda',            bh.biggestHeal.healer,      fmtDmg(bh.biggestHeal.amount),     '→ ' + bh.biggestHeal.target,      bh.biggestHeal.ability ?? '')     : '',
-      bh?.biggestReceived ? nightCard('💀', 'Golpe más bestia recibido', bh.biggestReceived.victima, fmtDmg(bh.biggestReceived.amount), '← ' + bh.biggestReceived.agresor, bh.biggestReceived.ability ?? '') : '',
+      bh?.biggestDealt    ? nightCard('⚔️', 'Golpe más fuerte',          bh.biggestDealt.heroe,     fmtDmg(bh.biggestDealt.amount),    '→ ' + bh.biggestDealt.objetivo   + (bh.biggestDealt.ability    ? ` · <span style="color:var(--purple2);font-style:italic">${bh.biggestDealt.ability}</span>`    : ''), '') : '',
+      bh?.biggestHeal     ? nightCard('💚', 'Cura más gorda',            bh.biggestHeal.healer,      fmtDmg(bh.biggestHeal.amount),     '→ ' + bh.biggestHeal.target       + (bh.biggestHeal.ability      ? ` · <span style="color:var(--purple2);font-style:italic">${bh.biggestHeal.ability}</span>`      : ''), '') : '',
+      bh?.biggestReceived ? nightCard('💀', 'Golpe más bestia recibido', bh.biggestReceived.victima, fmtDmg(bh.biggestReceived.amount), '← ' + bh.biggestReceived.agresor  + (bh.biggestReceived.ability  ? ` · <span style="color:var(--purple2);font-style:italic">${bh.biggestReceived.ability}</span>`  : ''), '') : '',
     ].filter(Boolean).join('');
 
     // Rankings: DPS → sin healers; HPS → solo healers
@@ -2500,7 +2500,7 @@ function openPlayer(name) {
   const playerTitles = getPlayerTitles(name);
   const badgesHTML = playerTitles.length ? `
     <div class="titulo-badges">
-      ${playerTitles.map(t => `<span class="titulo-badge titulo-badge--${t.tipo}" title="${t.desc}">${t.icon} ${t.titulo}</span>`).join('')}
+      ${playerTitles.map(t => `<span class="titulo-badge titulo-badge--${t.tipo}" data-tooltip="${t.desc}">${t.icon} ${t.titulo}</span>`).join('')}
     </div>` : '';
 
   const profile = document.getElementById('player-profile');
@@ -2561,7 +2561,7 @@ function openPlayer(name) {
         ${hasPerfData ? `<th>${isHealer ? 'Media HPS' : 'Media DPS'}</th>` : ''}
         <th>Vergüenza</th>
         <th>Mec. Evitables</th>
-        <th>FF Daño (Gruul)</th>
+        <th>FF Gruul</th>
         <th>Muertes</th>
         <th>T. Muerto</th>
         <th>Interrupts</th>
@@ -2571,7 +2571,7 @@ function openPlayer(name) {
       <tbody>
         ${rows.map(r => `<tr>
           <td class="td-gold">${fmtDate(r.fecha)}</td>
-          ${hasPerfData ? `<td style="color:${isHealer ? '#4ec97e' : 'var(--gold)'}">${r.perf ? fmtDmg(r.perf) + (isHealer ? ' HPS' : ' DPS') : '<span class="td-dim">—</span>'}</td>` : ''}
+          ${hasPerfData ? `<td style="color:${isHealer ? '#4ec97e' : 'var(--gold)'}">${r.perf ? fmtDmg(r.perf) : '<span class="td-dim">—</span>'}</td>` : ''}
           <td class="td-red">${r.shameScore != null ? r.shameScore.toFixed(0) + '%' : '<span class="td-dim">—</span>'}</td>
           <td class="td-red">${r.avoid ? fmtDmg(r.avoid) : '<span class="td-dim">—</span>'}</td>
           <td class="td-gold">${r.ff ? fmtDmg(r.ff) : '<span class="td-dim">—</span>'}</td>
@@ -3032,4 +3032,44 @@ const CHANGELOG = [
   closeBtn.addEventListener('click', close);
   overlay.addEventListener('click', close);
   document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+})();
+
+// ── CUSTOM TOOLTIP ────────────────────────────────────────────────────────────
+(function () {
+  const tip = document.getElementById('custom-tooltip');
+  if (!tip) return;
+
+  let current = null;
+
+  function show(target) {
+    const body = target.dataset.tooltip || '';
+    if (!body) return;
+    tip.innerHTML = `<div class="ct-body">${body}</div>`;
+    tip.classList.add('ct-visible');
+    current = target;
+  }
+
+  function hide() {
+    tip.classList.remove('ct-visible');
+    current = null;
+  }
+
+  function place(e) {
+    if (!current) return;
+    const x = e.clientX + 16;
+    const y = e.clientY - 12;
+    const rw = tip.offsetWidth, rh = tip.offsetHeight;
+    tip.style.left = (x + rw > window.innerWidth  ? e.clientX - rw - 8 : x) + 'px';
+    tip.style.top  = (y + rh > window.innerHeight ? e.clientY - rh - 8 : y) + 'px';
+  }
+
+  document.addEventListener('mouseover', e => {
+    const el = e.target.closest('[data-tooltip]');
+    if (el && el !== current) show(el);
+    else if (!el && current) hide();
+  });
+  document.addEventListener('mouseout', e => {
+    if (current && !current.contains(e.relatedTarget)) hide();
+  });
+  document.addEventListener('mousemove', place);
 })();
