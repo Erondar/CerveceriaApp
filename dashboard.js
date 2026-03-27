@@ -451,6 +451,8 @@ const CLASS_ES = {
 let PLAYER_CLASS_MAP = {};
 let PLAYER_SPEC_MAP  = {};
 
+const HEALER_SPECS = new Set(['Holy', 'Discipline', 'Restoration']);
+
 function buildPlayerMaps() {
   PLAYER_CLASS_MAP = {};
   PLAYER_SPEC_MAP  = {};
@@ -876,88 +878,84 @@ function buildPorRaid() {
       <td class="val-cell purple">${e.total}</td>
     </tr>`);
 
-    // ── Bigger hits ──
+    // ── Lo Mejor de la Noche (hits + rendimiento unificados) ──
     const bh = raid.biggestHits;
-    const hitCard = (icon, label, name, amount, secondary, ability) => `
-      <div class="record-card">
-        <div class="record-icon">${icon}</div>
-        <div class="record-label">${label}</div>
-        <div class="record-amount">${fmtDmg(amount)}</div>
-        <div class="record-who">${name}</div>
-        <div class="record-ability" style="color:var(--text-dim)">${secondary}</div>
-        ${ability ? `<div class="record-ability">${ability}</div>` : ''}
-      </div>`;
-
-    const hitsHTML = bh ? `
-      <div class="section-title" style="margin-top:2rem">Golpes de la Noche</div>
-      <div class="records-grid">
-        ${bh.biggestDealt    ? hitCard('⚔️', 'Golpe más fuerte',          bh.biggestDealt.heroe,          bh.biggestDealt.amount,    '→ ' + bh.biggestDealt.objetivo,    bh.biggestDealt.ability ?? '')    : ''}
-        ${bh.biggestHeal     ? hitCard('💚', 'Cura más gorda',            bh.biggestHeal.healer,           bh.biggestHeal.amount,     '→ ' + bh.biggestHeal.target,       bh.biggestHeal.ability ?? '')     : ''}
-        ${bh.biggestReceived ? hitCard('💀', 'Golpe más bestia recibido', bh.biggestReceived.victima,      bh.biggestReceived.amount, '← ' + bh.biggestReceived.agresor,  bh.biggestReceived.ability ?? '') : ''}
-      </div>` : '';
-
-    // ── Performance Rankings ──
-    const perfCard = (icon, label, playerName, valueStr) => `
+    const nightCard = (icon, label, playerName, valueStr, secondary, extra) => `
       <div class="record-card">
         <div class="record-icon">${icon}</div>
         <div class="record-label">${label}</div>
         <div class="record-amount">${valueStr}</div>
         <div class="record-who">${playerName}</div>
+        ${secondary ? `<div class="record-ability" style="color:var(--text-dim)">${secondary}</div>` : ''}
+        ${extra    ? `<div class="record-ability">${extra}</div>` : ''}
       </div>`;
 
     const dpsArr = raid.globalDps  ?? [];
     const hpsArr = raid.globalHps  ?? [];
-    const mitArr = raid.globalMitigation ?? [];
 
-    let perfHTML = '';
-    if (dpsArr.length || hpsArr.length || mitArr.length) {
-      const dpsMax = dpsArr[0]?.dps ?? 1;
-      const hpsMax = hpsArr[0]?.hps ?? 1;
-      const mitMax = mitArr[0]?.pct ?? 1;
-
-      const dpsRankRows = dpsArr.map((e, i) => `<tr>
-        <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
-        <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
-        <td class="bar-cell">${makeBar(e.dps / dpsMax * 100)}</td>
-        <td class="val-cell">${fmtDmg(e.dps)} DPS</td>
-      </tr>`);
-
-      const hpsRankRows = hpsArr.map((e, i) => `<tr>
-        <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
-        <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
-        <td class="bar-cell">${makeBar(e.hps / hpsMax * 100, 'green')}</td>
-        <td class="val-cell green">${fmtDmg(e.hps)} HPS</td>
-      </tr>`);
-
-      const mitRankRows = mitArr.map((e, i) => `<tr>
-        <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
-        <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
-        <td class="bar-cell">${makeBar(e.pct / mitMax * 100, 'purple')}</td>
-        <td class="val-cell purple">${e.pct}%</td>
-      </tr>`);
-
-      const topPerfCards = [
-        dpsArr[0] ? perfCard('⚡', 'Top DPS', dpsArr[0].name, fmtDmg(dpsArr[0].dps) + ' DPS') : '',
-        hpsArr[0] ? perfCard('💊', 'Top HPS', hpsArr[0].name, fmtDmg(hpsArr[0].hps) + ' HPS') : '',
-        mitArr[0] ? perfCard('🛡️', 'Mejor Mitigación', mitArr[0].name, mitArr[0].pct + '%') : '',
-      ].filter(Boolean).join('');
-
-      perfHTML = `
-        <div class="section-title" style="margin-top:2rem">Rendimiento</div>
-        <div class="records-grid">${topPerfCards}</div>
-        <div class="two-col" style="margin-bottom:2rem">
-          <div>
-            <div class="section-title">DPS por Jugador</div>
-            ${miniTableExpand(['', 'Jugador', '', 'Media DPS'], dpsRankRows, 'Sin datos de DPS.')}
-          </div>
-          <div>
-            <div class="section-title">HPS por Jugador</div>
-            ${miniTableExpand(['', 'Jugador', '', 'Media HPS'], hpsRankRows, 'Sin datos de HPS.')}
-          </div>
-        </div>
-        ${mitRankRows.length ? `<div style="margin-bottom:2rem"><div class="section-title">Mitigación de Tanks</div>${miniTableExpand(['', 'Tank', '', 'Mitigación'], mitRankRows, 'Sin datos de mitigación.')}</div>` : ''}
-      `;
+    // Top cards: best single boss kill (topDps/topHps/tankMitigations)
+    const tdps = raid.topDps ?? null;
+    const thps = raid.topHps ?? null;
+    let topMit = null, topMitBoss = '';
+    for (const bossEntry of (raid.tankMitigations ?? [])) {
+      const best = bossEntry.players?.[0];
+      if (best && best.pct > (topMit?.pct ?? 0)) { topMit = best; topMitBoss = bossEntry.bossName ?? ''; }
     }
+
+    const topCards = [
+      tdps ? nightCard('⚡', 'Top DPS', tdps.name, fmtDmg(tdps.dps) + ' DPS', tdps.bossName ?? '', '') : '',
+      thps ? nightCard('💊', 'Top HPS', thps.name, fmtDmg(thps.hps) + ' HPS', thps.bossName ?? '', '') : '',
+      topMit ? nightCard('🛡️', 'Mejor Mitigación', topMit.name, topMit.pct + '%', topMitBoss, '') : '',
+      bh?.biggestDealt    ? nightCard('⚔️', 'Golpe más fuerte',          bh.biggestDealt.heroe,     fmtDmg(bh.biggestDealt.amount),    '→ ' + bh.biggestDealt.objetivo,   bh.biggestDealt.ability ?? '')    : '',
+      bh?.biggestHeal     ? nightCard('💚', 'Cura más gorda',            bh.biggestHeal.healer,      fmtDmg(bh.biggestHeal.amount),     '→ ' + bh.biggestHeal.target,      bh.biggestHeal.ability ?? '')     : '',
+      bh?.biggestReceived ? nightCard('💀', 'Golpe más bestia recibido', bh.biggestReceived.victima, fmtDmg(bh.biggestReceived.amount), '← ' + bh.biggestReceived.agresor, bh.biggestReceived.ability ?? '') : '',
+    ].filter(Boolean).join('');
+
+    // Rankings: DPS → sin healers; HPS → solo healers
+    const dpsFilt = dpsArr.filter(e => !HEALER_SPECS.has(PLAYER_SPEC_MAP[e.name]));
+    const hpsFilt = hpsArr.filter(e =>  HEALER_SPECS.has(PLAYER_SPEC_MAP[e.name]));
+    const mitArr  = raid.globalMitigation ?? [];
+
+    const dpsMax = dpsFilt[0]?.dps ?? 1;
+    const hpsMax = hpsFilt[0]?.hps ?? 1;
+    const mitMax = mitArr[0]?.pct ?? 1;
+
+    const dpsRankRows = dpsFilt.map((e, i) => `<tr>
+      <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
+      <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
+      <td class="bar-cell">${makeBar(e.dps / dpsMax * 100)}</td>
+      <td class="val-cell">${fmtDmg(e.dps)} DPS</td>
+    </tr>`);
+
+    const hpsRankRows = hpsFilt.map((e, i) => `<tr>
+      <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
+      <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
+      <td class="bar-cell">${makeBar(e.hps / hpsMax * 100, 'green')}</td>
+      <td class="val-cell green">${fmtDmg(e.hps)} HPS</td>
+    </tr>`);
+
+    const mitRankRows = mitArr.map((e, i) => `<tr>
+      <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
+      <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
+      <td class="bar-cell">${makeBar(e.pct / mitMax * 100, 'purple')}</td>
+      <td class="val-cell purple">${e.pct}%</td>
+    </tr>`);
+
+    const nightHTML = topCards || dpsRankRows.length || hpsRankRows.length || mitRankRows.length ? `
+      <div class="section-title" style="margin-top:2rem">Lo Mejor de la Noche</div>
+      ${topCards ? `<div class="records-grid">${topCards}</div>` : ''}
+      <div class="two-col" style="margin-bottom:2rem">
+        <div>
+          <div class="section-title">DPS por Jugador</div>
+          ${miniTableExpand(['', 'Jugador', '', 'Media DPS'], dpsRankRows, 'Sin datos de DPS.')}
+        </div>
+        <div>
+          <div class="section-title">HPS por Jugador</div>
+          ${miniTableExpand(['', 'Jugador', '', 'Media HPS'], hpsRankRows, 'Sin datos de HPS.')}
+        </div>
+      </div>
+      ${mitRankRows.length ? `<div style="margin-bottom:2rem"><div class="section-title">Mitigación de Tanks</div>${miniTableExpand(['', 'Tank', '', 'Mitigación'], mitRankRows, 'Sin datos de mitigación.')}</div>` : ''}
+    ` : '';
 
     const titulares = generarTitulares(raid, raids);
     const titularesHTML = titulares.length ? `
@@ -1005,8 +1003,7 @@ function buildPorRaid() {
           ${miniTableExpand(['', 'Jugador', '', 'Total'], dispRows, 'Sin datos de dispels.')}
         </div>
       </div>
-      ${hitsHTML}
-      ${perfHTML}
+      ${nightHTML}
     `;
 
     const content = document.getElementById('por-raid-content');
@@ -2436,8 +2433,7 @@ function openPlayer(name) {
 
   const raidsAttended = DATA.filter(r => (r.roster ?? [...r.leaderboard.map(e=>e.name), ...(r.deathStats?.deaths??[]).map(e=>e.name)]).includes(name));
 
-  const _HEALER_SPECS = new Set(['Holy', 'Discipline', 'Restoration']);
-  const isHealer = _HEALER_SPECS.has(getPlayerSpec(name));
+  const isHealer = HEALER_SPECS.has(getPlayerSpec(name));
 
   let totalFF = 0, totalDeaths = 0, totalTimeDead = 0, totalInts = 0, totalDisp = 0, totalAvoid = 0;
 
@@ -2495,9 +2491,13 @@ function openPlayer(name) {
   const hasPerfData = rows.some(r => r.perf !== null && r.perf !== undefined);
 
   let prPerf = null;
-  for (const r of rows) {
-    if (r.perf && (!prPerf || r.perf > prPerf.value))
-      prPerf = { value: r.perf, fecha: r.fecha };
+  for (const r of raidsAttended) {
+    const perfEntry = isHealer ? (r.globalHps ?? []).find(e => e.name === name) : (r.globalDps ?? []).find(e => e.name === name);
+    const perfVal = isHealer ? perfEntry?.hps : perfEntry?.dps;
+    if (perfVal && (!prPerf || perfVal > prPerf.value)) {
+      const bossName = isHealer ? (r.topHps?.bossName ?? r.tankMitigations?.[0]?.bossName ?? '') : (r.topDps?.bossName ?? r.tankMitigations?.[0]?.bossName ?? '');
+      prPerf = { value: perfVal, bossName, fecha: r.fecha };
+    }
   }
 
   const cls      = getPlayerClass(name);
@@ -2534,7 +2534,7 @@ function openPlayer(name) {
     ${(hasHitData || prPerf) ? `
     <div class="section-title">Récords Personales</div>
     <div class="records-grid" style="margin-bottom:1.5rem${prPerf ? ';grid-template-columns:repeat(4,1fr)' : ''}">
-      ${prPerf ? `<div class="record-card"><div class="record-icon">${isHealer ? '💊' : '⚡'}</div><div class="record-label">Mejor ${isHealer ? 'HPS' : 'DPS'} en un Boss</div><div class="record-amount">${fmtDmg(prPerf.value)} ${isHealer ? 'HPS' : 'DPS'}</div><div class="record-date">${fmtDate(prPerf.fecha)}</div></div>` : ''}
+      ${prPerf ? `<div class="record-card"><div class="record-icon">${isHealer ? '💊' : '⚡'}</div><div class="record-label">Mejor ${isHealer ? 'HPS' : 'DPS'} en un Boss Kill</div><div class="record-amount">${fmtDmg(prPerf.value)} ${isHealer ? 'HPS' : 'DPS'}</div>${prPerf.bossName ? `<div class="record-ability" style="color:var(--text-dim)">${prPerf.bossName}</div>` : ''}<div class="record-date">${fmtDate(prPerf.fecha)}</div></div>` : ''}
       ${prHit ? `<div class="record-card"><div class="record-icon">⚔️</div><div class="record-label">Mayor golpe dado</div><div class="record-amount">${fmtDmg(prHit.amount)}</div><div class="record-who">${name} → ${prHit.target}</div>${prHit.ability ? `<div class="record-ability">${prHit.ability}</div>` : ''}<div class="record-date">${fmtDate(prHit.fecha)}</div></div>` : ''}
       ${prHeal ? `<div class="record-card"><div class="record-icon">💚</div><div class="record-label">Mayor curación</div><div class="record-amount">${fmtDmg(prHeal.amount)}</div><div class="record-who">${name} → ${prHeal.target}</div>${prHeal.ability ? `<div class="record-ability">${prHeal.ability}</div>` : ''}<div class="record-date">${fmtDate(prHeal.fecha)}</div></div>` : ''}
       ${prReceived ? `<div class="record-card"><div class="record-icon">💀</div><div class="record-label">Mayor golpe recibido</div><div class="record-amount">${fmtDmg(prReceived.amount)}</div><div class="record-who">${prReceived.source} → ${name}</div>${prReceived.ability ? `<div class="record-ability">${prReceived.ability}</div>` : ''}<div class="record-date">${fmtDate(prReceived.fecha)}</div></div>` : ''}
@@ -2566,6 +2566,7 @@ function openPlayer(name) {
     <table class="raid-table">
       <thead><tr>
         <th>Fecha</th>
+        ${hasPerfData ? `<th>${isHealer ? 'Media HPS' : 'Media DPS'}</th>` : ''}
         <th>Vergüenza</th>
         <th>Mec. Evitables</th>
         <th>FF Daño (Gruul)</th>
@@ -2573,12 +2574,12 @@ function openPlayer(name) {
         <th>T. Muerto</th>
         <th>Interrupts</th>
         <th>Dispels</th>
-        ${hasPerfData ? `<th>${isHealer ? 'Media HPS' : 'Media DPS'}</th>` : ''}
         ${hasHitData ? '<th>Mayor Golpe</th><th>Mayor Cura</th><th>Mayor Recibido</th>' : ''}
       </tr></thead>
       <tbody>
         ${rows.map(r => `<tr>
           <td class="td-gold">${fmtDate(r.fecha)}</td>
+          ${hasPerfData ? `<td style="color:${isHealer ? '#4ec97e' : 'var(--gold)'}">${r.perf ? fmtDmg(r.perf) + (isHealer ? ' HPS' : ' DPS') : '<span class="td-dim">—</span>'}</td>` : ''}
           <td class="td-red">${r.shameScore != null ? r.shameScore.toFixed(0) + '%' : '<span class="td-dim">—</span>'}</td>
           <td class="td-red">${r.avoid ? fmtDmg(r.avoid) : '<span class="td-dim">—</span>'}</td>
           <td class="td-gold">${r.ff ? fmtDmg(r.ff) : '<span class="td-dim">—</span>'}</td>
@@ -2586,7 +2587,6 @@ function openPlayer(name) {
           <td class="td-red">${r.td ? fmtMs(r.td) : '<span class="td-dim">—</span>'}</td>
           <td class="td-purple">${r.int || '<span class="td-dim">0</span>'}</td>
           <td class="td-purple">${r.dis || '<span class="td-dim">0</span>'}</td>
-          ${hasPerfData ? `<td style="color:${isHealer ? '#4ec97e' : 'var(--gold)'}">${r.perf ? fmtDmg(r.perf) + (isHealer ? ' HPS' : ' DPS') : '<span class="td-dim">—</span>'}</td>` : ''}
           ${hasHitData ? `
           <td style="color:var(--gold)" title="${[r.hitStats?.biggestHit?.ability, r.hitStats?.biggestHit?.target ? '→ ' + r.hitStats.biggestHit.target : ''].filter(Boolean).join(' ')}">${r.hitStats?.biggestHit?.amount ? fmtDmg(r.hitStats.biggestHit.amount) : '<span class="td-dim">—</span>'}</td>
           <td style="color:#4ec97e" title="${[r.hitStats?.biggestHeal?.ability, r.hitStats?.biggestHeal?.target ? '→ ' + r.hitStats.biggestHeal.target : ''].filter(Boolean).join(' ')}">${r.hitStats?.biggestHeal?.amount ? fmtDmg(r.hitStats.biggestHeal.amount) : '<span class="td-dim">—</span>'}</td>
