@@ -276,6 +276,7 @@ function buildResumen() {
 
   // Global records
   const records = calcGlobalRecords();
+  const perfRecords = calcPerformanceRecords();
   const recCard = (icon, label, rec, nameFn, targetFn) => {
     if (!rec) return `<div class="record-card"><div class="record-icon">${icon}</div><div class="record-label">${label}</div><div class="record-val td-dim">Sin datos</div></div>`;
     const abilityLine = rec.ability ? `<div class="record-ability">${rec.ability}</div>` : '';
@@ -288,12 +289,26 @@ function buildResumen() {
       <div class="record-date">${fmtDate(rec.fecha)}</div>
     </div>`;
   };
+  const perfCard = (icon, label, rec, statKey, unit) => {
+    if (!rec) return `<div class="record-card"><div class="record-icon">${icon}</div><div class="record-label">${label}</div><div class="record-val td-dim">Sin datos</div></div>`;
+    return `<div class="record-card">
+      <div class="record-icon">${icon}</div>
+      <div class="record-label">${label}</div>
+      <div class="record-amount">${fmtDmg(rec[statKey])} ${unit}</div>
+      <div class="record-who"><span class="player-link record-link" data-player="${rec.name}">${rec.name}</span></div>
+      <div class="record-ability">${rec.bossName ?? ''}</div>
+      <div class="record-date">${fmtDate(rec.fecha)}</div>
+    </div>`;
+  };
   const recEl = document.getElementById('global-records');
   recEl.innerHTML = `
     <div class="section-title" style="margin-top:2rem">Récords Históricos</div>
-    <div class="records-grid">
-      ${recCard('⚔️', 'Golpe más fuerte', records.biggestHit, r => r.heroe, r => r.objetivo)}
-      ${recCard('💚', 'Curación más gorda', records.biggestHeal, r => r.healer, r => r.target)}
+    <div class="records-grid" style="grid-template-columns:repeat(3,1fr)">
+      ${perfCard('⚔️', 'Mayor DPS', perfRecords.bestDps, 'dps', 'DPS')}
+      ${perfCard('💚', 'Mayor HPS', perfRecords.bestHps, 'hps', 'HPS')}
+      ${perfCard('🛡️', 'Mayor mitigación en un boss', perfRecords.bestMitig, 'pct', '%')}
+      ${recCard('💥', 'Golpe más fuerte', records.biggestHit, r => r.heroe, r => r.objetivo)}
+      ${recCard('💞', 'Curación más gorda', records.biggestHeal, r => r.healer, r => r.target)}
       ${recCard('💀', 'Golpe más bestia recibido', records.biggestReceived, r => r.agresor, r => r.victima)}
     </div>
   `;
@@ -308,6 +323,21 @@ function calcRaidDpsHps(raid) {
   const totalSec  = bosses.reduce((s, b) => s + b.durationMs / 1000, 0);
   if (totalSec <= 0) return null;
   return { dps: Math.round(totalDmg / totalSec), hps: Math.round(totalHeal / totalSec) };
+}
+
+function calcPerformanceRecords() {
+  let bestDps = null, bestHps = null, bestMitig = null;
+  for (const raid of DATA) {
+    if (raid.topDps?.dps > (bestDps?.dps ?? 0)) bestDps = { ...raid.topDps, fecha: raid.fecha };
+    if (raid.topHps?.hps > (bestHps?.hps ?? 0)) bestHps = { ...raid.topHps, fecha: raid.fecha };
+    for (const bossKill of (raid.tankMitigations ?? [])) {
+      for (const p of (bossKill.players ?? [])) {
+        if (p.pct > (bestMitig?.pct ?? 0))
+          bestMitig = { name: p.name, pct: p.pct, reduced: p.reduced, bossName: bossKill.bossName, fecha: raid.fecha };
+      }
+    }
+  }
+  return { bestDps, bestHps, bestMitig };
 }
 
 function calcGlobalRecords() {
@@ -1728,7 +1758,7 @@ function calcTitulos() {
     valor: fmtDmg(topCaveIn.val), tipo:'shame' });
 
   const topDebris = topOf(avoidByMech['Debris']);
-  if (topDebris) titles.push({ id:'albanil', icon:'🧱', titulo:'El Albañil', desc:'Más daño de Debris · techo de Magtheridon', jugador: topDebris.name,
+  if (topDebris) titles.push({ id:'albanil', icon:'🛡️', titulo:'El Albañil', desc:'Más daño de Debris · techo de Magtheridon', jugador: topDebris.name,
     comentario: pickFor([
       'Le caen las vigas encima con regularidad sospechosa.',
       'Inspecciona el techo de Magtheridon con la cabeza.',
@@ -1866,7 +1896,7 @@ function calcTitulos() {
 
   // ── Honor ──
   const topDisp = topOf(dispelTotals);
-  if (topDisp) titles.push({ id:'escudo', icon:'🛡️', titulo:'El Escudo', desc:'Más dispels históricos', jugador: topDisp.name,
+  if (topDisp) titles.push({ id:'escudo', icon:'🧿', titulo:'El Escudo', desc:'Más dispels históricos', jugador: topDisp.name,
     comentario: pickFor([
       'El grupo respira tranquilo cuando él está presente.',
       'Dispela más rápido que la mayoría piensa en hacerlo.',
@@ -1937,7 +1967,7 @@ function calcTitulos() {
   const topSpartan = [...spartanCount.entries()]
     .filter(([n]) => (rcMap.get(n) ?? 0) >= minRaids)
     .sort((a, b) => b[1] - a[1]);
-  if (topSpartan.length > 0) titles.push({ id:'espartano', icon:'⚔️', titulo:'El Espartano', desc:'Más raids sin morir ni una vez', jugador: topSpartan[0][0],
+  if (topSpartan.length > 0) titles.push({ id:'espartano', icon:'🏛️', titulo:'El Espartano', desc:'Más raids sin morir ni una vez', jugador: topSpartan[0][0],
     comentario: pickFor([
       'Muerto no. Herido tampoco. Perfecto.',
       'El suelo de los bosses no le conoce la cara.',
@@ -1988,6 +2018,61 @@ function calcTitulos() {
       'Cuando pegó así, hasta los healers dejaron de curar un momento.',
     ]),
     valor: fmtDmg(verdugo.amount) + (verdugo.ability ? ` · ${verdugo.ability}` : '') + (verdugo.target ? ` → ${verdugo.target}` : ''), tipo:'honor' });
+
+  // El Exterminador: mayor DPS individual en un boss kill
+  let extRecord = null;
+  DATA.forEach(raid => { if ((raid.topDps?.dps ?? 0) > (extRecord?.dps ?? 0)) extRecord = { ...raid.topDps, fecha: raid.fecha }; });
+  if (extRecord) titles.push({ id:'exterminador', icon:'⚔️', titulo:'El Exterminador', desc:'Mayor DPS registrado en un boss kill', jugador: extRecord.name,
+    comentario: pickFor([
+      'Cuando este señor pega, el boss lo siente.',
+      'Gruul ya pidió que lo cambien de grupo.',
+      'Barra de vida fundida. Por méritos propios.',
+      'El boss no tuvo tiempo de asustarse.',
+      'El DPS de la raid en un solo jugador.',
+      'Vino a jugar. Y a ganar.',
+      'El boss vio ese número y supo que iba a perder.',
+      'Nadie pegó más esta temporada. Nadie.',
+    ]),
+    valor: fmtDmg(extRecord.dps) + ' DPS · ' + (extRecord.bossName ?? '') + ' · ' + fmtDate(extRecord.fecha), tipo:'honor' });
+
+  // El Aerith: mayor HPS individual en un boss kill
+  let aerithRecord = null;
+  DATA.forEach(raid => { if ((raid.topHps?.hps ?? 0) > (aerithRecord?.hps ?? 0)) aerithRecord = { ...raid.topHps, fecha: raid.fecha }; });
+  if (aerithRecord) titles.push({ id:'aerith', icon:'💚', titulo:'El Aerith', desc:'Mayor HPS registrado en un boss kill', jugador: aerithRecord.name,
+    comentario: pickFor([
+      'Spoiler: igual muere al final de todas formas.',
+      'La Materia de cura que todos necesitaban.',
+      'Curó más que nadie. Ojalá dure más que la original.',
+      'Los demás eran Cloud. Sin la espada.',
+      'El healer que la raid no merecía pero necesitaba.',
+      'En otro juego moriría aquí. En este, aguanta.',
+      'HPS que los demás miran y no entienden cómo.',
+      'La raid sobrevivió. Gracias a quién, ya se sabe.',
+    ]),
+    valor: fmtDmg(aerithRecord.hps) + ' HPS · ' + (aerithRecord.bossName ?? '') + ' · ' + fmtDate(aerithRecord.fecha), tipo:'honor' });
+
+  // El Muro: tanque con mayor % de mitigación en un boss kill
+  let muroRecord = null;
+  DATA.forEach(raid => {
+    (raid.tankMitigations ?? []).forEach(bossKill => {
+      (bossKill.players ?? []).forEach(p => {
+        if (p.pct > (muroRecord?.pct ?? 0))
+          muroRecord = { name: p.name, pct: p.pct, reduced: p.reduced, bossName: bossKill.bossName, fecha: raid.fecha };
+      });
+    });
+  });
+  if (muroRecord) titles.push({ id:'guardian', icon:'🛡️', titulo:'El Muro', desc:'Mayor % de daño mitigado en un boss kill', jugador: muroRecord.name,
+    comentario: pickFor([
+      'El boss pegó con todo. Él absorbió con más.',
+      'No es que sea duro. Es que el daño no llegó.',
+      'Armadura, escudo, voluntad de hierro. El resultado: casi nada pasó.',
+      'El boss se esforzó. La diferencia fue que él se esforzó más.',
+      'Su barra de vida apenas se movió. La del boss llegó a cero.',
+      'El boss golpea. Él bloquea. La raid ni lo nota.',
+      'Inamovible. Impenetrable. El Muro.',
+      'Reducir el daño no es suerte. Es arte. Y él lo domina.',
+    ]),
+    valor: muroRecord.pct + '% mitigado · ' + (muroRecord.bossName ?? '') + ' · ' + fmtDate(muroRecord.fecha), tipo:'honor' });
 
   return titles;
 }
@@ -2330,7 +2415,7 @@ function openPlayer(name) {
   const playerTitles = getPlayerTitles(name);
   const badgesHTML = playerTitles.length ? `
     <div class="titulo-badges">
-      ${playerTitles.map(t => `<span class="titulo-badge titulo-badge--${t.tipo}" title="${t.desc} · ${t.valor}">${t.icon} ${t.titulo}</span>`).join('')}
+      ${playerTitles.map(t => `<span class="titulo-badge titulo-badge--${t.tipo}" title="${t.desc}">${t.icon} ${t.titulo}</span>`).join('')}
     </div>` : '';
 
   const profile = document.getElementById('player-profile');
