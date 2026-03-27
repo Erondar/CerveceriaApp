@@ -315,6 +315,7 @@
   }
   .record-amount { font-family: 'Cinzel', serif; font-size: 1.6rem; font-weight: 600; color: var(--gold); line-height: 1; margin-bottom: 0.5rem; }
   .record-who { font-size: 1.2rem; font-weight: 600; color: var(--name); margin-bottom: 0.25rem; }
+  .record-who .player-link { font-size: inherit; }
   .record-ability { font-size: 0.82rem; color: var(--purple2); font-style: italic; margin-bottom: 0.25rem; }
   .record-date { font-size: 0.82rem; color: var(--text-muted); }
 
