@@ -2030,7 +2030,7 @@ function calcTitulos() {
     }));
     let extRecord = null;
     allDps.forEach((v, name) => { const dps = Math.round(v.total / v.time); if (dps > (extRecord?.dps ?? 0)) extRecord = { name, dps }; });
-    if (extRecord) titles.push({ id:'exterminador', icon:'⚔️', titulo:'El Exterminador', desc:'Mayor DPS acumulado en todos los boss kills', jugador: extRecord.name,
+    if (extRecord) titles.push({ id:'exterminador', icon:'⚔️', titulo:'El Exterminador', desc:'Mayor media de DPS en todos los boss kills', jugador: extRecord.name,
       comentario: pickFor([
         'Cuando este señor pega, el boss lo siente.',
         'Gruul ya pidió que lo cambien de grupo.',
@@ -2041,7 +2041,7 @@ function calcTitulos() {
         'El boss vio ese número y supo que iba a perder.',
         'Nadie pegó más esta temporada. Nadie.',
       ]),
-      valor: fmtDmg(extRecord.dps) + ' DPS (histórico)', tipo:'honor' });
+      valor: fmtDmg(extRecord.dps) + ' DPS', tipo:'honor' });
   }
 
   // El Aerith: mayor HPS acumulado en todos los boss kills históricos
@@ -2053,7 +2053,7 @@ function calcTitulos() {
     }));
     let aerithRecord = null;
     allHps.forEach((v, name) => { const hps = Math.round(v.total / v.time); if (hps > (aerithRecord?.hps ?? 0)) aerithRecord = { name, hps }; });
-    if (aerithRecord) titles.push({ id:'aerith', icon:'💚', titulo:'El Aerith', desc:'Mayor HPS acumulado en todos los boss kills', jugador: aerithRecord.name,
+    if (aerithRecord) titles.push({ id:'aerith', icon:'💚', titulo:'El Aerith', desc:'Mayor media de HPS en todos los boss kills', jugador: aerithRecord.name,
       comentario: pickFor([
         'Spoiler: igual muere al final de todas formas.',
         'La Materia de cura que todos necesitaban.',
@@ -2064,7 +2064,7 @@ function calcTitulos() {
         'HPS que los demás miran y no entienden cómo.',
         'La raid sobrevivió. Gracias a quién, ya se sabe.',
       ]),
-      valor: fmtDmg(aerithRecord.hps) + ' HPS (histórico)', tipo:'honor' });
+      valor: fmtDmg(aerithRecord.hps) + ' HPS', tipo:'honor' });
   }
 
   // El Muro: tanque con mayor % de mitigación acumulada en todos los boss kills históricos
@@ -2076,7 +2076,7 @@ function calcTitulos() {
     }));
     let muroRecord = null;
     allMitig.forEach((v, name) => { const pct = Math.round(v.reduced / v.gross * 1000) / 10; if (pct > (muroRecord?.pct ?? 0)) muroRecord = { name, pct, reduced: v.reduced }; });
-    if (muroRecord) titles.push({ id:'guardian', icon:'🛡️', titulo:'El Muro', desc:'Mayor % de daño mitigado acumulado', jugador: muroRecord.name,
+    if (muroRecord) titles.push({ id:'guardian', icon:'🛡️', titulo:'El Muro', desc:'Mayor media de daño mitigado en todos los boss kills', jugador: muroRecord.name,
       comentario: pickFor([
         'El boss pegó con todo. Él absorbió con más.',
         'No es que sea duro. Es que el daño no llegó.',
@@ -2087,7 +2087,7 @@ function calcTitulos() {
         'Inamovible. Impenetrable. El Muro.',
         'Reducir el daño no es suerte. Es arte. Y él lo domina.',
       ]),
-      valor: muroRecord.pct + '% mitigado (histórico)', tipo:'honor' });
+      valor: muroRecord.pct + '% mitigado', tipo:'honor' });
   }
 
   return titles;
