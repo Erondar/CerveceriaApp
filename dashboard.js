@@ -943,14 +943,14 @@ function buildPorRaid() {
 
     const nightHTML = topCards || dpsRankRows.length || hpsRankRows.length || mitRankRows.length ? `
       <div class="section-title" style="margin-top:2rem">Lo Mejor de la Noche</div>
-      ${topCards ? `<div class="records-grid">${topCards}</div>` : ''}
+      ${topCards ? `<div class="records-grid" style="grid-template-columns:repeat(3,1fr)">${topCards}</div>` : ''}
       <div class="two-col" style="margin-bottom:2rem">
         <div>
-          <div class="section-title">DPS por Jugador</div>
+          <div class="section-title">Media DPS por Jugador</div>
           ${miniTableExpand(['', 'Jugador', '', 'Media DPS'], dpsRankRows, 'Sin datos de DPS.')}
         </div>
         <div>
-          <div class="section-title">HPS por Jugador</div>
+          <div class="section-title">Media HPS por Jugador</div>
           ${miniTableExpand(['', 'Jugador', '', 'Media HPS'], hpsRankRows, 'Sin datos de HPS.')}
         </div>
       </div>
@@ -2468,8 +2468,12 @@ function openPlayer(name) {
       shameScore = (pct(r.leaderboard) + pct(r.deathStats?.deaths??[]) + pct(r.deathStats?.timeDead??[]) + pct(avoidSortedS)) / 4 * 100;
     }
 
-    const perfEntry = isHealer ? (r.globalHps ?? []).find(e => e.name === name) : (r.globalDps ?? []).find(e => e.name === name);
-    const perf = isHealer ? (perfEntry?.hps ?? null) : (perfEntry?.dps ?? null);
+    const bossKillsRow = isHealer ? (r.perBossHps ?? []) : (r.perBossDps ?? []);
+    const perf = bossKillsRow.reduce((best, boss) => {
+      const e = boss.players?.find(p => p.name === name);
+      const v = isHealer ? e?.hps : e?.dps;
+      return (v && (!best || v > best)) ? v : best;
+    }, null);
 
     return { fecha: r.fecha, report: r.report, ff, d, td, int, dis, avoid, shameScore, isPort, isFirst, hitStats, perf };
   });
@@ -2492,11 +2496,12 @@ function openPlayer(name) {
 
   let prPerf = null;
   for (const r of raidsAttended) {
-    const perfEntry = isHealer ? (r.globalHps ?? []).find(e => e.name === name) : (r.globalDps ?? []).find(e => e.name === name);
-    const perfVal = isHealer ? perfEntry?.hps : perfEntry?.dps;
-    if (perfVal && (!prPerf || perfVal > prPerf.value)) {
-      const bossName = isHealer ? (r.topHps?.bossName ?? r.tankMitigations?.[0]?.bossName ?? '') : (r.topDps?.bossName ?? r.tankMitigations?.[0]?.bossName ?? '');
-      prPerf = { value: perfVal, bossName, fecha: r.fecha };
+    const bossKills = isHealer ? (r.perBossHps ?? []) : (r.perBossDps ?? []);
+    for (const boss of bossKills) {
+      const entry = boss.players?.find(e => e.name === name);
+      const perfVal = isHealer ? entry?.hps : entry?.dps;
+      if (perfVal && (!prPerf || perfVal > prPerf.value))
+        prPerf = { value: perfVal, bossName: boss.bossName ?? '', fecha: r.fecha };
     }
   }
 
