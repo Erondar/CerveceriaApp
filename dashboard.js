@@ -2478,11 +2478,12 @@ function openPlayer(name) {
     }
 
     const bossKillsRow = isHealer ? (r.perBossHps ?? []) : (r.perBossDps ?? []);
-    const perf = bossKillsRow.reduce((best, boss) => {
+    const perfVals = bossKillsRow.flatMap(boss => {
       const e = boss.players?.find(p => p.name === name);
       const v = isHealer ? e?.hps : e?.dps;
-      return (v && (!best || v > best)) ? v : best;
-    }, null);
+      return v ? [v] : [];
+    });
+    const perf = perfVals.length ? Math.round(perfVals.reduce((s, v) => s + v, 0) / perfVals.length) : null;
 
     return { fecha: r.fecha, report: r.report, ff, d, td, int, dis, avoid, shameScore, isPort, isFirst, hitStats, perf };
   });
