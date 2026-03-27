@@ -941,9 +941,12 @@ function buildPorRaid() {
       <td class="val-cell purple">${e.pct}%</td>
     </tr>`);
 
-    const nightHTML = topCards || dpsRankRows.length || hpsRankRows.length || mitRankRows.length ? `
+    const nightCardsHTML = topCards ? `
       <div class="section-title" style="margin-top:2rem">Lo Mejor de la Noche</div>
-      ${topCards ? `<div class="records-grid" style="grid-template-columns:repeat(3,1fr)">${topCards}</div>` : ''}
+      <div class="records-grid" style="grid-template-columns:repeat(3,1fr)">${topCards}</div>
+    ` : '';
+
+    const perfRankHTML = dpsRankRows.length || hpsRankRows.length || mitRankRows.length ? `
       <div class="two-col" style="margin-bottom:2rem">
         <div>
           <div class="section-title">Media DPS por Jugador</div>
@@ -969,7 +972,7 @@ function buildPorRaid() {
       ${mvpHazHTML}
       <div class="section-title">Boss Kills</div>
       <div class="stat-cards" style="margin-bottom:2rem">${bossCards || '<div class="section-note">Sin datos de boss kills.</div>'}</div>
-      ${nightHTML}
+      ${nightCardsHTML}
       <div class="two-col" style="margin-bottom:2rem">
         <div>
           <div class="section-title">Vergüenza</div>
@@ -1004,6 +1007,7 @@ function buildPorRaid() {
           ${miniTableExpand(['', 'Jugador', '', 'Total'], dispRows, 'Sin datos de dispels.')}
         </div>
       </div>
+      ${perfRankHTML}
     `;
 
     const content = document.getElementById('por-raid-content');
