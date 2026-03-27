@@ -969,6 +969,7 @@ function buildPorRaid() {
       ${mvpHazHTML}
       <div class="section-title">Boss Kills</div>
       <div class="stat-cards" style="margin-bottom:2rem">${bossCards || '<div class="section-note">Sin datos de boss kills.</div>'}</div>
+      ${nightHTML}
       <div class="two-col" style="margin-bottom:2rem">
         <div>
           <div class="section-title">Vergüenza</div>
@@ -1003,7 +1004,6 @@ function buildPorRaid() {
           ${miniTableExpand(['', 'Jugador', '', 'Total'], dispRows, 'Sin datos de dispels.')}
         </div>
       </div>
-      ${nightHTML}
     `;
 
     const content = document.getElementById('por-raid-content');
@@ -1604,12 +1604,13 @@ function buildHistorial() {
         <td>${timeCell(bossKillTime('High King Maulgar'),      bestByBoss['High King Maulgar'])}</td>
         <td>${timeCell(bossKillTime('Gruul the Dragonkiller'), bestByBoss['Gruul the Dragonkiller'])}</td>
         <td>${timeCell(bossKillTime('Magtheridon'),            bestByBoss['Magtheridon'])}</td>
+        <td style="color:var(--gold)">${r.globalDps?.length ? fmtDmg(Math.round(r.globalDps.reduce((s,e)=>s+e.dps,0)/r.globalDps.length)) + ' DPS' : '<span class="td-dim">—</span>'}</td>
         <td class="td-red" style="text-align:center">${totalDeaths || '<span class="td-dim">0</span>'}</td>
         <td style="color:var(--name)">${port ? `${port.name} <span class="td-dim" style="font-size:.8rem">${fmtDmg(port.damage)} FF</span>` : '<span class="td-dim">—</span>'}</td>
         <td style="text-align:right"><span class="h-arrow">▼</span></td>
       </tr>
       <tr class="historial-detail">
-        <td colspan="9">
+        <td colspan="10">
           <div class="raid-body-grid">
             <div class="raid-section">
               <div class="raid-section-title">🏹 Bosses</div>
@@ -1654,7 +1655,8 @@ function buildHistorial() {
         <th>Efectividad</th>
         <th>Maulgar</th>
         <th>Gruul</th>
-        <th>Magtheridon</th>
+        <th>Magth.</th>
+        <th>Media DPS</th>
         <th style="text-align:center">Muertes</th>
         <th title="Portador de la Resaca">Portador</th>
         <th></th>
