@@ -2516,8 +2516,8 @@ function openPlayer(name) {
     ${badgesHTML}
     <div class="profile-stats">
       <div class="pstat"><div class="plabel">Raids</div><div class="pval purple">${raidsAttended.length}</div></div>
-      <div class="pstat"><div class="plabel">Fuego Amigo (Gruul)</div><div class="pval">${fmtDmg(totalFF)}</div></div>
-      <div class="pstat"><div class="plabel">Mecánicas Evitables</div><div class="pval red">${fmtDmg(totalAvoid)}</div></div>
+      <div class="pstat"><div class="plabel">FF Gruul</div><div class="pval">${fmtDmg(totalFF)}</div></div>
+      <div class="pstat"><div class="plabel">Mec. Evitables</div><div class="pval red">${fmtDmg(totalAvoid)}</div></div>
       <div class="pstat"><div class="plabel">Muertes</div><div class="pval red">${totalDeaths}</div></div>
       <div class="pstat"><div class="plabel">Interrupts</div><div class="pval purple">${totalInts}</div></div>
       <div class="pstat"><div class="plabel">Dispels</div><div class="pval purple">${totalDisp}</div></div>
