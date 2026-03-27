@@ -1608,13 +1608,12 @@ function buildHistorial() {
         <td>${timeCell(bossKillTime('High King Maulgar'),      bestByBoss['High King Maulgar'])}</td>
         <td>${timeCell(bossKillTime('Gruul the Dragonkiller'), bestByBoss['Gruul the Dragonkiller'])}</td>
         <td>${timeCell(bossKillTime('Magtheridon'),            bestByBoss['Magtheridon'])}</td>
-        <td style="color:var(--gold)">${r.globalDps?.length ? fmtDmg(Math.round(r.globalDps.reduce((s,e)=>s+e.dps,0)/r.globalDps.length)) + ' DPS' : '<span class="td-dim">—</span>'}</td>
+        <td style="color:var(--gold)">${(() => { const d = calcRaidDpsHps(r); return d ? fmtDmg(d.dps) + ' DPS' : '<span class="td-dim">—</span>'; })()}</td>
         <td class="td-red" style="text-align:center">${totalDeaths || '<span class="td-dim">0</span>'}</td>
-        <td style="color:var(--name)">${port ? `${port.name} <span class="td-dim" style="font-size:.8rem">${fmtDmg(port.damage)} FF</span>` : '<span class="td-dim">—</span>'}</td>
         <td style="text-align:right"><span class="h-arrow">▼</span></td>
       </tr>
       <tr class="historial-detail">
-        <td colspan="10">
+        <td colspan="9">
           <div class="raid-body-grid">
             <div class="raid-section">
               <div class="raid-section-title">🏹 Bosses</div>
@@ -1623,6 +1622,10 @@ function buildHistorial() {
             <div class="raid-section">
               <div class="raid-section-title">💀 1º en Morir</div>
               <ul><li style="color:var(--name)">${fd}</li></ul>
+            </div>
+            <div class="raid-section">
+              <div class="raid-section-title">🍺 Portador de la Resaca</div>
+              <ul><li style="color:var(--name)">${port ? `${port.name} <span class="td-dim" style="font-size:.8rem">${fmtDmg(port.damage)} FF</span>` : '<span style="color:var(--text-dim)">—</span>'}</li></ul>
             </div>
             <div class="raid-section">
               <div class="raid-section-title">🍺 FF Top 3</div>
@@ -1660,9 +1663,8 @@ function buildHistorial() {
         <th>Maulgar</th>
         <th>Gruul</th>
         <th>Magth.</th>
-        <th>Media DPS</th>
+        <th>DPS Raid</th>
         <th style="text-align:center">Muertes</th>
-        <th title="Portador de la Resaca">Portador</th>
         <th></th>
       </tr></thead>
       <tbody>${rows}</tbody>
