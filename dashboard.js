@@ -2958,3 +2958,97 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
   });
 });
+
+// ── CHANGELOG ─────────────────────────────────────────────────────────────────
+
+const CHANGELOG = [
+  {
+    fecha: '2026-03-27',
+    titulo: 'Estadísticas de Rendimiento',
+    secciones: [
+      {
+        nombre: 'Resumen',
+        items: [
+          'Nuevos récords históricos globales: mayor DPS, mayor HPS y mayor mitigación calculados sobre todos los boss kills registrados.',
+        ],
+      },
+      {
+        nombre: 'Logros',
+        items: [
+          '⚡ El Exterminador — Mayor media de DPS en todos los boss kills.',
+          '💊 El Aerith — Mayor media de HPS en todos los boss kills.',
+          '🛡️ El Muro — Mayor media de daño mitigado en todos los boss kills.',
+        ],
+      },
+      {
+        nombre: 'Por Raid',
+        items: [
+          '"Lo Mejor de la Noche" — tarjetas con el mejor DPS, HPS y mitigación del boss kill de la noche, más el golpe, cura y golpe recibido más altos.',
+          'Rankings de Media DPS por jugador (solo DPS/tanks), Media HPS por jugador (solo healers) y Mitigación de Tanks.',
+        ],
+      },
+      {
+        nombre: 'Ficha de Jugador',
+        items: [
+          'Nuevo récord personal: mejor DPS en un boss kill (para DPS y tanks) o mejor HPS (para healers), con nombre del boss y fecha.',
+          'Nueva columna de Media DPS/HPS al inicio del histórico por raid.',
+        ],
+      },
+    ],
+  },
+];
+
+(function initChangelog() {
+  const modal    = document.getElementById('changelog-modal');
+  const overlay  = document.getElementById('changelog-overlay');
+  const closeBtn = document.getElementById('changelog-close');
+  const openBtn  = document.getElementById('btn-changelog');
+  const timeline = document.getElementById('changelog-timeline');
+  const entries  = document.getElementById('changelog-entries');
+
+  // Build content
+  entries.innerHTML = CHANGELOG.map((entry, i) => {
+    const id = `cl-${i}`;
+    const sectionsHTML = entry.secciones.map(s => `
+      <div class="cl-section">
+        <div class="cl-section-name">${s.nombre}</div>
+        <ul>${s.items.map(item => `<li>${item}</li>`).join('')}</ul>
+      </div>`).join('');
+    return `<div class="cl-entry" id="${id}">
+      <div class="cl-date">${entry.fecha}</div>
+      <div class="cl-title">${entry.titulo}</div>
+      ${sectionsHTML}
+    </div>`;
+  }).join('<hr style="border:none;border-top:1px solid var(--border);margin:1.5rem 0">');
+
+  timeline.innerHTML = CHANGELOG.map((entry, i) =>
+    `<a href="#cl-${i}" data-idx="${i}">${entry.fecha}</a>`
+  ).join('');
+
+  // Highlight active timeline entry on scroll
+  const entryEls = entries.querySelectorAll('.cl-entry');
+  const timeLinks = timeline.querySelectorAll('a');
+  if (timeLinks[0]) timeLinks[0].classList.add('active');
+  entries.addEventListener('scroll', () => {
+    let current = 0;
+    entryEls.forEach((el, i) => { if (el.offsetTop - entries.scrollTop <= 20) current = i; });
+    timeLinks.forEach((a, i) => a.classList.toggle('active', i === current));
+  });
+
+  // Timeline click → scroll to entry
+  timeline.querySelectorAll('a').forEach(a => {
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      const el = entries.querySelector(`#cl-${a.dataset.idx}`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  const open  = () => modal.classList.add('open');
+  const close = () => modal.classList.remove('open');
+
+  openBtn.addEventListener('click', open);
+  closeBtn.addEventListener('click', close);
+  overlay.addEventListener('click', close);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+})();
