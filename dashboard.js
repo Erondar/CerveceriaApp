@@ -884,7 +884,7 @@ function buildPorRaid() {
       <div class="record-card">
         <div class="record-label"><span style="margin-right:.4rem">${icon}</span>${label}</div>
         <div class="record-amount">${valueStr}</div>
-        <div class="record-who">${playerName}</div>
+        <div class="record-who"><span class="player-link" data-player="${playerName}">${playerName}</span></div>
         ${secondary ? `<div class="record-ability" style="color:var(--text-dim)">${secondary}</div>` : ''}
         ${extra    ? `<div class="record-ability">${extra}</div>` : ''}
       </div>`;
