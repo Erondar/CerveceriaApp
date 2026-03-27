@@ -2452,15 +2452,18 @@ function _calcMimado() {
   const mimados = [...count.entries()].filter(([, c]) => c === max).map(([n]) => n);
   // Quitar título anterior si existe y añadir el nuevo
   TITULOS = TITULOS.filter(t => t.id !== 'mimado');
-  const _mimadoSeed = [...(mimados[0] ?? 'x')].reduce((s, c) => s + c.charCodeAt(0), 0);
   const _mimadoComments = [
     'El loot le conoce por el nombre.',
     'El banco del personaje necesita ampliación urgente.',
     'Cada raid es Navidad para él.',
     'Los demás farmean experiencia, él farmea ítems.',
+    'El sistema de loot funciona. Para él, concretamente.',
+    'No sabe lo que es irse de vacío. Estadísticamente.',
+    'Los demás votan, él recibe.',
+    'Su personaje brilla más cada semana. Literalmente.',
   ];
   TITULOS.push({ id:'mimado', icon:'💸', titulo:'El Mimado', desc:'Más ítems de loot recibidos', jugadores: mimados,
-    comentario: _mimadoComments[_mimadoSeed % _mimadoComments.length],
+    comentario: _mimadoComments[Math.floor(Math.random() * _mimadoComments.length)],
     valor: max + (max === 1 ? ' ítem' : ' ítems'), tipo:'shame' });
   buildGaleriaInfamia();
 }
