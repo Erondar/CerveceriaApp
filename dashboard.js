@@ -1904,7 +1904,7 @@ function calcTitulos() {
     const name = raid.deathStats?.firstToDie?.name;
     if (name) firstToDieCount.set(name, (firstToDieCount.get(name) ?? 0) + 1);
   });
-  const topFirst = [...firstToDieCount.entries()].filter(([, c]) => c >= 2).sort((a, b) => b[1] - a[1]);
+  const topFirst = [...firstToDieCount.entries()].filter(([n, c]) => c >= 2 && (rcMap.get(n) ?? 0) >= minRaids).sort((a, b) => b[1] - a[1]);
   if (topFirst.length > 0) titles.push({ id:'primero', icon:'💨', titulo:'El Primero', desc:'Más veces siendo el primer muerto', jugador: topFirst[0][0],
     comentario: pickFor([
       'El canario de la mina. Siempre el primero en probar el veneno.',
@@ -1922,7 +1922,7 @@ function calcTitulos() {
   let masoca = null;
   DATA.forEach(raid => {
     const br = raid.biggestHits?.biggestReceived;
-    if (br?.amount > (masoca?.amount ?? 0)) masoca = { ...br, fecha: raid.fecha };
+    if (br?.amount > (masoca?.amount ?? 0) && (rcMap.get(br.victima) ?? 0) >= minRaids) masoca = { ...br, fecha: raid.fecha };
   });
   if (masoca) titles.push({ id:'masoca', icon:'🤕', titulo:'El Masoca', desc:'Mayor golpe recibido en toda la temporada', jugador: masoca.victima,
     comentario: pickFor([
@@ -2072,7 +2072,7 @@ function calcTitulos() {
   let verdugo = null;
   DATA.forEach(raid => {
     Object.entries(raid.playerHitStats ?? {}).forEach(([pname, stats]) => {
-      if (stats.biggestHit?.amount > (verdugo?.amount ?? 0))
+      if (stats.biggestHit?.amount > (verdugo?.amount ?? 0) && (rcMap.get(pname) ?? 0) >= minRaids)
         verdugo = { ...stats.biggestHit, jugador: pname, fecha: raid.fecha };
     });
   });
@@ -2099,7 +2099,7 @@ function calcTitulos() {
       allDps.set(e.name, { total: c.total + e.total, time: c.time + e.time });
     }));
     let extRecord = null;
-    allDps.forEach((v, name) => { const dps = Math.round(v.total / v.time); if (dps > (extRecord?.dps ?? 0)) extRecord = { name, dps }; });
+    allDps.forEach((v, name) => { const dps = Math.round(v.total / v.time); if (dps > (extRecord?.dps ?? 0) && (rcMap.get(name) ?? 0) >= minRaids) extRecord = { name, dps }; });
     if (extRecord) titles.push({ id:'exterminador', icon:'⚔️', titulo:'El Exterminador', desc:'Mayor media de DPS en todos los boss kills', jugador: extRecord.name,
       comentario: pickFor([
         'Cuando este señor pega, el boss lo siente.',
@@ -2122,7 +2122,7 @@ function calcTitulos() {
       allHps.set(e.name, { total: c.total + e.total, time: c.time + e.time });
     }));
     let aerithRecord = null;
-    allHps.forEach((v, name) => { const hps = Math.round(v.total / v.time); if (hps > (aerithRecord?.hps ?? 0)) aerithRecord = { name, hps }; });
+    allHps.forEach((v, name) => { const hps = Math.round(v.total / v.time); if (hps > (aerithRecord?.hps ?? 0) && (rcMap.get(name) ?? 0) >= minRaids) aerithRecord = { name, hps }; });
     if (aerithRecord) titles.push({ id:'aerith', icon:'💚', titulo:'El Aerith', desc:'Mayor media de HPS en todos los boss kills', jugador: aerithRecord.name,
       comentario: pickFor([
         'Spoiler: igual muere al final de todas formas.',
@@ -2145,7 +2145,7 @@ function calcTitulos() {
       allMitig.set(p.name, { reduced: c.reduced + p.reduced, gross: c.gross + (p.gross ?? Math.round(p.reduced / (p.pct / 100))) });
     }));
     let muroRecord = null;
-    allMitig.forEach((v, name) => { const pct = Math.round(v.reduced / v.gross * 1000) / 10; if (pct > (muroRecord?.pct ?? 0)) muroRecord = { name, pct, reduced: v.reduced }; });
+    allMitig.forEach((v, name) => { const pct = Math.round(v.reduced / v.gross * 1000) / 10; if (pct > (muroRecord?.pct ?? 0) && (rcMap.get(name) ?? 0) >= minRaids) muroRecord = { name, pct, reduced: v.reduced }; });
     if (muroRecord) titles.push({ id:'guardian', icon:'🛡️', titulo:'El Muro', desc:'Mayor media de daño mitigado en todos los boss kills', jugador: muroRecord.name,
       comentario: pickFor([
         'El boss pegó con todo. Él absorbió con más.',
