@@ -1644,11 +1644,11 @@ function calcTitulos() {
   };
 
   // ── Vergüenza ──
-  const pickFor = (_name, _titleKey, arr) => arr[Math.floor(Math.random() * arr.length)];
+  const pickFor = arr => arr[Math.floor(Math.random() * arr.length)];
 
   const topAvoid = topOf(avoidTotal);
   if (topAvoid) titles.push({ id:'kamikaze', icon:'💥', titulo:'El Kamikaze', desc:'Más daño recibido de mecánicas evitables', jugador: topAvoid.name,
-    comentario: pickFor(topAvoid.name, 'kamikaze', [
+    comentario: pickFor([
       'Las mecánicas son sugerencias, no obligaciones.',
       '¿Por qué esquivar cuando puedes absorber?',
       'Coleccionista de daño evitable desde sus inicios.',
@@ -1662,7 +1662,7 @@ function calcTitulos() {
 
   const topBlast = topOf(avoidByMech['Blast Wave']);
   if (topBlast) titles.push({ id:'temerario', icon:'🔥', titulo:'El Temerario', desc:'Más daño de Blast Wave · demasiado cerca de Krosh', jugador: topBlast.name,
-    comentario: pickFor(topBlast.name, 'temerario', [
+    comentario: pickFor([
       'Krosh solo quería un abrazo.',
       'La distancia de seguridad es para cobardes.',
       'Se acercó tanto que Krosh le tomó cariño.',
@@ -1676,7 +1676,7 @@ function calcTitulos() {
 
   const topWhirl = topOf(avoidByMech['Whirlwind']);
   if (topWhirl) titles.push({ id:'picadora', icon:'🌀', titulo:'El Picadora', desc:'Más daño de Whirlwind en Maulgar', jugador: topWhirl.name,
-    comentario: pickFor(topWhirl.name, 'picadora', [
+    comentario: pickFor([
       'El torbellino le parece acogedor.',
       'Cree que Whirlwind es un baile de pareja.',
       'Si gira él, yo giro.',
@@ -1690,7 +1690,7 @@ function calcTitulos() {
 
   const topCaveIn = topOf(avoidByMech['Cave In']);
   if (topCaveIn) titles.push({ id:'estalactita', icon:'🪨', titulo:'El Estalactita', desc:'Más daño de Cave In · rocas de Gruul', jugador: topCaveIn.name,
-    comentario: pickFor(topCaveIn.name, 'estalactita', [
+    comentario: pickFor([
       'Las rocas le buscan a él específicamente.',
       'Tiene un acuerdo especial con la geología.',
       'El techo de Gruul no miente.',
@@ -1704,7 +1704,7 @@ function calcTitulos() {
 
   const topDebris = topOf(avoidByMech['Debris']);
   if (topDebris) titles.push({ id:'albanil', icon:'🧱', titulo:'El Albañil', desc:'Más daño de Debris · techo de Magtheridon', jugador: topDebris.name,
-    comentario: pickFor(topDebris.name, 'albanil', [
+    comentario: pickFor([
       'Le caen las vigas encima con regularidad sospechosa.',
       'Inspecciona el techo de Magtheridon con la cabeza.',
       'La fase de las palancas es lo de menos.',
@@ -1718,7 +1718,7 @@ function calcTitulos() {
 
   const topConf = topOf(avoidByMech['Conflagration']);
   if (topConf) titles.push({ id:'tostado', icon:'🍖', titulo:'El Tostado', desc:'Más daño de Conflagration · fuego en el suelo', jugador: topConf.name,
-    comentario: pickFor(topConf.name, 'tostado', [
+    comentario: pickFor([
       'El fuego en el suelo le parece decorativo.',
       '¿Para qué moverse si el suelo está calentito?',
       'Campista profesional en zonas en llamas.',
@@ -1733,7 +1733,7 @@ function calcTitulos() {
   // El Traidor: más daño total a aliados
   const topFF = topOf(ffTotals);
   if (topFF) titles.push({ id:'portador', icon:'🗡️', titulo:'El Traidor', desc:'Más daño total a aliados histórico', jugador: topFF.name,
-    comentario: pickFor(topFF.name, 'portador', [
+    comentario: pickFor([
       'Sus aliados le temen más que a los bosses.',
       'La banda sobrevive a Gruul. A él, no siempre.',
       'Con amigos así, los bosses sobran.',
@@ -1747,7 +1747,7 @@ function calcTitulos() {
 
   const topDead = topOf(deathTotals);
   if (topDead) titles.push({ id:'martir', icon:'💀', titulo:'El Mártir', desc:'Más muertes históricas', jugador: topDead.name,
-    comentario: pickFor(topDead.name, 'martir', [
+    comentario: pickFor([
       'Conoce el suelo de cada boss mejor que nadie.',
       'La muerte es para él un estado temporal.',
       'Muere por los demás. Y por los jefes. Y por las rocas.',
@@ -1761,7 +1761,7 @@ function calcTitulos() {
 
   const topGhost = topOf(timeDeadTotals);
   if (topGhost) titles.push({ id:'fantasma', icon:'👻', titulo:'El Fantasma', desc:'Mayor tiempo muerto histórico', jugador: topGhost.name,
-    comentario: pickFor(topGhost.name, 'fantasma', [
+    comentario: pickFor([
       'Pasa más tiempo de espectador que de jugador.',
       'Su fantasma tiene más experiencia que muchos vivos.',
       'La perspectiva aérea de los jefes: su especialidad.',
@@ -1781,7 +1781,7 @@ function calcTitulos() {
   });
   const topFirst = [...firstToDieCount.entries()].filter(([, c]) => c >= 2).sort((a, b) => b[1] - a[1]);
   if (topFirst.length > 0) titles.push({ id:'primero', icon:'💨', titulo:'El Primero', desc:'Más veces siendo el primer muerto', jugador: topFirst[0][0],
-    comentario: pickFor(topFirst[0][0], 'primero', [
+    comentario: pickFor([
       'El canario de la mina. Siempre el primero en probar el veneno.',
       'Su muerte es el aviso para los demás de que va en serio.',
       'Estadísticamente, el boss le detecta primero.',
@@ -1800,7 +1800,7 @@ function calcTitulos() {
     if (br?.amount > (masoca?.amount ?? 0)) masoca = { ...br, fecha: raid.fecha };
   });
   if (masoca) titles.push({ id:'masoca', icon:'🤕', titulo:'El Masoca', desc:'Mayor golpe recibido en toda la temporada', jugador: masoca.victima,
-    comentario: pickFor(masoca.victima, 'masoca', [
+    comentario: pickFor([
       'El boss le eligió a él para el mensaje más contundente.',
       'Ese golpe lo sintió hasta el teclado.',
       'Récord histórico de daño recibido en un solo impacto.',
@@ -1826,7 +1826,7 @@ function calcTitulos() {
     const mudoMin = capable[0].val;
     const mudos = capable.filter(e => e.val === mudoMin).map(e => e.name);
     titles.push({ id:'mudo', icon:'🤐', titulo:'El Mudo', desc:'Menos interrupts entre los capaces', jugadores: mudos,
-      comentario: pickFor(mudos[0], 'mudo', [
+      comentario: pickFor([
         'Los interrupts son para los que se aburren.',
         'Prefiere observar cómo los demás interrumpen.',
         'Tiene el botón de silencio activado desde el primer día.',
@@ -1842,7 +1842,7 @@ function calcTitulos() {
   // ── Honor ──
   const topDisp = topOf(dispelTotals);
   if (topDisp) titles.push({ id:'escudo', icon:'🛡️', titulo:'El Escudo', desc:'Más dispels históricos', jugador: topDisp.name,
-    comentario: pickFor(topDisp.name, 'escudo', [
+    comentario: pickFor([
       'El grupo respira tranquilo cuando él está presente.',
       'Dispela más rápido que la mayoría piensa en hacerlo.',
       'El MVP silencioso que nadie menciona pero todos necesitan.',
@@ -1856,7 +1856,7 @@ function calcTitulos() {
 
   const topInt = topOf(intTotals);
   if (topInt) titles.push({ id:'centinela', icon:'⚡', titulo:'El Centinela', desc:'Más interrupts históricos', jugador: topInt.name,
-    comentario: pickFor(topInt.name, 'centinela', [
+    comentario: pickFor([
       'Ningún casteo pasa sin su permiso.',
       'El boss empieza a castear y ya siente el interrupt llegar.',
       'Interrumpir es su idioma materno.',
@@ -1873,7 +1873,7 @@ function calcTitulos() {
     .map(([n, c]) => ({ name: n, val: (deathTotals.get(n) ?? 0) / c }))
     .sort((a, b) => a.val - b.val);
   if (survivors.length > 0) titles.push({ id:'superviviente', icon:'🌿', titulo:'El Superviviente', desc:'Menos muertes por raid entre los asiduos', jugador: survivors[0].name,
-    comentario: pickFor(survivors[0].name, 'superviviente', [
+    comentario: pickFor([
       'En la catástrofe general, él sale caminando.',
       'Mientras el grupo muere, él toma nota.',
       'La muerte le conoce de oídas, nada más.',
@@ -1889,7 +1889,7 @@ function calcTitulos() {
     .filter(([n, c]) => c >= minRaids && (ffTotals.get(n) ?? 0) === 0)
     .sort((a, b) => b[1] - a[1]);
   if (pacifistas.length > 0) titles.push({ id:'pacifista', icon:'☮️', titulo:'El Pacifista', desc:'Nunca ha dañado a un aliado', jugador: pacifistas[0][0],
-    comentario: pickFor(pacifistas[0][0], 'pacifista', [
+    comentario: pickFor([
       'Nunca ha rozado a un aliado. Ni de broma.',
       'Sus compañeros confían plenamente en él. Con razón.',
       'El único que puede decir que sus golpes solo duelen al boss.',
@@ -1913,7 +1913,7 @@ function calcTitulos() {
     .filter(([n]) => (rcMap.get(n) ?? 0) >= minRaids)
     .sort((a, b) => b[1] - a[1]);
   if (topSpartan.length > 0) titles.push({ id:'espartano', icon:'⚔️', titulo:'El Espartano', desc:'Más raids sin morir ni una vez', jugador: topSpartan[0][0],
-    comentario: pickFor(topSpartan[0][0], 'espartano', [
+    comentario: pickFor([
       'Muerto no. Herido tampoco. Perfecto.',
       'El suelo de los bosses no le conoce la cara.',
       'Mientras el grupo cae, él sigue en pie.',
@@ -1931,7 +1931,7 @@ function calcTitulos() {
     .map(([n]) => ({ name: n, val: avoidTotal.get(n) ?? 0 }))
     .sort((a, b) => a.val - b.val);
   if (intocables.length > 0) titles.push({ id:'intocable', icon:'🧘', titulo:'El Intocable', desc:'Menos daño recibido de mecánicas evitables', jugador: intocables[0].name,
-    comentario: pickFor(intocables[0].name, 'intocable', [
+    comentario: pickFor([
       'Lee las mecánicas antes de la raid. Los demás leen los logs después.',
       'Se mueve antes de que el suelo le dé motivos.',
       'Juega como si el daño evitable no existiera. Porque para él no existe.',
@@ -1952,7 +1952,7 @@ function calcTitulos() {
     });
   });
   if (verdugo) titles.push({ id:'verdugo', icon:'🗡️', titulo:'El Verdugo', desc:'Mayor golpe único infligido en toda la temporada', jugador: verdugo.jugador,
-    comentario: pickFor(verdugo.jugador, 'verdugo', [
+    comentario: pickFor([
       'Un solo golpe que el boss no olvidará. Si pudiera recordar.',
       'El log no mentía. Ese número es real.',
       'Hay golpes que hacen historia. Este es uno de ellos.',
