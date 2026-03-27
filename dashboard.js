@@ -1898,25 +1898,6 @@ function calcTitulos() {
     ]),
     valor: fmtMs(topGhost.val), tipo:'shame' });
 
-  // El Primero: más veces primer muerto de la raid, mínimo 2
-  const firstToDieCount = new Map();
-  DATA.forEach(raid => {
-    const name = raid.deathStats?.firstToDie?.name;
-    if (name) firstToDieCount.set(name, (firstToDieCount.get(name) ?? 0) + 1);
-  });
-  const topFirst = [...firstToDieCount.entries()].filter(([n, c]) => c >= 2 && (rcMap.get(n) ?? 0) >= minRaids).sort((a, b) => b[1] - a[1]);
-  if (topFirst.length > 0) titles.push({ id:'primero', icon:'💨', titulo:'El Primero', desc:'Más veces siendo el primer muerto', jugador: topFirst[0][0],
-    comentario: pickFor([
-      'El canario de la mina. Siempre el primero en probar el veneno.',
-      'Su muerte es el aviso para los demás de que va en serio.',
-      'Estadísticamente, el boss le detecta primero.',
-      'Abre el marcador con una consistencia envidiable.',
-      'Su detector de mecánicas funciona al revés: las activa para avisarnos.',
-      'Cae tan rápido que los healers no tienen tiempo ni de mirarle.',
-      'Primera muerte, primera estadística, primera contribución.',
-      'El canario más eficiente de la mina. Y el más recurrente.',
-    ]),
-    valor: topFirst[0][1] + ' veces', tipo:'shame' });
 
   // El Masoca: mayor golpe recibido de un aliado
   let masoca = null;
