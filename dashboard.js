@@ -2019,58 +2019,71 @@ function calcTitulos() {
     ]),
     valor: fmtDmg(verdugo.amount) + (verdugo.ability ? ` · ${verdugo.ability}` : '') + (verdugo.target ? ` → ${verdugo.target}` : ''), tipo:'honor' });
 
-  // El Exterminador: mayor DPS global (todos los boss kills combinados)
-  let extRecord = null;
-  DATA.forEach(raid => { if ((raid.globalDps?.dps ?? 0) > (extRecord?.dps ?? 0)) extRecord = { ...raid.globalDps, fecha: raid.fecha }; });
-  if (extRecord) titles.push({ id:'exterminador', icon:'⚔️', titulo:'El Exterminador', desc:'Mayor DPS global en una raid', jugador: extRecord.name,
-    comentario: pickFor([
-      'Cuando este señor pega, el boss lo siente.',
-      'Gruul ya pidió que lo cambien de grupo.',
-      'Barra de vida fundida. Por méritos propios.',
-      'El boss no tuvo tiempo de asustarse.',
-      'El DPS de la raid en un solo jugador.',
-      'Vino a jugar. Y a ganar.',
-      'El boss vio ese número y supo que iba a perder.',
-      'Nadie pegó más esta temporada. Nadie.',
-    ]),
-    valor: fmtDmg(extRecord.dps) + ' DPS · ' + fmtDate(extRecord.fecha), tipo:'honor' });
+  // El Exterminador: mayor DPS acumulado en todos los boss kills históricos
+  { const allDps = new Map();
+    DATA.forEach(raid => (raid.globalDps ?? []).forEach(e => {
+      const c = allDps.get(e.name) ?? { total: 0, time: 0 };
+      allDps.set(e.name, { total: c.total + e.total, time: c.time + e.time });
+    }));
+    let extRecord = null;
+    allDps.forEach((v, name) => { const dps = Math.round(v.total / v.time); if (dps > (extRecord?.dps ?? 0)) extRecord = { name, dps }; });
+    if (extRecord) titles.push({ id:'exterminador', icon:'⚔️', titulo:'El Exterminador', desc:'Mayor DPS acumulado en todos los boss kills', jugador: extRecord.name,
+      comentario: pickFor([
+        'Cuando este señor pega, el boss lo siente.',
+        'Gruul ya pidió que lo cambien de grupo.',
+        'Barra de vida fundida. Por méritos propios.',
+        'El boss no tuvo tiempo de asustarse.',
+        'El DPS de la raid en un solo jugador.',
+        'Vino a jugar. Y a ganar.',
+        'El boss vio ese número y supo que iba a perder.',
+        'Nadie pegó más esta temporada. Nadie.',
+      ]),
+      valor: fmtDmg(extRecord.dps) + ' DPS (histórico)', tipo:'honor' });
+  }
 
-  // El Aerith: mayor HPS global (todos los boss kills combinados)
-  let aerithRecord = null;
-  DATA.forEach(raid => { if ((raid.globalHps?.hps ?? 0) > (aerithRecord?.hps ?? 0)) aerithRecord = { ...raid.globalHps, fecha: raid.fecha }; });
-  if (aerithRecord) titles.push({ id:'aerith', icon:'💚', titulo:'El Aerith', desc:'Mayor HPS global en una raid', jugador: aerithRecord.name,
-    comentario: pickFor([
-      'Spoiler: igual muere al final de todas formas.',
-      'La Materia de cura que todos necesitaban.',
-      'Curó más que nadie. Ojalá dure más que la original.',
-      'Los demás eran Cloud. Sin la espada.',
-      'El healer que la raid no merecía pero necesitaba.',
-      'En otro juego moriría aquí. En este, aguanta.',
-      'HPS que los demás miran y no entienden cómo.',
-      'La raid sobrevivió. Gracias a quién, ya se sabe.',
-    ]),
-    valor: fmtDmg(aerithRecord.hps) + ' HPS · ' + fmtDate(aerithRecord.fecha), tipo:'honor' });
+  // El Aerith: mayor HPS acumulado en todos los boss kills históricos
+  { const allHps = new Map();
+    DATA.forEach(raid => (raid.globalHps ?? []).forEach(e => {
+      const c = allHps.get(e.name) ?? { total: 0, time: 0 };
+      allHps.set(e.name, { total: c.total + e.total, time: c.time + e.time });
+    }));
+    let aerithRecord = null;
+    allHps.forEach((v, name) => { const hps = Math.round(v.total / v.time); if (hps > (aerithRecord?.hps ?? 0)) aerithRecord = { name, hps }; });
+    if (aerithRecord) titles.push({ id:'aerith', icon:'💚', titulo:'El Aerith', desc:'Mayor HPS acumulado en todos los boss kills', jugador: aerithRecord.name,
+      comentario: pickFor([
+        'Spoiler: igual muere al final de todas formas.',
+        'La Materia de cura que todos necesitaban.',
+        'Curó más que nadie. Ojalá dure más que la original.',
+        'Los demás eran Cloud. Sin la espada.',
+        'El healer que la raid no merecía pero necesitaba.',
+        'En otro juego moriría aquí. En este, aguanta.',
+        'HPS que los demás miran y no entienden cómo.',
+        'La raid sobrevivió. Gracias a quién, ya se sabe.',
+      ]),
+      valor: fmtDmg(aerithRecord.hps) + ' HPS (histórico)', tipo:'honor' });
+  }
 
-  // El Muro: tanque con mayor % de mitigación global (todos los boss kills combinados)
-  let muroRecord = null;
-  DATA.forEach(raid => {
-    (raid.globalMitigation ?? []).forEach(p => {
-      if (p.pct > (muroRecord?.pct ?? 0))
-        muroRecord = { name: p.name, pct: p.pct, reduced: p.reduced, fecha: raid.fecha };
-    });
-  });
-  if (muroRecord) titles.push({ id:'guardian', icon:'🛡️', titulo:'El Muro', desc:'Mayor % de daño mitigado en una raid', jugador: muroRecord.name,
-    comentario: pickFor([
-      'El boss pegó con todo. Él absorbió con más.',
-      'No es que sea duro. Es que el daño no llegó.',
-      'Armadura, escudo, voluntad de hierro. El resultado: casi nada pasó.',
-      'El boss se esforzó. La diferencia fue que él se esforzó más.',
-      'Su barra de vida apenas se movió. La del boss llegó a cero.',
-      'El boss golpea. Él bloquea. La raid ni lo nota.',
-      'Inamovible. Impenetrable. El Muro.',
-      'Reducir el daño no es suerte. Es arte. Y él lo domina.',
-    ]),
-    valor: muroRecord.pct + '% mitigado · ' + fmtDate(muroRecord.fecha), tipo:'honor' });
+  // El Muro: tanque con mayor % de mitigación acumulada en todos los boss kills históricos
+  { const allMitig = new Map();
+    DATA.forEach(raid => (raid.globalMitigation ?? []).forEach(p => {
+      const c = allMitig.get(p.name) ?? { reduced: 0, gross: 0 };
+      allMitig.set(p.name, { reduced: c.reduced + p.reduced, gross: c.gross + (p.gross ?? Math.round(p.reduced / (p.pct / 100))) });
+    }));
+    let muroRecord = null;
+    allMitig.forEach((v, name) => { const pct = Math.round(v.reduced / v.gross * 1000) / 10; if (pct > (muroRecord?.pct ?? 0)) muroRecord = { name, pct, reduced: v.reduced }; });
+    if (muroRecord) titles.push({ id:'guardian', icon:'🛡️', titulo:'El Muro', desc:'Mayor % de daño mitigado acumulado', jugador: muroRecord.name,
+      comentario: pickFor([
+        'El boss pegó con todo. Él absorbió con más.',
+        'No es que sea duro. Es que el daño no llegó.',
+        'Armadura, escudo, voluntad de hierro. El resultado: casi nada pasó.',
+        'El boss se esforzó. La diferencia fue que él se esforzó más.',
+        'Su barra de vida apenas se movió. La del boss llegó a cero.',
+        'El boss golpea. Él bloquea. La raid ni lo nota.',
+        'Inamovible. Impenetrable. El Muro.',
+        'Reducir el daño no es suerte. Es arte. Y él lo domina.',
+      ]),
+      valor: muroRecord.pct + '% mitigado (histórico)', tipo:'honor' });
+  }
 
   return titles;
 }
