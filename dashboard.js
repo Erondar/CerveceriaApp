@@ -882,7 +882,6 @@ function buildPorRaid() {
     const bh = raid.biggestHits;
     const nightCard = (icon, label, playerName, valueStr, secondary, extra) => `
       <div class="record-card">
-        <div class="record-icon">${icon}</div>
         <div class="record-label">${label}</div>
         <div class="record-amount">${valueStr}</div>
         <div class="record-who">${playerName}</div>
@@ -943,7 +942,7 @@ function buildPorRaid() {
 
     const nightCardsHTML = topCards ? `
       <div class="section-title" style="margin-top:2rem">Lo Mejor de la Noche</div>
-      <div class="records-grid" style="grid-template-columns:repeat(6,1fr)">${topCards}</div>
+      <div class="records-grid" style="grid-template-columns:repeat(3,1fr)">${topCards}</div>
     ` : '';
 
     const perfRankHTML = dpsRankRows.length || hpsRankRows.length || mitRankRows.length ? `
