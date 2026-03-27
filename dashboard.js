@@ -881,7 +881,7 @@ function buildPorRaid() {
     // ── Lo Mejor de la Noche (hits + rendimiento unificados) ──
     const bh = raid.biggestHits;
     const nightCard = (icon, label, playerName, valueStr, secondary, extra) => `
-      <div class="record-card">
+      <div class="record-card night-card">
         <div class="record-label"><span style="margin-right:.4rem">${icon}</span>${label}</div>
         <div class="record-amount">${valueStr}</div>
         <div class="record-who"><span class="player-link" data-player="${playerName}">${playerName}</span></div>
