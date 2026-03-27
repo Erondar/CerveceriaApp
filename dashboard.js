@@ -2019,9 +2019,12 @@ function calcTitulos() {
     ]),
     valor: fmtDmg(verdugo.amount) + (verdugo.ability ? ` · ${verdugo.ability}` : '') + (verdugo.target ? ` → ${verdugo.target}` : ''), tipo:'honor' });
 
+  const LOGROS_EXCLUIDOS = new Set(['Nerelyth']);
+
   // El Exterminador: mayor DPS acumulado en todos los boss kills históricos
   { const allDps = new Map();
     DATA.forEach(raid => (raid.globalDps ?? []).forEach(e => {
+      if (LOGROS_EXCLUIDOS.has(e.name)) return;
       const c = allDps.get(e.name) ?? { total: 0, time: 0 };
       allDps.set(e.name, { total: c.total + e.total, time: c.time + e.time });
     }));
@@ -2044,6 +2047,7 @@ function calcTitulos() {
   // El Aerith: mayor HPS acumulado en todos los boss kills históricos
   { const allHps = new Map();
     DATA.forEach(raid => (raid.globalHps ?? []).forEach(e => {
+      if (LOGROS_EXCLUIDOS.has(e.name)) return;
       const c = allHps.get(e.name) ?? { total: 0, time: 0 };
       allHps.set(e.name, { total: c.total + e.total, time: c.time + e.time });
     }));
@@ -2066,6 +2070,7 @@ function calcTitulos() {
   // El Muro: tanque con mayor % de mitigación acumulada en todos los boss kills históricos
   { const allMitig = new Map();
     DATA.forEach(raid => (raid.globalMitigation ?? []).forEach(p => {
+      if (LOGROS_EXCLUIDOS.has(p.name)) return;
       const c = allMitig.get(p.name) ?? { reduced: 0, gross: 0 };
       allMitig.set(p.name, { reduced: c.reduced + p.reduced, gross: c.gross + (p.gross ?? Math.round(p.reduced / (p.pct / 100))) });
     }));
