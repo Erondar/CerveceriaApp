@@ -1610,10 +1610,11 @@ function buildHistorial() {
         <td>${timeCell(bossKillTime('Magtheridon'),            bestByBoss['Magtheridon'])}</td>
         <td style="color:var(--gold)">${(() => { const d = calcRaidDpsHps(r); return d ? fmtDmg(d.dps) + ' DPS' : '<span class="td-dim">—</span>'; })()}</td>
         <td class="td-red" style="text-align:center">${totalDeaths || '<span class="td-dim">0</span>'}</td>
+        <td style="color:var(--td-red)">${(() => { const t = (r.avoidableDamage ?? []).reduce((s, m) => s + m.players.reduce((ss, p) => ss + p.total, 0), 0); return t ? fmtDmg(t) : '<span class="td-dim">—</span>'; })()}</td>
         <td style="text-align:right"><span class="h-arrow">▼</span></td>
       </tr>
       <tr class="historial-detail">
-        <td colspan="9">
+        <td colspan="10">
           <div class="raid-body-grid">
             <div class="raid-section">
               <div class="raid-section-title">🏹 Bosses</div>
@@ -1665,6 +1666,7 @@ function buildHistorial() {
         <th>Magth.</th>
         <th>DPS Raid</th>
         <th style="text-align:center">Muertes</th>
+        <th>Evitable</th>
         <th></th>
       </tr></thead>
       <tbody>${rows}</tbody>
