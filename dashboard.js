@@ -665,6 +665,19 @@ function buildPorRaid() {
     return `<table class="ranked-list"><thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>`;
   }
 
+  function miniTableExpand(headers, rows, emptyMsg) {
+    if (!rows.length) return `<div class="section-note">${emptyMsg}</div>`;
+    const VISIBLE = 5;
+    const extra = rows.length > VISIBLE;
+    const rowsHTML = rows.map((r, i) =>
+      i >= VISIBLE ? r.replace('<tr', '<tr class="expand-row" style="display:none"') : r
+    ).join('');
+    const toggleRow = extra
+      ? `<tr class="expand-toggle-row" style="cursor:pointer"><td colspan="${headers.length}" style="text-align:center;padding:.5rem .4rem;color:var(--text-dim);font-size:.82rem;user-select:none">▼ Ver todos (${rows.length})</td></tr>`
+      : '';
+    return `<table class="ranked-list"><thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rowsHTML}${toggleRow}</tbody></table>`;
+  }
+
   function renderRaid(raid) {
     const bs  = raid.bossStats;
     const dps = calcRaidDpsHps(raid);
@@ -714,7 +727,7 @@ function buildPorRaid() {
     // ── FF ──
     const ff    = raid.leaderboard ?? [];
     const ffMax = ff[0]?.damage ?? 1;
-    const ffRows = ff.slice(0, 5).map((e, i) => `<tr>
+    const ffRows = ff.map((e, i) => `<tr>
       <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
       <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
       <td class="bar-cell">${makeBar(e.damage / ffMax * 100)}</td>
@@ -724,7 +737,7 @@ function buildPorRaid() {
     // ── Muertes ──
     const deaths   = raid.deathStats?.deaths ?? [];
     const deathMax = deaths[0]?.count ?? 1;
-    const deathRows = deaths.slice(0, 5).map((e, i) => `<tr>
+    const deathRows = deaths.map((e, i) => `<tr>
       <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
       <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
       <td class="bar-cell">${makeBar(e.count / deathMax * 100, 'red')}</td>
@@ -734,7 +747,7 @@ function buildPorRaid() {
     // ── Tiempo muerto ──
     const timeDead    = raid.deathStats?.timeDead ?? [];
     const timeDeadMax = timeDead[0]?.ms ?? 1;
-    const timeDeadRows = timeDead.slice(0, 5).map((e, i) => `<tr>
+    const timeDeadRows = timeDead.map((e, i) => `<tr>
       <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
       <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
       <td class="bar-cell">${makeBar(e.ms / timeDeadMax * 100, 'red')}</td>
@@ -764,12 +777,12 @@ function buildPorRaid() {
             <th class="val-cell" style="color:var(--red2)">Total</th>
             ${AVOIDABLE_MECHS_R.map(m => `<th class="val-cell td-dim" style="white-space:nowrap">${m}</th>`).join('')}
           </tr></thead>
-          <tbody>${avoidSortedR.slice(0, 5).map((e, i) => `<tr>
+          <tbody>${avoidSortedR.map((e, i) => `<tr${i >= 5 ? ' class="expand-row" style="display:none"' : ''}>
             <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
             <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
             <td class="val-cell red">${fmtDmg(e.total)}</td>
             ${AVOIDABLE_MECHS_R.map(m => `<td class="val-cell td-dim">${e[m] ? fmtDmg(e[m]) : '—'}</td>`).join('')}
-          </tr>`).join('')}</tbody>
+          </tr>`).join('')}${avoidSortedR.length > 5 ? `<tr class="expand-toggle-row" style="cursor:pointer"><td colspan="${2 + AVOIDABLE_MECHS_R.length + 1}" style="text-align:center;padding:.5rem .4rem;color:var(--text-dim);font-size:.82rem;user-select:none">▼ Ver todos (${avoidSortedR.length})</td></tr>` : ''}</tbody>
         </table>
       </div>`;
     })() : '<div class="section-note">¡Nadie recibió daño evitable! 🎉</div>';
@@ -788,7 +801,6 @@ function buildPorRaid() {
       .sort((a, b) => b.score - a.score) : [];
     const shameRows = allShameScores
       .filter(e => e.score > 0)
-      .slice(0, 5)
       .map((e, i) => `<tr>
         <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
         <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
@@ -817,7 +829,7 @@ function buildPorRaid() {
     // ── Interrupts ──
     const ints   = raid.interrupts ?? [];
     const intMax = ints[0]?.total ?? 1;
-    const intRows = ints.slice(0, 5).map((e, i) => `<tr>
+    const intRows = ints.map((e, i) => `<tr>
       <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
       <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
       <td class="bar-cell">${makeBar(e.total / intMax * 100, 'purple')}</td>
@@ -827,7 +839,7 @@ function buildPorRaid() {
     // ── Dispels ──
     const disps   = raid.dispels ?? [];
     const dispMax = disps[0]?.total ?? 1;
-    const dispRows = disps.slice(0, 5).map((e, i) => `<tr>
+    const dispRows = disps.map((e, i) => `<tr>
       <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
       <td><span class="player-link" data-player="${e.name}">${e.name}</span></td>
       <td class="bar-cell">${makeBar(e.total / dispMax * 100, 'purple')}</td>
@@ -869,11 +881,11 @@ function buildPorRaid() {
       <div class="two-col" style="margin-bottom:2rem">
         <div>
           <div class="section-title">Vergüenza</div>
-          ${miniTable(['', 'Jugador', '', 'Score'], shameRows, 'Sin datos suficientes.')}
+          ${miniTableExpand(['', 'Jugador', '', 'Score'], shameRows, 'Sin datos suficientes.')}
         </div>
         <div>
           <div class="section-title">Friendly Fire</div>
-          ${miniTable(['', 'Jugador', '', 'Daño'], ffRows, '¡Nadie hizo friendly fire! 🎉')}
+          ${miniTableExpand(['', 'Jugador', '', 'Daño'], ffRows, '¡Nadie hizo friendly fire! 🎉')}
         </div>
       </div>
       <div style="margin-bottom:2rem">
@@ -883,28 +895,41 @@ function buildPorRaid() {
       <div class="two-col" style="margin-bottom:2rem">
         <div>
           <div class="section-title">Muertes</div>
-          ${miniTable(['', 'Jugador', '', 'Muertes'], deathRows, '¡Nadie murió! 🎉')}
+          ${miniTableExpand(['', 'Jugador', '', 'Muertes'], deathRows, '¡Nadie murió! 🎉')}
         </div>
         <div>
           <div class="section-title">Tiempo Muerto</div>
-          ${miniTable(['', 'Jugador', '', 'Tiempo'], timeDeadRows, 'Sin datos de tiempo muerto.')}
+          ${miniTableExpand(['', 'Jugador', '', 'Tiempo'], timeDeadRows, 'Sin datos de tiempo muerto.')}
         </div>
       </div>
       <div class="two-col" style="margin-bottom:2rem">
         <div>
           <div class="section-title">Interrupts</div>
-          ${miniTable(['', 'Jugador', '', 'Total'], intRows, 'Sin datos de interrupts.')}
+          ${miniTableExpand(['', 'Jugador', '', 'Total'], intRows, 'Sin datos de interrupts.')}
         </div>
         <div>
           <div class="section-title">Dispels</div>
-          ${miniTable(['', 'Jugador', '', 'Total'], dispRows, 'Sin datos de dispels.')}
+          ${miniTableExpand(['', 'Jugador', '', 'Total'], dispRows, 'Sin datos de dispels.')}
         </div>
       </div>
       ${hitsHTML}
     `;
 
-    document.getElementById('por-raid-content').querySelectorAll('.player-link')
+    const content = document.getElementById('por-raid-content');
+    content.querySelectorAll('.player-link')
       .forEach(el => el.addEventListener('click', () => openPlayer(el.dataset.player)));
+    content.querySelectorAll('.expand-toggle-row').forEach(toggleRow => {
+      toggleRow.addEventListener('click', () => {
+        const table = toggleRow.closest('table');
+        const hiddenRows = table.querySelectorAll('.expand-row');
+        const expanded = hiddenRows[0]?.style.display !== 'none';
+        hiddenRows.forEach(r => { r.style.display = expanded ? 'none' : ''; });
+        const td = toggleRow.querySelector('td');
+        td.textContent = expanded
+          ? `▼ Ver todos (${hiddenRows.length + 5})`
+          : '▲ Ver menos';
+      });
+    });
   }
 
   renderRaid(raids[0]);
