@@ -882,7 +882,7 @@ function buildPorRaid() {
     const bh = raid.biggestHits;
     const nightCard = (icon, label, playerName, valueStr, secondary, extra) => `
       <div class="record-card">
-        <div class="record-label">${label}</div>
+        <div class="record-label"><span style="margin-right:.4rem">${icon}</span>${label}</div>
         <div class="record-amount">${valueStr}</div>
         <div class="record-who">${playerName}</div>
         ${secondary ? `<div class="record-ability" style="color:var(--text-dim)">${secondary}</div>` : ''}
