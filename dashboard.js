@@ -2477,13 +2477,9 @@ function openPlayer(name) {
       shameScore = (pct(r.leaderboard) + pct(r.deathStats?.deaths??[]) + pct(r.deathStats?.timeDead??[]) + pct(avoidSortedS)) / 4 * 100;
     }
 
-    const bossKillsRow = isHealer ? (r.perBossHps ?? []) : (r.perBossDps ?? []);
-    const perfVals = bossKillsRow.flatMap(boss => {
-      const e = boss.players?.find(p => p.name === name);
-      const v = isHealer ? e?.hps : e?.dps;
-      return v ? [v] : [];
-    });
-    const perf = perfVals.length ? Math.round(perfVals.reduce((s, v) => s + v, 0) / perfVals.length) : null;
+    const globalArr = isHealer ? (r.globalHps ?? []) : (r.globalDps ?? []);
+    const globalEntry = globalArr.find(e => e.name === name);
+    const perf = globalEntry ? (isHealer ? globalEntry.hps : globalEntry.dps) : null;
 
     return { fecha: r.fecha, report: r.report, ff, d, td, int, dis, avoid, shameScore, isPort, isFirst, hitStats, perf };
   });
