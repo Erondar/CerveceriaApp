@@ -1185,3 +1185,25 @@
   line-height: 1.45;
 }
 
+/* ── CUSTOM TOOLTIP ── */
+#custom-tooltip {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  background: var(--bg3, #1e2235);
+  border: 1px solid var(--border2, #3a3f5c);
+  border-radius: 6px;
+  padding: 0.5rem 0.8rem;
+  max-width: 280px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.55);
+}
+#custom-tooltip.ct-visible { opacity: 1; }
+#custom-tooltip .ct-body {
+  font-size: 0.82rem;
+  color: var(--text-bright);
+  line-height: 1.45;
+  font-style: italic;
+}
+
