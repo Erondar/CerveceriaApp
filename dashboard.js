@@ -280,7 +280,7 @@ function buildResumen() {
   const recCard = (icon, label, rec, nameFn, targetFn) => {
     if (!rec) return `<div class="record-card"><div class="record-icon">${icon}</div><div class="record-label">${label}</div><div class="record-val td-dim">Sin datos</div></div>`;
     const abilityLine = rec.ability ? `<div class="record-ability">${rec.ability}</div>` : '';
-    return `<div class="record-card">
+    return `<div class="record-card night-card">
       <div class="record-icon">${icon}</div>
       <div class="record-label">${label}</div>
       <div class="record-amount">${fmtDmg(rec.amount)}</div>
@@ -291,7 +291,7 @@ function buildResumen() {
   };
   const perfCard = (icon, label, rec, statKey, unit) => {
     if (!rec) return `<div class="record-card"><div class="record-icon">${icon}</div><div class="record-label">${label}</div><div class="record-val td-dim">Sin datos</div></div>`;
-    return `<div class="record-card">
+    return `<div class="record-card night-card">
       <div class="record-icon">${icon}</div>
       <div class="record-label">${label}</div>
       <div class="record-amount">${fmtDmg(rec[statKey])} ${unit}</div>
