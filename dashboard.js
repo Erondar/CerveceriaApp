@@ -1324,15 +1324,15 @@ function buildPorRaid() {
         ? `
       <div class="two-col" style="margin-bottom:2rem">
         <div>
-          <div class="section-title">Media DPS por Jugador</div>
+          <div class="section-title">Media DPS (Boss Kills)</div>
           ${miniTableExpand(["", "Jugador", "", "Media DPS"], dpsRankRows, "Sin datos de DPS.")}
         </div>
         <div>
-          <div class="section-title">Media HPS por Jugador</div>
+          <div class="section-title">Media HPS (Boss Kills)</div>
           ${miniTableExpand(["", "Jugador", "", "Media HPS"], hpsRankRows, "Sin datos de HPS.")}
         </div>
       </div>
-      ${mitRankRows.length ? `<div style="margin-bottom:2rem"><div class="section-title">Mitigación de Tanks</div>${miniTableExpand(["", "Tank", "", "Mitigación"], mitRankRows, "Sin datos de mitigación.")}</div>` : ""}
+      ${mitRankRows.length ? `<div style="margin-bottom:2rem"><div class="section-title">Mitigación de Tanks (Boss Kills)</div>${miniTableExpand(["", "Tank", "", "Mitigación"], mitRankRows, "Sin datos de mitigación.")}</div>` : ""}
     `
         : ""
 
@@ -2049,7 +2049,7 @@ function buildAvoidable() {
   container.innerHTML = `
     <div class="stat-cards" style="margin-bottom:2rem">
       <div class="stat-card">
-        <div class="label">Daño Evitable Histórico</div>
+        <div class="label">Daño Evitable</div>
         <div class="value">${fmtDmg(totalAvoid)}</div>
         <div class="sub">daño evitable acumulado</div>
       </div>
@@ -2538,7 +2538,7 @@ function calcTitulos() {
   if (topDebris)
     titles.push({
       id: "albanil",
-      icon: "🛡️",
+      icon: "🧱",
       titulo: "El Albañil",
       desc: "Más daño de Debris · techo de Magtheridon",
       jugador: topDebris.name,
