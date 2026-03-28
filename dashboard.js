@@ -2337,8 +2337,8 @@ function buildTimeRecords() {
 
   const BOSS_LABELS = {
     "High King Maulgar": { label: "Maulgar", icon: "👑" },
-    "Gruul the Dragonkiller": { label: "Gruul", icon: "🐉" },
-    Magtheridon: { label: "Magtheridon", icon: "💀" },
+    "Gruul the Dragonkiller": { label: "Gruul", icon: "🧌" },
+    Magtheridon: { label: "Magtheridon", icon: "🐲" },
   }
 
   const fastestByBoss = Object.entries(BOSS_LABELS)
