@@ -4206,8 +4206,8 @@ const CHANGELOG = [
       {
         nombre: "Logros",
         items: [
-          "⚡ El Exterminador — Mayor media de DPS en todos los boss kills.",
-          "💊 El Aerith — Mayor media de HPS en todos los boss kills.",
+          "⚔️ El Exterminador — Mayor media de DPS en todos los boss kills.",
+          "💚 El Aerith — Mayor media de HPS en todos los boss kills.",
           "🛡️ El Muro — Mayor media de daño mitigado en todos los boss kills.",
         ],
       },
