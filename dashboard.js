@@ -2155,12 +2155,7 @@ function buildHistorial() {
 
       return `
       <tr class="historial-row" data-raid-idx="${raidIdx}">
-        <td class="td-gold">
-          <div style="display:flex;align-items:center;gap:0.5rem">
-            <span>${fmtDate(r.fecha)}</span>
-            <button class="h-nav-btn" title="Ver en Por Raid">↗</button>
-          </div>
-        </td>
+        <td class="td-gold">${fmtDate(r.fecha)}</td>
         <td>${timeCell(bs?.totalRaidTimeMs || null, bestDuration)}</td>
         <td>${
           effVal !== null
@@ -2182,7 +2177,9 @@ function buildHistorial() {
           return t ? fmtDmg(t) : '<span class="td-dim">—</span>'
         })()}</td>
         <td class="td-red" style="text-align:center">${totalDeaths || '<span class="td-dim">0</span>'}</td>
-        <td style="text-align:right"><span class="h-arrow">▼</span></td>
+        <td style="text-align:right;white-space:nowrap">
+          <button class="h-nav-btn">Ver raid →</button>
+        </td>
       </tr>
       <tr class="historial-detail">
         <td colspan="10">
@@ -2209,7 +2206,7 @@ function buildHistorial() {
         <th>DPS Raid</th>
         <th>Evitable</th>
         <th style="text-align:center">Muertes</th>
-        <th></th>
+        <th style="text-align:right"></th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>`
