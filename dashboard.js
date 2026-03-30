@@ -59,45 +59,10 @@ document.addEventListener("DOMContentLoaded", buildCitaDelDia)
 
 // ── FILE LOADING ──────────────────────────────────────────────────────────────
 
-const dropZone = document.getElementById("drop-zone")
-const fileInput = document.getElementById("file-input")
-
-// Intento automático: si el bot generó historial.js en la misma carpeta,
-// lo habrá inyectado como window.__HISTORIAL__ via <script src="historial.js">
+// Carga automática: historial.js inyecta los datos como window.__HISTORIAL__
 if (Array.isArray(window.__HISTORIAL__)) {
   DATA = window.__HISTORIAL__
   document.addEventListener("DOMContentLoaded", initDashboard)
-}
-
-dropZone.addEventListener("dragover", (e) => {
-  e.preventDefault()
-  dropZone.classList.add("drag-over")
-})
-dropZone.addEventListener("dragleave", () =>
-  dropZone.classList.remove("drag-over"),
-)
-dropZone.addEventListener("drop", (e) => {
-  e.preventDefault()
-  dropZone.classList.remove("drag-over")
-  const file = e.dataTransfer.files[0]
-  if (file) readFile(file)
-})
-fileInput.addEventListener("change", (e) => {
-  if (e.target.files[0]) readFile(e.target.files[0])
-})
-
-function readFile(file) {
-  const reader = new FileReader()
-  reader.onload = (ev) => {
-    try {
-      DATA = JSON.parse(ev.target.result)
-      if (!Array.isArray(DATA)) throw new Error("Formato inválido")
-      initDashboard()
-    } catch (err) {
-      alert("Error al leer el archivo: " + err.message)
-    }
-  }
-  reader.readAsText(file)
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
