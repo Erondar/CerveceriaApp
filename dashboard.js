@@ -2155,7 +2155,12 @@ function buildHistorial() {
 
       return `
       <tr class="historial-row" data-raid-idx="${raidIdx}">
-        <td class="td-gold">${fmtDate(r.fecha)}</td>
+        <td class="td-gold">
+          <div style="display:flex;align-items:center;gap:0.5rem">
+            <span>${fmtDate(r.fecha)}</span>
+            <button class="h-nav-btn" title="Ver en Por Raid">↗</button>
+          </div>
+        </td>
         <td>${timeCell(bs?.totalRaidTimeMs || null, bestDuration)}</td>
         <td>${
           effVal !== null
@@ -2177,9 +2182,7 @@ function buildHistorial() {
           return t ? fmtDmg(t) : '<span class="td-dim">—</span>'
         })()}</td>
         <td class="td-red" style="text-align:center">${totalDeaths || '<span class="td-dim">0</span>'}</td>
-        <td style="text-align:right">
-          <button class="h-toggle-btn" title="Ver roster"><span class="h-arrow">▼</span></button>
-        </td>
+        <td style="text-align:right"><span class="h-arrow">▼</span></td>
       </tr>
       <tr class="historial-detail">
         <td colspan="10">
@@ -2213,16 +2216,16 @@ function buildHistorial() {
 
   container.querySelectorAll(".historial-row").forEach((row) => {
     row.addEventListener("click", () => {
-      navigateToPorRaid(+row.dataset.raidIdx)
+      row.classList.toggle("open")
+      row.nextElementSibling.classList.toggle("open")
     })
   })
 
-  container.querySelectorAll(".h-toggle-btn").forEach((btn) => {
+  container.querySelectorAll(".h-nav-btn").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation()
       const row = btn.closest(".historial-row")
-      row.classList.toggle("open")
-      row.nextElementSibling.classList.toggle("open")
+      navigateToPorRaid(+row.dataset.raidIdx)
     })
   })
 }
