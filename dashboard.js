@@ -1184,7 +1184,7 @@ function buildPorRaid() {
       topMit
         ? nightCard(
             "🛡️",
-            "Mejor Mitigación",
+            "Top Mitigación",
             topMit.name,
             topMit.pct + "%",
             topMitBoss,
