@@ -2077,6 +2077,19 @@ function buildAvoidable() {
 
 // ── HISTORIAL ─────────────────────────────────────────────────────────────────
 
+function navigateToPorRaid(raidIdx) {
+  document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"))
+  document.querySelectorAll(".tab-content").forEach((c) => c.classList.remove("active"))
+  document.querySelector('.tab-btn[data-tab="por-raid"]').classList.add("active")
+  document.getElementById("tab-por-raid").classList.add("active")
+  const sel = document.getElementById("raid-selector")
+  if (sel && sel.options[raidIdx]) {
+    sel.value = raidIdx
+    sel.dispatchEvent(new Event("change"))
+  }
+  window.scrollTo(0, 0)
+}
+
 function buildHistorial() {
   const container = document.getElementById("raid-list")
   if (!DATA.length) {
@@ -2085,7 +2098,6 @@ function buildHistorial() {
     return
   }
 
-  // Mejores tiempos por columna para resaltarlos
   const minTime = (fn) => {
     const vals = DATA.map(fn).filter(Boolean)
     return vals.length ? Math.min(...vals) : null
@@ -2117,13 +2129,11 @@ function buildHistorial() {
       : `<span class="time-normal">${fmtMs(ms)}</span>`
   }
 
-  const rows = [...DATA]
-    .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
-    .map((r) => {
+  const sortedRaids = [...DATA].sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
+
+  const rows = sortedRaids
+    .map((r, raidIdx) => {
       const bs = r.bossStats
-      const port = r.leaderboard[0]
-      const fd = r.deathStats?.firstToDie?.name ?? "—"
-      const topInt = r.interrupts?.[0]
       const totalDeaths = (r.deathStats?.deaths ?? []).reduce(
         (s, e) => s + e.count,
         0,
@@ -2143,51 +2153,8 @@ function buildHistorial() {
       const bossKillTime = (name) =>
         (bs?.bosses ?? []).find((b) => b.name === name)?.killTimeMs || null
 
-      const top3ff = r.leaderboard.slice(0, 3)
-      const top3d = (r.deathStats?.deaths ?? []).slice(0, 3)
-      const top3int = (r.interrupts ?? []).slice(0, 3)
-      const top3dis = (r.dispels ?? []).slice(0, 3)
-      const bh = r.biggestHits
-
-      const miniList = (arr, valFn) =>
-        arr.length
-          ? `<ul>${arr.map((e) => `<li>${e.name}<span>${valFn(e)}</span></li>`).join("")}</ul>`
-          : '<span style="color:var(--text-dim);font-style:italic">—</span>'
-
-      const hitsHtml = bh
-        ? `
-      <div class="raid-section">
-        <div class="raid-section-title">💥 Golpe recibido</div>
-        <ul>
-          <li>${bh.biggestReceived?.victima ?? "—"}<span>${fmtDmg(bh.biggestReceived?.amount ?? 0)}</span></li>
-          <li style="color:var(--text-dim);font-size:.8rem">por ${bh.biggestReceived?.agresor ?? "—"}</li>
-          ${bh.biggestReceived?.ability ? `<li style="color:var(--purple2);font-size:.8rem;font-style:italic">${bh.biggestReceived.ability}</li>` : ""}
-        </ul>
-      </div>
-      <div class="raid-section">
-        <div class="raid-section-title">⚔️ Golpe dado</div>
-        <ul>
-          <li>${bh.biggestDealt?.heroe ?? "—"}<span>${fmtDmg(bh.biggestDealt?.amount ?? 0)}</span></li>
-          <li style="color:var(--text-dim);font-size:.8rem">a ${bh.biggestDealt?.objetivo ?? "—"}</li>
-          ${bh.biggestDealt?.ability ? `<li style="color:var(--purple2);font-size:.8rem;font-style:italic">${bh.biggestDealt.ability}</li>` : ""}
-        </ul>
-      </div>
-      ${
-        bh.biggestHeal
-          ? `<div class="raid-section">
-        <div class="raid-section-title">💚 Curación</div>
-        <ul>
-          <li>${bh.biggestHeal.healer}<span>${fmtDmg(bh.biggestHeal.amount)}</span></li>
-          <li style="color:var(--text-dim);font-size:.8rem">a ${bh.biggestHeal.target}</li>
-          ${bh.biggestHeal.ability ? `<li style="color:var(--purple2);font-size:.8rem;font-style:italic">${bh.biggestHeal.ability}</li>` : ""}
-        </ul>
-      </div>`
-          : ""
-      }`
-        : ""
-
       return `
-      <tr class="historial-row">
+      <tr class="historial-row" data-raid-idx="${raidIdx}">
         <td class="td-gold">${fmtDate(r.fecha)}</td>
         <td>${timeCell(bs?.totalRaidTimeMs || null, bestDuration)}</td>
         <td>${
@@ -2210,46 +2177,18 @@ function buildHistorial() {
           return t ? fmtDmg(t) : '<span class="td-dim">—</span>'
         })()}</td>
         <td class="td-red" style="text-align:center">${totalDeaths || '<span class="td-dim">0</span>'}</td>
-        <td style="text-align:right"><span class="h-arrow">▼</span></td>
+        <td style="text-align:right">
+          <button class="h-toggle-btn" title="Ver roster"><span class="h-arrow">▼</span></button>
+        </td>
       </tr>
       <tr class="historial-detail">
         <td colspan="10">
           <div class="raid-body-grid">
-            <div class="raid-section">
-              <div class="raid-section-title">🏹 Bosses</div>
-              ${bs ? `<ul>${(bs.bosses ?? []).map((b) => `<li>${b.name}<span>${b.kills}K / ${b.wipes}W${b.killTimeMs ? " · " + fmtMs(b.killTimeMs) : ""}</span></li>`).join("")}</ul>` : '<span style="color:var(--text-dim);font-style:italic">—</span>'}
-            </div>
-            <div class="raid-section">
-              <div class="raid-section-title">💀 1º en Morir</div>
-              <ul><li style="color:var(--name)">${fd}</li></ul>
-            </div>
-            <div class="raid-section">
-              <div class="raid-section-title">🍺 Portador de la Resaca</div>
-              <ul><li style="color:var(--name)">${port ? `${port.name} <span class="td-dim" style="font-size:.8rem">${fmtDmg(port.damage)} FF</span>` : '<span style="color:var(--text-dim)">—</span>'}</li></ul>
-            </div>
-            <div class="raid-section">
-              <div class="raid-section-title">🍺 FF Top 3</div>
-              ${miniList(top3ff, (e) => fmtDmg(e.damage))}
-            </div>
-            <div class="raid-section">
-              <div class="raid-section-title">💀 Muertes Top 3</div>
-              ${miniList(top3d, (e) => e.count + "×")}
-            </div>
-            <div class="raid-section">
-              <div class="raid-section-title">Interrupts Top 3</div>
-              ${miniList(top3int, (e) => e.total)}
-            </div>
-            <div class="raid-section">
-              <div class="raid-section-title">Dispels Top 3</div>
-              ${miniList(top3dis, (e) => e.total)}
-            </div>
-            ${hitsHtml}
-            <div class="raid-section">
-              <div class="raid-section-title">Roster</div>
-              <span style="color:var(--text-dim);font-size:.8rem">${(r.roster ?? []).join(", ") || "—"}</span>
+            <div class="raid-section" style="grid-column:1/-1">
+              <div class="raid-section-title">Roster (${(r.roster ?? []).length})</div>
+              <span style="color:var(--text-dim);font-size:.8rem;line-height:1.7">${(r.roster ?? []).join(", ") || "—"}</span>
             </div>
           </div>
-          <a class="raid-link" href="https://fresh.warcraftlogs.com/reports/${r.report}" target="_blank">↗ Ver en WarcraftLogs</a>
         </td>
       </tr>`
     })
@@ -2274,15 +2213,16 @@ function buildHistorial() {
 
   container.querySelectorAll(".historial-row").forEach((row) => {
     row.addEventListener("click", () => {
-      row.classList.toggle("open")
-      row.nextElementSibling.classList.toggle("open")
+      navigateToPorRaid(+row.dataset.raidIdx)
     })
   })
 
-  container.querySelectorAll(".player-link").forEach((el) => {
-    el.addEventListener("click", (e) => {
+  container.querySelectorAll(".h-toggle-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
       e.stopPropagation()
-      openPlayer(el.dataset.player)
+      const row = btn.closest(".historial-row")
+      row.classList.toggle("open")
+      row.nextElementSibling.classList.toggle("open")
     })
   })
 }
