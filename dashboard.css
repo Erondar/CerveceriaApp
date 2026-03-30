@@ -77,31 +77,6 @@
     text-align: center;
   }
 
-  #drop-zone {
-    width: min(420px, 90vw);
-    height: 200px;
-    border: 2px dashed var(--gold-dim);
-    border-radius: 4px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 1rem;
-    cursor: pointer;
-    transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
-    background: rgba(200,168,75,0.03);
-    position: relative;
-  }
-  #drop-zone:hover, #drop-zone.drag-over {
-    border-color: var(--gold);
-    background: rgba(200,168,75,0.07);
-    box-shadow: var(--glow-gold);
-  }
-  #drop-zone .drop-icon { font-size: 2.5rem; opacity: 0.6; }
-  #drop-zone .drop-text { font-family: 'Cinzel', serif; font-size: 0.85rem; letter-spacing: 0.15em; color: var(--gold); text-transform: uppercase; }
-  #drop-zone .drop-hint { font-size: 0.85rem; color: var(--text-dim); }
-  #file-input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-
   .ornament { color: var(--gold-dim); font-size: 1.2rem; letter-spacing: 0.5em; }
 
   /* ── MAIN APP ── */
