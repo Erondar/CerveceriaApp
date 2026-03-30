@@ -427,21 +427,20 @@
   .historial-row.open td { background: rgba(226,188,92,0.04); border-bottom-color: transparent; }
   .time-normal { color: var(--text-dim); font-size: 0.9rem; }
   .time-best   { color: var(--text-bright); font-weight: 600; font-size: 0.9rem; }
-  .h-arrow { display: inline-block; transition: transform 0.2s; color: var(--text-dim); font-size: 0.7rem; }
-  .historial-row.open .h-arrow { transform: rotate(180deg); }
   .h-nav-btn {
-    background: none;
+    background: rgba(123,79,160,0.12);
     border: 1px solid var(--border2);
-    padding: 0.15rem 0.4rem;
+    padding: 0.3rem 0.7rem;
     cursor: pointer;
-    border-radius: 3px;
-    font-size: 0.75rem;
-    color: var(--text-dim);
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-family: 'Barlow', sans-serif;
+    color: var(--purple2);
     line-height: 1;
-    transition: color 0.15s, border-color 0.15s, background 0.15s;
+    transition: color 0.15s, border-color 0.15s, background 0.15s, box-shadow 0.15s;
     white-space: nowrap;
   }
-  .h-nav-btn:hover { color: var(--text-bright); border-color: var(--gold-dim); background: rgba(226,188,92,0.08); }
+  .h-nav-btn:hover { color: var(--text-bright); border-color: var(--purple2); background: rgba(123,79,160,0.25); box-shadow: var(--glow-purple); }
   .historial-detail { display: none; }
   .historial-detail.open { display: table-row; }
   .historial-detail > td {
