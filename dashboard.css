@@ -429,16 +429,19 @@
   .time-best   { color: var(--text-bright); font-weight: 600; font-size: 0.9rem; }
   .h-arrow { display: inline-block; transition: transform 0.2s; color: var(--text-dim); font-size: 0.7rem; }
   .historial-row.open .h-arrow { transform: rotate(180deg); }
-  .h-toggle-btn {
+  .h-nav-btn {
     background: none;
-    border: none;
-    padding: 0.25rem 0.45rem;
+    border: 1px solid var(--border2);
+    padding: 0.15rem 0.4rem;
     cursor: pointer;
     border-radius: 3px;
+    font-size: 0.75rem;
+    color: var(--text-dim);
     line-height: 1;
-    transition: background 0.15s;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+    white-space: nowrap;
   }
-  .h-toggle-btn:hover { background: rgba(255,255,255,0.08); }
+  .h-nav-btn:hover { color: var(--text-bright); border-color: var(--gold-dim); background: rgba(226,188,92,0.08); }
   .historial-detail { display: none; }
   .historial-detail.open { display: table-row; }
   .historial-detail > td {
