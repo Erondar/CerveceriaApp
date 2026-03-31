@@ -4374,7 +4374,7 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
 
 const CHANGELOG = [
   {
-    fecha: "2026-03-31",
+    fecha: "31/03/2026",
     titulo: "Registro de Loot por Raid",
     secciones: [
       {
@@ -4386,7 +4386,7 @@ const CHANGELOG = [
     ],
   },
   {
-    fecha: "2026-03-27",
+    fecha: "27/03/2026",
     titulo: "Estadísticas de Rendimiento",
     secciones: [
       {
