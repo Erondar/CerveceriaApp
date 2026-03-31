@@ -1105,6 +1105,8 @@
 }
 
 #changelog-timeline {
+  display: flex;
+  flex-direction: column;
   width: 130px;
   flex-shrink: 0;
   border-right: 1px solid var(--border);
