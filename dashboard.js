@@ -79,7 +79,6 @@ function initDashboard() {
   buildPlayerMaps()
   TITULOS = calcTitulos()
   buildHeaderMeta()
-  fetchLootData()
   buildResumen()
   buildFF()
   buildMuertes()
@@ -3613,6 +3612,15 @@ const ICON_MAP = {} // itemID (string) → iconName (lowercase)
 const SHEET_BASE =
   "https://docs.google.com/spreadsheets/d/1aYgN7vk6tP_XFiwPlUQvI2xgEPzIv73PmyLmyhJ9jCI/gviz/tq?sheet="
 
+function normalizeInstance(inst) {
+  if (!inst) return inst
+  return inst.toLowerCase().includes("karazhan") ? "Karazhan" : "Gruul/Magtheridon"
+}
+
+function isDisenchant(resp) {
+  return resp === "Disenchant" || resp === "Desencantar"
+}
+
 function stripBrackets(s) {
   if (!s) return ""
   return s.startsWith("[") && s.endsWith("]") ? s.slice(1, -1) : s
@@ -3627,10 +3635,10 @@ function itemIcon(id) {
   return `<img class="item-icon" data-itemid="${id}"${src ? ` src="${src}"` : ""} alt="">`
 }
 
-async function fetchMissingIcons() {
+async function fetchMissingIcons(tableId = "loot-items-table") {
   const imgs = [
     ...document.querySelectorAll(
-      "#loot-items-table .item-icon[data-itemid]:not([src])",
+      `#${tableId} .item-icon[data-itemid]:not([src])`,
     ),
   ]
   if (!imgs.length) return
@@ -3650,7 +3658,7 @@ async function fetchMissingIcons() {
     }),
   )
   document
-    .querySelectorAll("#loot-items-table .item-icon[data-itemid]")
+    .querySelectorAll(`#${tableId} .item-icon[data-itemid]`)
     .forEach((img) => {
       const icon = ICON_MAP[img.dataset.itemid]
       if (icon)
@@ -3735,9 +3743,40 @@ function fetchLootData() {
             const [y, m, d] = rawDate.slice(5, -1).split(",").map(Number)
             dateStr = `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`
           }
+          const rawTime = get(row, "time")
+          let timeMinutes = -1
+          if (rawTime !== null) {
+            if (typeof rawTime === "string") {
+              if (rawTime.startsWith("TimeOfDay(")) {
+                // Pure time column: TimeOfDay(h,m,s,ms)
+                const parts = rawTime.slice(10, -1).split(",").map(Number)
+                timeMinutes = (parts[0] ?? 0) * 60 + (parts[1] ?? 0)
+              } else if (rawTime.startsWith("Date(")) {
+                // Datetime column: Date(year,month0,day,hour,minute,second)
+                const parts = rawTime.slice(5, -1).split(",").map(Number)
+                timeMinutes = (parts[3] ?? 0) * 60 + (parts[4] ?? 0)
+              }
+            } else if (typeof rawTime === "number") {
+              timeMinutes = Math.round(rawTime * 24 * 60)
+            }
+          }
+          const timeHour = timeMinutes >= 0 ? Math.floor(timeMinutes / 60) : -1
+          // Loot after midnight but before 05:00 belongs to the previous day's raid
+          let raidDate = dateStr
+          if (timeMinutes >= 0 && timeMinutes < 300 && dateStr) {
+            const d = new Date(dateStr + "T00:00:00")
+            d.setDate(d.getDate() - 1)
+            raidDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+          }
+          const rawInstance = get(row, "instance")
           return {
             nombre: get(row, "Nombre"),
             date: dateStr,
+            timeMinutes,
+            timeHour,
+            raidDate,
+            instance: rawInstance,
+            normalizedInstance: normalizeInstance(rawInstance),
             item: get(row, "item"),
             itemID: get(row, "itemID"),
             response: get(row, "response"),
@@ -3829,7 +3868,7 @@ function buildLootResumen() {
       p.offspec++
       p.total++
       totOffspec++
-    } else if (res === "Disenchant") totDE++
+    } else if (isDisenchant(res)) totDE++
     else if (res === "Banking") totBank++
     if (id === BAG_ID) {
       p.bag = true
@@ -3893,17 +3932,110 @@ function buildLootResumen() {
 
 function buildLootRegistroShell() {
   const players = [...new Set(lootRows.map((r) => r.nombre))].sort()
+
+  // Build map: normalizedInstance → sorted array of raidDates (desc)
+  const raidsByInstance = new Map()
+  lootRows
+    .filter((r) => ASSIGNED.has(r.response) && r.normalizedInstance && r.raidDate)
+    .forEach((r) => {
+      if (!raidsByInstance.has(r.normalizedInstance))
+        raidsByInstance.set(r.normalizedInstance, new Set())
+      raidsByInstance.get(r.normalizedInstance).add(r.raidDate)
+    })
+  const instances = [...raidsByInstance.keys()].sort()
+
   document.getElementById("loot-registro-inner").innerHTML = `
     <div class="section-title">Registro de Loot · Fase 1</div>
-    <select class="loot-select" id="loot-player-select">
-      <option value="">— Selecciona un jugador —</option>
-      ${players.map((p) => `<option value="${p}">${p}</option>`).join("")}
-    </select>
-    <div id="loot-player-detail"></div>
+    <div class="sub-nav" id="sub-nav-loot-reg">
+      <button class="sub-tab-btn active" data-loot-sub="jugador">Por Jugador</button>
+      <button class="sub-tab-btn" data-loot-sub="raid">Por Raid</button>
+    </div>
+    <div class="sub-tab-content active" id="loot-sub-jugador">
+      <select class="loot-select" id="loot-player-select">
+        <option value="">— Selecciona un jugador —</option>
+        ${players.map((p) => `<option value="${p}">${p}</option>`).join("")}
+      </select>
+      <div id="loot-player-detail"></div>
+    </div>
+    <div class="sub-tab-content" id="loot-sub-raid">
+      <div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1.5rem">
+        <select class="loot-select" id="loot-instance-select" style="margin-bottom:0;max-width:220px">
+          <option value="">— Selecciona una raid —</option>
+          ${instances.map((i) => `<option value="${i}">${i}</option>`).join("")}
+        </select>
+        <select class="loot-select" id="loot-date-select" style="margin-bottom:0;max-width:200px" disabled>
+          <option value="">— Selecciona fecha —</option>
+        </select>
+      </div>
+      <div id="loot-raid-detail"></div>
+    </div>
   `
+
+  document.querySelectorAll("#sub-nav-loot-reg .sub-tab-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document
+        .querySelectorAll("#sub-nav-loot-reg .sub-tab-btn")
+        .forEach((b) => b.classList.remove("active"))
+      btn.classList.add("active")
+      const sub = btn.dataset.lootSub
+      document
+        .getElementById("loot-sub-jugador")
+        .classList.toggle("active", sub === "jugador")
+      document
+        .getElementById("loot-sub-raid")
+        .classList.toggle("active", sub === "raid")
+    })
+  })
+
   document
     .getElementById("loot-player-select")
     .addEventListener("change", (e) => renderLootPlayer(e.target.value))
+
+  function selectInstance(inst) {
+    const instSel = document.getElementById("loot-instance-select")
+    const dateSel = document.getElementById("loot-date-select")
+    instSel.value = inst
+    document.getElementById("loot-raid-detail").innerHTML = ""
+    if (inst) {
+      const dates = [...(raidsByInstance.get(inst) ?? [])].sort().reverse()
+      dateSel.innerHTML =
+        '<option value="">— Selecciona fecha —</option>' +
+        dates.map((d) => `<option value="${inst}|${d}">${fmtDate(d)}</option>`).join("")
+      dateSel.disabled = false
+      // Auto-select most recent date
+      if (dates.length) {
+        dateSel.value = `${inst}|${dates[0]}`
+        renderLootRaid(dateSel.value)
+      }
+    } else {
+      dateSel.innerHTML = '<option value="">— Selecciona fecha —</option>'
+      dateSel.disabled = true
+    }
+  }
+
+  document
+    .getElementById("loot-instance-select")
+    .addEventListener("change", (e) => selectInstance(e.target.value))
+
+  document
+    .getElementById("loot-date-select")
+    .addEventListener("change", (e) => renderLootRaid(e.target.value))
+
+  // Find instance with the globally most recent raidDate
+  let latestInst = instances[0] ?? ""
+  let latestDate = ""
+  raidsByInstance.forEach((dates, inst) => {
+    const top = [...dates].sort().reverse()[0] ?? ""
+    if (top > latestDate) { latestDate = top; latestInst = inst }
+  })
+
+  // Wire sub-tab "Por Raid" to auto-select latest raid on first switch
+  document
+    .querySelector('#sub-nav-loot-reg [data-loot-sub="raid"]')
+    .addEventListener("click", () => {
+      const instSel = document.getElementById("loot-instance-select")
+      if (!instSel.value && latestInst) selectInstance(latestInst)
+    })
 }
 
 function renderLootPlayer(nombre) {
@@ -3980,7 +4112,11 @@ function renderLootPlayer(nombre) {
         ${items
           .map(
             (r) => `<tr>
-          <td class="td-gold" style="white-space:nowrap">${r.date ? fmtDate(r.date) : "—"}</td>
+          <td class="td-gold" style="white-space:nowrap">${
+            r.raidDate && r.normalizedInstance
+              ? `<span style="cursor:pointer" onclick="goToLootRaid('${r.normalizedInstance}','${r.raidDate}')">${fmtDate(r.raidDate)}</span>`
+              : r.date ? fmtDate(r.date) : "—"
+          }</td>
           <td style="white-space:nowrap">${
             r.itemID
               ? `<a class="item-link" href="https://www.wowhead.com/tbc/item=${r.itemID}" target="_blank">${itemIcon(r.itemID)}${stripBrackets(r.item)}</a>`
@@ -4008,11 +4144,154 @@ function goToLootRegistro(nombre) {
   const btn = document.querySelector('.tab-btn[data-tab="loot-registro"]')
   btn.classList.add("active")
   document.getElementById("tab-loot-registro").classList.add("active")
+  // Ensure "Por Jugador" sub-tab is active
+  document
+    .querySelectorAll("#sub-nav-loot-reg .sub-tab-btn")
+    .forEach((b) => b.classList.remove("active"))
+  document
+    .querySelector('#sub-nav-loot-reg [data-loot-sub="jugador"]')
+    ?.classList.add("active")
+  document.getElementById("loot-sub-jugador")?.classList.add("active")
+  document.getElementById("loot-sub-raid")?.classList.remove("active")
   const sel = document.getElementById("loot-player-select")
   if (sel) {
     sel.value = nombre
     renderLootPlayer(nombre)
   }
+}
+
+function renderLootRaid(raidKey) {
+  const el = document.getElementById("loot-raid-detail")
+  if (!raidKey) {
+    el.innerHTML = ""
+    return
+  }
+  const sep = raidKey.indexOf("|")
+  const instance = raidKey.slice(0, sep)
+  const raidDate = raidKey.slice(sep + 1)
+
+  // Normalize time for chronological sort within a raid crossing midnight
+  const normTime = (t) => (t >= 0 && t < 300 ? t + 1440 : t >= 0 ? t : 9999)
+
+  const allRaidRows = lootRows.filter(
+    (r) => r.normalizedInstance === instance && r.raidDate === raidDate,
+  )
+
+  const items = allRaidRows
+    .filter((r) => ASSIGNED.has(r.response))
+    .sort((a, b) => normTime(a.timeMinutes) - normTime(b.timeMinutes))
+
+  const counts = {}
+  items.forEach((r) => {
+    counts[r.response] = (counts[r.response] || 0) + 1
+  })
+  const totDE = allRaidRows.filter((r) => isDisenchant(r.response)).length
+  const totBank = allRaidRows.filter((r) => r.response === "Banking").length
+  const totBag = allRaidRows.filter((r) => String(r.itemID) === BAG_ID).length
+  const totMount = allRaidRows.filter((r) => String(r.itemID) === MOUNT_ID).length
+
+  const chipColor = { BiS: "", Upgrade: "purple", "Off-Spec": "blue" }
+
+  el.innerHTML = `
+    <div class="loot-chips">
+      <div class="loot-chip">
+        <div class="chip-val" style="color:var(--text-bright)">${items.length}</div>
+        <div class="chip-label">Total</div>
+      </div>
+      ${["BiS", "Upgrade", "Off-Spec"]
+        .map(
+          (k) => `<div class="loot-chip">
+        <div class="chip-val ${chipColor[k] || ""}">${counts[k] || 0}</div>
+        <div class="chip-label">${k}</div>
+      </div>`,
+        )
+        .join("")}
+      <div style="width:1px;background:var(--border);margin:0 0.1rem;align-self:stretch"></div>
+      <div class="loot-chip"><div class="chip-val dim">${totDE}</div><div class="chip-label">Desenc.</div></div>
+      <div class="loot-chip"><div class="chip-val dim">${totBank}</div><div class="chip-label">Banking</div></div>
+      <div class="loot-chip"><div class="chip-val dim">${totBag}</div><div class="chip-label">Bolsas</div></div>
+      <div class="loot-chip"><div class="chip-val dim">${totMount}</div><div class="chip-label">Montura</div></div>
+    </div>
+    <table class="ranked-list" id="loot-raid-table">
+      <thead><tr>
+        <th>Item</th>
+        <th>Jugador</th>
+        <th>Boss</th>
+        <th>Tipo</th>
+      </tr></thead>
+      <tbody>
+        ${items
+          .map(
+            (r) => `<tr>
+          <td style="white-space:nowrap">${
+            r.itemID
+              ? `<a class="item-link" href="https://www.wowhead.com/tbc/item=${r.itemID}" target="_blank">${itemIcon(r.itemID)}${stripBrackets(r.item)}</a>`
+              : stripBrackets(r.item)
+          }</td>
+          <td class="player-link" style="cursor:pointer" onclick="goToLootJugador('${r.nombre}')">${r.nombre}</td>
+          <td class="td-dim" style="font-size:.85rem">${r.boss || "—"}</td>
+          <td>${lootBadge(r.response)}</td>
+        </tr>`,
+          )
+          .join("")}
+      </tbody>
+    </table>
+  `
+
+  fetchMissingIcons("loot-raid-table")
+}
+
+function goToLootJugador(nombre) {
+  document
+    .querySelectorAll("#sub-nav-loot-reg .sub-tab-btn")
+    .forEach((b) => b.classList.remove("active"))
+  document
+    .querySelector('#sub-nav-loot-reg [data-loot-sub="jugador"]')
+    ?.classList.add("active")
+  document.getElementById("loot-sub-jugador")?.classList.add("active")
+  document.getElementById("loot-sub-raid")?.classList.remove("active")
+  const sel = document.getElementById("loot-player-select")
+  if (sel) {
+    sel.value = nombre
+    renderLootPlayer(nombre)
+  }
+}
+
+function goToLootRaid(normalizedInstance, raidDate) {
+  // Switch to "Por Raid" sub-tab
+  document
+    .querySelectorAll("#sub-nav-loot-reg .sub-tab-btn")
+    .forEach((b) => b.classList.remove("active"))
+  document
+    .querySelector('#sub-nav-loot-reg [data-loot-sub="raid"]')
+    ?.classList.add("active")
+  document.getElementById("loot-sub-jugador")?.classList.remove("active")
+  document.getElementById("loot-sub-raid")?.classList.add("active")
+
+  const instSel = document.getElementById("loot-instance-select")
+  const dateSel = document.getElementById("loot-date-select")
+  if (!instSel || !dateSel) return
+
+  instSel.value = normalizedInstance
+
+  // Populate date selector for this instance
+  const dates = [
+    ...new Set(
+      lootRows
+        .filter((r) => r.normalizedInstance === normalizedInstance && r.raidDate)
+        .map((r) => r.raidDate),
+    ),
+  ]
+    .sort()
+    .reverse()
+  dateSel.innerHTML =
+    '<option value="">— Selecciona fecha —</option>' +
+    dates.map((d) => `<option value="${normalizedInstance}|${d}">${fmtDate(d)}</option>`).join("")
+  dateSel.disabled = false
+
+  const key = `${normalizedInstance}|${raidDate}`
+  dateSel.value = key
+  renderLootRaid(key)
 }
 
 function lootBadge(resp) {
@@ -4084,12 +4363,28 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
       .forEach((c) => c.classList.remove("active"))
     btn.classList.add("active")
     document.getElementById("tab-" + btn.dataset.tab).classList.add("active")
+    // Lazy-load loot data on first visit to either loot tab
+    if (btn.dataset.tab === "loot-resumen" || btn.dataset.tab === "loot-registro") {
+      fetchLootData()
+    }
   })
 })
 
 // ── CHANGELOG ─────────────────────────────────────────────────────────────────
 
 const CHANGELOG = [
+  {
+    fecha: "2026-03-31",
+    titulo: "Registro de Loot por Raid",
+    secciones: [
+      {
+        nombre: "Loot — Registro",
+        items: [
+          "Nueva vista 'Por Raid': consulta todo el loot repartido en una raid concreta, seleccionando primero la instancia y luego la fecha.",
+        ],
+      },
+    ],
+  },
   {
     fecha: "2026-03-27",
     titulo: "Estadísticas de Rendimiento",
