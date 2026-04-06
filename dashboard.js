@@ -3480,8 +3480,6 @@ function openPlayer(name) {
     </div>`
     : ""
 
-  const hasLoot = lootLoaded && lootRows?.some((r) => r.nombre === name)
-
   const profile = document.getElementById("player-profile")
   profile.className = "visible"
   profile.innerHTML = `
@@ -3491,7 +3489,7 @@ function openPlayer(name) {
         <div class="profile-name" style="color:${clsColor}">${name}</div>
         ${clsLabel ? `<div class="profile-class">${clsLabel}</div>` : ""}
       </div>
-      ${hasLoot ? `<button class="profile-loot-btn" onclick="goToLootJugador('${name}')">🎁 Ver loot</button>` : ""}
+      <button class="profile-loot-btn" onclick="goToLootJugador('${name}')">🎁 Ver loot</button>
     </div>
     ${badgesHTML}
     <div class="profile-stats">
