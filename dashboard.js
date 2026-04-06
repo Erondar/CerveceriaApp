@@ -3713,6 +3713,11 @@ function _checkLootReady() {
   buildLootRegistroShell()
   _calcMimado()
   prefetchDisenchantQualities()
+  if (window._pendingLootJugador) {
+    const nombre = window._pendingLootJugador
+    delete window._pendingLootJugador
+    goToLootJugador(nombre)
+  }
 }
 
 function _calcMimado() {
@@ -4082,6 +4087,12 @@ function renderLootPlayer(nombre) {
   }
 
   const allPlayerRows = lootRows.filter((r) => r.nombre === nombre)
+
+  if (!allPlayerRows.length) {
+    el.innerHTML = `<div class="loot-loading">No hay loot registrado para <strong>${nombre}</strong>.</div>`
+    return
+  }
+
   const hasBag = allPlayerRows.some((r) => String(r.itemID) === BAG_ID)
   const hasMount = allPlayerRows.some((r) => String(r.itemID) === MOUNT_ID)
   const bagRow = allPlayerRows.find((r) => String(r.itemID) === BAG_ID)
@@ -4314,14 +4325,28 @@ function renderLootRaid(raidKey) {
 }
 
 function goToLootJugador(nombre) {
-  document
-    .querySelectorAll("#sub-nav-loot-reg .sub-tab-btn")
-    .forEach((b) => b.classList.remove("active"))
-  document
-    .querySelector('#sub-nav-loot-reg [data-loot-sub="jugador"]')
-    ?.classList.add("active")
+  // Navegar al tab loot-registro
+  document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"))
+  document.querySelectorAll(".tab-content").forEach((c) => c.classList.remove("active"))
+  document.querySelector('.tab-btn[data-tab="loot-registro"]')?.classList.add("active")
+  document.getElementById("tab-loot-registro")?.classList.add("active")
+
+  // Si el loot no ha cargado aún, iniciarlo y esperar
+  if (!lootLoaded) {
+    fetchLootData()
+    const el = document.getElementById("loot-player-detail")
+    if (el) el.innerHTML = '<div class="loot-loading">Cargando datos de loot...</div>'
+    // Guardar el nombre para seleccionarlo cuando cargue
+    window._pendingLootJugador = nombre
+    return
+  }
+
+  // Asegurar sub-tab "Por Jugador" activo
+  document.querySelectorAll("#sub-nav-loot-reg .sub-tab-btn").forEach((b) => b.classList.remove("active"))
+  document.querySelector('#sub-nav-loot-reg [data-loot-sub="jugador"]')?.classList.add("active")
   document.getElementById("loot-sub-jugador")?.classList.add("active")
   document.getElementById("loot-sub-raid")?.classList.remove("active")
+
   const sel = document.getElementById("loot-player-select")
   if (sel) {
     sel.value = nombre
