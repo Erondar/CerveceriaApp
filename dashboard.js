@@ -3609,6 +3609,7 @@ const LOOT_SHEET_URL =
   "https://docs.google.com/spreadsheets/d/1aYgN7vk6tP_XFiwPlUQvI2xgEPzIv73PmyLmyhJ9jCI/gviz/tq?sheet=Data%20F1"
 const ASSIGNED = new Set(["BiS", "Upgrade", "Off-Spec"])
 const ICON_MAP = {} // itemID (string) → iconName (lowercase)
+const QUALITY_MAP = {} // itemID (string) → quality number (4=épico, 5=legendario, 6=artefacto)
 const SHEET_BASE =
   "https://docs.google.com/spreadsheets/d/1aYgN7vk6tP_XFiwPlUQvI2xgEPzIv73PmyLmyhJ9jCI/gviz/tq?sheet="
 
@@ -3652,6 +3653,7 @@ async function fetchMissingIcons(tableId = "loot-items-table") {
         )
         const d = await res.json()
         ICON_MAP[id] = d.icon ? d.icon.toLowerCase() : null
+        if (d.quality !== undefined) QUALITY_MAP[id] = d.quality
       } catch {
         ICON_MAP[id] = null
       }
@@ -3666,10 +3668,42 @@ async function fetchMissingIcons(tableId = "loot-items-table") {
     })
 }
 
+async function prefetchDisenchantQualities() {
+  if (!lootRows) return
+  const ids = [
+    ...new Set(
+      lootRows
+        .filter((r) => isDisenchant(r.response) && r.itemID)
+        .map((r) => String(r.itemID)),
+    ),
+  ].filter((id) => QUALITY_MAP[id] === undefined)
+
+  await Promise.all(
+    ids.map(async (id) => {
+      if (QUALITY_MAP[id] !== undefined) return
+      try {
+        const res = await fetch(
+          `https://nether.wowhead.com/tbc/tooltip/item/${id}?locale=0`,
+        )
+        const d = await res.json()
+        ICON_MAP[id] = d.icon ? d.icon.toLowerCase() : null
+        QUALITY_MAP[id] = d.quality ?? null
+      } catch {
+        QUALITY_MAP[id] = null
+      }
+    }),
+  )
+  _qualityFetchDone = true
+  // Re-renderizar la raid activa para mostrar los desencantos épicos
+  if (_currentRaidKey) renderLootRaid(_currentRaidKey)
+}
+
 let lootRows = null
 let lootLoaded = false
 let _dataReady = false
 let _iconsReady = false
+let _qualityFetchDone = false
+let _currentRaidKey = null
 
 function _checkLootReady() {
   if (!_dataReady || !_iconsReady) return
@@ -3677,6 +3711,7 @@ function _checkLootReady() {
   buildLootResumen()
   buildLootRegistroShell()
   _calcMimado()
+  prefetchDisenchantQualities()
 }
 
 function _calcMimado() {
@@ -4161,6 +4196,7 @@ function goToLootRegistro(nombre) {
 }
 
 function renderLootRaid(raidKey) {
+  _currentRaidKey = raidKey
   const el = document.getElementById("loot-raid-detail")
   if (!raidKey) {
     el.innerHTML = ""
@@ -4181,6 +4217,11 @@ function renderLootRaid(raidKey) {
     .filter((r) => ASSIGNED.has(r.response))
     .sort((a, b) => normTime(a.timeMinutes) - normTime(b.timeMinutes))
 
+  // Desencantos de épico o superior (quality >= 4)
+  const deItems = allRaidRows
+    .filter((r) => isDisenchant(r.response) && r.itemID && (QUALITY_MAP[String(r.itemID)] ?? -1) >= 4)
+    .sort((a, b) => normTime(a.timeMinutes) - normTime(b.timeMinutes))
+
   const counts = {}
   items.forEach((r) => {
     counts[r.response] = (counts[r.response] || 0) + 1
@@ -4191,6 +4232,34 @@ function renderLootRaid(raidKey) {
   const totMount = allRaidRows.filter((r) => String(r.itemID) === MOUNT_ID).length
 
   const chipColor = { BiS: "", Upgrade: "purple", "Off-Spec": "blue" }
+
+  const deSection = deItems.length
+    ? `<h4 style="margin:1.2rem 0 0.5rem;color:var(--purple2);font-size:.85rem;letter-spacing:.05em">DESENCANTADOS ÉPICOS+</h4>
+    <table class="ranked-list" id="loot-raid-de-table">
+      <thead><tr>
+        <th>Item</th>
+        <th>Jugador</th>
+        <th>Boss</th>
+      </tr></thead>
+      <tbody>
+        ${deItems
+          .map(
+            (r) => `<tr>
+          <td style="white-space:nowrap">${
+            r.itemID
+              ? `<a class="item-link" href="https://www.wowhead.com/tbc/item=${r.itemID}" target="_blank">${itemIcon(r.itemID)}${stripBrackets(r.item)}</a>`
+              : stripBrackets(r.item)
+          }</td>
+          <td class="player-link" style="cursor:pointer" onclick="goToLootJugador('${r.nombre}')">${r.nombre}</td>
+          <td class="td-dim" style="font-size:.85rem">${r.boss || "—"}</td>
+        </tr>`,
+          )
+          .join("")}
+      </tbody>
+    </table>`
+    : (!_qualityFetchDone && totDE > 0
+        ? `<p style="color:var(--text-dim);font-size:.8rem;margin-top:1rem">Cargando calidades de desencantos...</p>`
+        : "")
 
   el.innerHTML = `
     <div class="loot-chips">
@@ -4236,9 +4305,11 @@ function renderLootRaid(raidKey) {
           .join("")}
       </tbody>
     </table>
+    ${deSection}
   `
 
   fetchMissingIcons("loot-raid-table")
+  if (deItems.length) fetchMissingIcons("loot-raid-de-table")
 }
 
 function goToLootJugador(nombre) {
