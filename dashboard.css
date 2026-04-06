@@ -961,6 +961,22 @@
     gap: 1rem;
     margin-bottom: 1.25rem;
   }
+  .profile-loot-btn {
+    margin-left: auto;
+    background: rgba(138,92,184,0.12);
+    border: 1px solid var(--purple);
+    color: var(--purple2);
+    border-radius: 6px;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, color 0.15s;
+  }
+  .profile-loot-btn:hover {
+    background: rgba(138,92,184,0.28);
+    color: #e0c0ff;
+  }
   .class-icon {
     width: 48px;
     height: 48px;
