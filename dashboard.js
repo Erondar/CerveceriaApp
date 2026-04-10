@@ -4169,7 +4169,7 @@ function renderLootPlayer(nombre) {
               ? `<a class="item-link" href="https://www.wowhead.com/tbc/item=${r.itemID}" target="_blank">${itemIcon(r.itemID)}${stripBrackets(r.item)}</a>`
               : stripBrackets(r.item)
           }</td>
-          <td class="td-dim" style="font-size:.85rem">${r.boss || "—"}</td>
+          <td class="td-dim" style="font-size:.85rem">${r.boss === "Unknown" ? "Trash" : r.boss || "—"}</td>
           <td>${lootBadge(r.response)}</td>
         </tr>`,
           )
@@ -4263,7 +4263,7 @@ function renderLootRaid(raidKey) {
               : stripBrackets(r.item)
           }</td>
           <td class="player-link" style="cursor:pointer" onclick="goToLootJugador('${r.nombre}')">${r.nombre}</td>
-          <td class="td-dim" style="font-size:.85rem">${r.boss || "—"}</td>
+          <td class="td-dim" style="font-size:.85rem">${r.boss === "Unknown" ? "Trash" : r.boss || "—"}</td>
         </tr>`,
           )
           .join("")}
@@ -4310,7 +4310,7 @@ function renderLootRaid(raidKey) {
               : stripBrackets(r.item)
           }</td>
           <td class="player-link" style="cursor:pointer" onclick="goToLootJugador('${r.nombre}')">${r.nombre}</td>
-          <td class="td-dim" style="font-size:.85rem">${r.boss || "—"}</td>
+          <td class="td-dim" style="font-size:.85rem">${r.boss === "Unknown" ? "Trash" : r.boss || "—"}</td>
           <td>${lootBadge(r.response)}</td>
         </tr>`,
           )
