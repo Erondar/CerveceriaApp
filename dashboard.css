@@ -85,7 +85,7 @@
 
   /* ── HEADER ── */
   header {
-    padding: 2.5rem 2rem 1.5rem;
+    padding: 0 2rem 1.5rem;
     text-align: center;
     border-bottom: 1px solid var(--border);
     background: linear-gradient(180deg, rgba(123,79,160,0.08) 0%, transparent 100%);
@@ -162,9 +162,6 @@
   }
 
   /* ── CONTENT ── */
-  .tab-content { display: none; padding: 2rem; max-width: 1100px; margin: 0 auto; }
-  .tab-content.active { display: block; }
-
   /* ── CARDS ── */
   .stat-cards {
     display: grid;
@@ -356,15 +353,6 @@
   .val-cell.red    { color: var(--red2); }
   .val-cell.green  { color: #4ec97e; }
 
-  /* ── CHART CONTAINER ── */
-  .chart-wrap {
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 1.5rem;
-    margin-bottom: 2rem;
-  }
-
   /* ── TWO COLUMNS ── */
   .two-col {
     display: grid;
@@ -373,15 +361,6 @@
     margin-bottom: 2rem;
   }
   @media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
-
-  .four-col {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 1.25rem;
-    margin-bottom: 2rem;
-  }
-  @media (max-width: 900px) { .four-col { grid-template-columns: 1fr 1fr; } }
-  @media (max-width: 500px) { .four-col { grid-template-columns: 1fr; } }
 
   .panel {
     background: var(--bg2);
@@ -449,54 +428,6 @@
     background: rgba(240,200,74,0.02);
   }
 
-  /* ── HISTORIAL CARDS (legacy, usado en detail) ── */
-  .raid-card {
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    margin-bottom: 0.8rem;
-    overflow: hidden;
-    transition: border-color 0.2s;
-  }
-  .raid-card:hover { border-color: var(--gold-dim); }
-
-  .raid-header {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding: 0.9rem 1.2rem;
-    cursor: pointer;
-    user-select: none;
-  }
-  .raid-date {
-    font-family: 'Cinzel', serif;
-    font-size: 0.85rem;
-    color: var(--text-bright);
-    white-space: nowrap;
-    min-width: 90px;
-  }
-  .raid-portador { flex: 1; font-size: 0.9rem; }
-  .raid-portador .label { color: var(--text); font-size: 0.82rem; margin-right: 0.4rem; }
-  .raid-time {
-    font-family: 'Cinzel', serif;
-    font-size: 0.82rem;
-    color: var(--text-dim);
-    white-space: nowrap;
-  }
-  .raid-arrow {
-    color: var(--text-dim);
-    transition: transform 0.2s;
-    font-size: 0.8rem;
-  }
-  .raid-card.open .raid-arrow { transform: rotate(180deg); }
-
-  .raid-body {
-    display: none;
-    padding: 0 1.2rem 1.2rem;
-    border-top: 1px solid var(--border);
-  }
-  .raid-card.open .raid-body { display: block; }
-
   .raid-body-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -517,23 +448,6 @@
   }
   .raid-section li { list-style: none; color: var(--name); padding: 0.15rem 0; }
   .raid-section li span { color: var(--text-bright); font-size: 0.85rem; margin-left: 0.3rem; }
-  .raid-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-family: 'Cinzel', serif;
-    font-size: 0.68rem;
-    letter-spacing: 0.1em;
-    color: var(--purple2);
-    text-decoration: none;
-    margin-top: 0.8rem;
-    padding: 0.3rem 0.8rem;
-    border: 1px solid var(--purple);
-    border-radius: 2px;
-    transition: background 0.15s, box-shadow 0.15s;
-  }
-  .raid-link:hover { background: rgba(123,79,160,0.15); box-shadow: var(--glow-purple); }
-
   /* ── PLAYER SEARCH ── */
   .search-wrap {
     position: relative;
@@ -622,17 +536,6 @@
   .pstat .pval.purple { color: var(--purple2); }
   .pstat .pval.red    { color: var(--red2); }
 
-  .sparkline-section { margin-bottom: 2rem; }
-  .sparkline-title {
-    font-family: 'Cinzel', serif;
-    font-size: 0.76rem;
-    font-weight: 600;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    color: var(--text);
-    margin-bottom: 0.6rem;
-  }
-
   .raid-table {
     width: 100%;
     border-collapse: collapse;
@@ -667,22 +570,6 @@
   .td-purple { color: var(--purple2); font-family: 'Cinzel', serif; font-size: 0.82rem; }
   .td-red { color: var(--red2); font-family: 'Cinzel', serif; font-size: 0.82rem; }
   .td-dim { color: var(--text-dim); font-size: 0.82rem; }
-
-  /* ── SHAME BADGE ── */
-  .shame-badge {
-    display: inline-block;
-    background: rgba(176,48,48,0.2);
-    border: 1px solid var(--red);
-    color: var(--red2);
-    font-family: 'Cinzel', serif;
-    font-size: 0.7rem;
-    letter-spacing: 0.1em;
-    padding: 0.15rem 0.5rem;
-    border-radius: 2px;
-    text-transform: uppercase;
-    vertical-align: middle;
-    margin-left: 0.4rem;
-  }
 
   /* ── EMPTY ── */
   .empty-msg {
@@ -736,22 +623,6 @@
   }
   .titulo-badge--shame { background: rgba(220,60,60,.15); border: 1px solid rgba(220,60,60,.4); color: var(--red2); }
   .titulo-badge--honor { background: rgba(80,200,130,.12); border: 1px solid rgba(80,200,130,.35); color: #4ec97e; }
-
-  /* Titular de la noche */
-  .titular-box {
-    background: var(--bg2);
-    border: 1px solid var(--border2);
-    border-left: 3px solid var(--gold);
-    border-radius: 6px;
-    padding: 1rem 1.25rem;
-    margin-bottom: 1.5rem;
-    display: flex;
-    flex-direction: column;
-    gap: .5rem;
-  }
-  .titular-headline { font-size: .9rem; color: var(--text-dim); line-height: 1.5; }
-  .titular-headline--main { font-size: 1rem; color: var(--text-bright); font-weight: 500; }
-  .titular-headline b { color: var(--gold); font-weight: 600; }
 
   /* ── SCROLLBAR ── */
   ::-webkit-scrollbar { width: 6px; height: 6px; }
