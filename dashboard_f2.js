@@ -98,7 +98,7 @@ const CITAS_F2 = [
 function buildHeaderMeta() {
   const el = document.getElementById('header-meta');
   if (!el || !historial.length) return;
-  const raids   = historial.length;
+  const raids   = historial.reduce((s, e) => s + (e.reports?.length ?? 1), 0);
   const semanas = new Set(historial.map(e => e.semanaNum)).size;
   const last    = [...historial].sort((a, b) => b.fecha.localeCompare(a.fecha))[0];
   const lastDate = last ? fmtDate(last.fecha) : '—';
@@ -2084,8 +2084,9 @@ function updateWclLinks(entries) {
   if (!span) return;
   const linkStyle = 'font-size:.82rem;color:var(--text-dim);text-decoration:none;border:1px solid var(--border2);border-radius:5px;padding:.3rem .7rem;transition:color .15s,border-color .15s';
   const hover = `onmouseover="this.style.color='var(--text-bright)';this.style.borderColor='var(--gold)'" onmouseout="this.style.color='var(--text-dim)';this.style.borderColor='var(--border2)'"`;
-  span.innerHTML = entries.map((e, i) =>
-    `<a href="https://www.warcraftlogs.com/reports/${e.report}" target="_blank" rel="noopener" style="${linkStyle}" ${hover}>${entries.length === 1 ? 'Ver en WarcraftLogs ↗' : `Sesión ${i + 1} ↗`}</a>`
+  const reportCodes = (entries[0]?.reports ?? [entries[0]?.report]).filter(Boolean);
+  span.innerHTML = reportCodes.map((code, i) =>
+    `<a href="https://www.warcraftlogs.com/reports/${code}" target="_blank" rel="noopener" style="${linkStyle}" ${hover}>${reportCodes.length === 1 ? 'Ver en WarcraftLogs ↗' : `Sesión ${i + 1} ↗`}</a>`
   ).join('');
 }
 
@@ -2118,7 +2119,7 @@ function renderSemanaView(semana) {
 
   // Stat cards
   const statsHtml = `<div class="stat-cards" style="margin-bottom:2rem">
-    <div class="stat-card"><div class="label">Duración Total</div><div class="value">${fmtDur(agg.totalRaidTime)}</div><div class="sub">${entries.length} sesion${entries.length !== 1 ? 'es' : ''}</div></div>
+    <div class="stat-card"><div class="label">Duración Total</div><div class="value">${fmtDur(agg.totalRaidTime)}</div><div class="sub">${(() => { const n = entries[0]?.reports?.length ?? entries.length; return `${n} sesion${n !== 1 ? 'es' : ''}`; })()}</div></div>
     <div class="stat-card"><div class="label">Boss Kills</div><div class="value" style="color:#7dce82">${kills}</div><div class="sub">${totalWipes} wipe${totalWipes !== 1 ? 's' : ''}</div></div>
     ${firstDieOverall?.name ? `<div class="stat-card"><div class="label">Primero en Morir</div><div class="value" style="font-size:1.4rem;color:var(--red2);font-family:'Barlow',system-ui,sans-serif;font-weight:600">${firstDieOverall.name}</div><div class="sub">${firstDieOverall.timeMs ? `a los ${(firstDieOverall.timeMs / 1000).toFixed(1)}s del pull` : 'abrió el marcador'}</div></div>` : ''}
     <div class="stat-card"><div class="label">DPS / HPS</div><div class="value">${agg.dps ? fmtDps(agg.dps) + ' / ' + fmtDps(agg.hps) : '—'}</div><div class="sub">media kills</div></div>
@@ -2237,7 +2238,7 @@ function renderSemanaView(semana) {
       </div>
       <div class="panel" style="border-color:var(--green);text-align:center;padding:1.5rem 1.2rem">
         <div style="font-size:2rem;margin-bottom:.4rem">🌟</div>
-        <div style="font-family:'Barlow',sans-serif;font-size:.85rem;font-weight:600;color:var(--green);letter-spacing:.04em;text-transform:uppercase;margin-bottom:.6rem">MVP de la Noche</div>
+        <div style="font-family:'Barlow',sans-serif;font-size:.85rem;font-weight:600;color:var(--green);letter-spacing:.04em;text-transform:uppercase;margin-bottom:.6rem">MVP de la Semana</div>
         <div style="font-size:${nameFontSize(mvpGroup.length)};font-weight:700;color:var(--gold)">${renderNames(mvpGroup)}</div>
         <div style="color:var(--text-dim);font-size:.82rem;margin-top:.4rem">${(mvpGroup[0].score * 100).toFixed(0)}% de vergüenza</div>
       </div>
@@ -2585,7 +2586,7 @@ function renderHistorialTab() {
       const isRaidBest = raidMs != null && raidMs === bestRaidMs;
 
       return `
-        <tr class="historial-row" data-report="${e.report}">
+        <tr class="historial-row" data-report="${e.reports?.[0] ?? e.report ?? ''}">
           <td><strong style="color:var(--gold)">Sem ${e.semanaNum}</strong></td>
           <td>${isRaidBest ? `<span class="time-best">★ ${fmtDur(raidMs)}</span>` : `<span class="time-normal">${fmtDur(raidMs)}</span>`}</td>
           <td style="white-space:nowrap">${effVal !== null
