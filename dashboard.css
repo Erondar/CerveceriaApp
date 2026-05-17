@@ -352,6 +352,7 @@
   .val-cell.purple { color: var(--purple2); }
   .val-cell.red    { color: var(--red2); }
   .val-cell.green  { color: #4ec97e; }
+  .ranked-list th.val-cell { text-align: right; }
 
   /* ── TWO COLUMNS ── */
   .two-col {
