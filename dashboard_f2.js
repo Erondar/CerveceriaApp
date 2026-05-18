@@ -2875,7 +2875,7 @@ function renderJugador(name) {
       <div class="pstat"><div class="plabel">Semanas</div><div class="pval purple">${semanasAttended}</div></div>
       <div class="pstat"><div class="plabel">Raids</div><div class="pval purple">${reportsAttended.length}</div></div>
       <div class="pstat"><div class="plabel">Evitables</div><div class="pval red">${fmtDmg(totalAvoid)}</div></div>
-      <div class="pstat"><div class="plabel">Trolleos</div><div class="pval red">${[totalTrolleos ? fmtDmg(totalTrolleos) : '', totalMcCount ? totalMcCount + '× MC' : ''].filter(Boolean).join(' · ') || '—'}</div></div>
+      <div class="pstat"><div class="plabel">Trolleos</div><div class="pval red" style="font-size:1rem;white-space:nowrap">${[totalTrolleos ? fmtDmg(totalTrolleos) : '', totalMcCount ? totalMcCount + '× MC' : ''].filter(Boolean).join(' · ') || '—'}</div></div>
       <div class="pstat"><div class="plabel">Muertes</div><div class="pval red">${totalDeaths}</div></div>
       <div class="pstat"><div class="plabel">Interrupts</div><div class="pval purple">${totalInts}</div></div>
       <div class="pstat"><div class="plabel">Dispels</div><div class="pval purple">${totalDisp}</div></div>
