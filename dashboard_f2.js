@@ -326,7 +326,10 @@ function getShameRanking() {
 
   return normalized
     .map(p => {
-      const pct = fn => percentileOf(normalized, fn, p.name);
+      const pct = fn => {
+        const val = fn(normalized.find(e => e.name === p.name));
+        return val <= 0 ? 0 : percentileOf(normalized, fn, p.name);
+      };
       const components = [pct(e => e.deathsPerSemana), pct(e => e.avoidPerSemana)];
       let starPct = null;
       if (activeStars.length > 0) {
