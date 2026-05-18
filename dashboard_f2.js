@@ -406,8 +406,8 @@ function getFastestRaid() {
     for (const e of sem.entries) {
       const hasSSC = (e.bosses ?? []).some(b => SSC_BOSSES.includes(b.boss));
       const hasTK  = (e.bosses ?? []).some(b => TK_BOSSES.includes(b.boss));
-      if (hasSSC) sscMs += e.reportDurationMs ?? 0;
-      if (hasTK)  tkMs  += e.reportDurationMs ?? 0;
+      if (hasSSC) sscMs += e.sscDurationMs ?? 0;
+      if (hasTK)  tkMs  += e.tkDurationMs  ?? 0;
       for (const b of (e.bosses ?? [])) {
         const bFecha = b.fecha ?? e.fecha;
         if (SSC_BOSSES.includes(b.boss)) { sscFechasSet.add(bFecha); if (b.killed) sscKills++; }
@@ -2607,7 +2607,7 @@ function renderHistorialTab() {
     const entries = sorted.filter(e => (e.bosses ?? []).some(b => bossNames.includes(b.boss)));
     if (!entries.length) return '';
 
-    const getRaidMs = e => e.reportDurationMs ?? null;
+    const getRaidMs = e => (badgeClass === 'ssc' ? e.sscDurationMs : e.tkDurationMs) ?? null;
     let bestRaidMs = null;
     for (const e of entries) {
       const d = getRaidMs(e);
