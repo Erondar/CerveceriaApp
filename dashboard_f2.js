@@ -2875,7 +2875,7 @@ function renderJugador(name) {
       <div class="pstat"><div class="plabel">Semanas</div><div class="pval purple">${semanasAttended}</div></div>
       <div class="pstat"><div class="plabel">Raids</div><div class="pval purple">${reportsAttended.length}</div></div>
       <div class="pstat"><div class="plabel">Evitables</div><div class="pval red">${fmtDmg(totalAvoid)}</div></div>
-      <div class="pstat"><div class="plabel">Trolleos</div><div class="pval red" style="font-size:1rem;white-space:nowrap">${[totalTrolleos ? fmtDmg(totalTrolleos) : '', totalMcCount ? totalMcCount + '× MC' : ''].filter(Boolean).join(' · ') || '—'}</div></div>
+      <div class="pstat" data-tooltip="Daño a aliados: Wrath of the Astromancer (Solarian) + Static Charge (Vashj)<br>MC: veces controlado por Inner Demon (Leotheras)" style="cursor:default"><div class="plabel">Trolleos</div><div class="pval red" style="font-size:1rem;white-space:nowrap">${[totalTrolleos ? fmtDmg(totalTrolleos) : '', totalMcCount ? totalMcCount + '× MC' : ''].filter(Boolean).join(' · ') || '—'}</div></div>
       <div class="pstat"><div class="plabel">Muertes</div><div class="pval red">${totalDeaths}</div></div>
       <div class="pstat"><div class="plabel">Interrupts</div><div class="pval purple">${totalInts}</div></div>
       <div class="pstat"><div class="plabel">Dispels</div><div class="pval purple">${totalDisp}</div></div>
