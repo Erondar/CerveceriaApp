@@ -403,19 +403,11 @@ function getFastestRaid() {
   for (const sem of semanas) {
     let sscMs = 0, tkMs = 0, sscKills = 0, tkKills = 0, sscSeen = false, tkSeen = false;
     for (const e of sem.entries) {
-      // Preferir duración real de raid (primer pull → último fight); fallback a suma de totalDurationMs
-      if (e.sscDurationMs != null) {
-        sscMs += e.sscDurationMs; sscSeen = true;
-      }
-      if (e.tkDurationMs != null) {
-        tkMs += e.tkDurationMs; tkSeen = true;
-      }
+      const hasSSC = (e.bosses ?? []).some(b => SSC_BOSSES.includes(b.boss));
+      const hasTK  = (e.bosses ?? []).some(b => TK_BOSSES.includes(b.boss));
+      if (hasSSC) { sscMs += e.reportDurationMs ?? 0; sscSeen = true; }
+      if (hasTK)  { tkMs  += e.reportDurationMs ?? 0; tkSeen  = true; }
       for (const b of (e.bosses ?? [])) {
-        const hasDuration = e.sscDurationMs != null || e.tkDurationMs != null;
-        if (!hasDuration && b.totalDurationMs) {
-          if (SSC_BOSSES.includes(b.boss)) { sscMs += b.totalDurationMs; sscSeen = true; }
-          if (TK_BOSSES.includes(b.boss))  { tkMs  += b.totalDurationMs; tkSeen  = true; }
-        }
         if (b.killed) {
           if (SSC_BOSSES.includes(b.boss)) sscKills++;
           if (TK_BOSSES.includes(b.boss))  tkKills++;
@@ -2613,7 +2605,7 @@ function renderHistorialTab() {
     const entries = sorted.filter(e => (e.bosses ?? []).some(b => bossNames.includes(b.boss)));
     if (!entries.length) return '';
 
-    const getRaidMs = e => badgeClass === 'ssc' ? (e.sscDurationMs ?? e.reportDurationMs) : (e.tkDurationMs ?? e.reportDurationMs);
+    const getRaidMs = e => e.reportDurationMs ?? null;
     let bestRaidMs = null;
     for (const e of entries) {
       const d = getRaidMs(e);
