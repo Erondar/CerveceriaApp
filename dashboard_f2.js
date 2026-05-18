@@ -389,7 +389,7 @@ function getTimeRecords() {
       if (!b.killed || !b.killDurationMs) continue;
       const prev = records.get(b.boss);
       if (!prev || b.killDurationMs < prev.killDurationMs) {
-        records.set(b.boss, { killDurationMs: b.killDurationMs, fecha: e.fecha, semanaNum: e.semanaNum });
+        records.set(b.boss, { killDurationMs: b.killDurationMs, fecha: b.fecha ?? e.fecha, semanaNum: e.semanaNum });
       }
     }
   }
@@ -401,25 +401,26 @@ function getFastestRaid() {
   const semanas = getSemanas();
   let bestSsc = null, bestTk = null;
   for (const sem of semanas) {
-    let sscMs = 0, tkMs = 0, sscKills = 0, tkKills = 0, sscSeen = false, tkSeen = false;
+    let sscMs = 0, tkMs = 0, sscKills = 0, tkKills = 0;
+    const sscFechasSet = new Set(), tkFechasSet = new Set();
     for (const e of sem.entries) {
       const hasSSC = (e.bosses ?? []).some(b => SSC_BOSSES.includes(b.boss));
       const hasTK  = (e.bosses ?? []).some(b => TK_BOSSES.includes(b.boss));
-      if (hasSSC) { sscMs += e.reportDurationMs ?? 0; sscSeen = true; }
-      if (hasTK)  { tkMs  += e.reportDurationMs ?? 0; tkSeen  = true; }
+      if (hasSSC) sscMs += e.reportDurationMs ?? 0;
+      if (hasTK)  tkMs  += e.reportDurationMs ?? 0;
       for (const b of (e.bosses ?? [])) {
-        if (b.killed) {
-          if (SSC_BOSSES.includes(b.boss)) sscKills++;
-          if (TK_BOSSES.includes(b.boss))  tkKills++;
-        }
+        const bFecha = b.fecha ?? e.fecha;
+        if (SSC_BOSSES.includes(b.boss)) { sscFechasSet.add(bFecha); if (b.killed) sscKills++; }
+        if (TK_BOSSES.includes(b.boss))  { tkFechasSet.add(bFecha);  if (b.killed) tkKills++;  }
       }
     }
-    const fecha = sem.entries[sem.entries.length - 1].fecha;
-    if (sscSeen && (!bestSsc || sscMs < bestSsc.totalMs)) {
-      bestSsc = { totalMs: sscMs, semanaNum: sem.semanaNum, fecha, bossCount: sscKills };
+    const sscFechas = [...sscFechasSet].sort();
+    const tkFechas  = [...tkFechasSet].sort();
+    if (sscFechas.length && (!bestSsc || sscMs < bestSsc.totalMs)) {
+      bestSsc = { totalMs: sscMs, semanaNum: sem.semanaNum, fechas: sscFechas, bossCount: sscKills };
     }
-    if (tkSeen && (!bestTk || tkMs < bestTk.totalMs)) {
-      bestTk = { totalMs: tkMs, semanaNum: sem.semanaNum, fecha, bossCount: tkKills };
+    if (tkFechas.length && (!bestTk || tkMs < bestTk.totalMs)) {
+      bestTk = { totalMs: tkMs, semanaNum: sem.semanaNum, fechas: tkFechas, bossCount: tkKills };
     }
   }
   return { bestSsc, bestTk };
@@ -633,11 +634,12 @@ function renderResumen() {
       <div class="record-amount" style="color:var(--text-dim)">—</div>
     </div>`;
     const allClear = best.bossCount === totalBosses;
+    const datesStr = best.fechas.map(f => fmtDate(f)).join(' y ');
     return `<div class="record-card">
       <div class="record-icon"><span class="raid-badge ${badgeClass}">${raidLabel}</span></div>
       <div class="record-label">Raid más rápida</div>
       <div class="record-amount">${fmtRaidMs(best.totalMs)}</div>
-      <div class="record-date">Sem ${best.semanaNum} · ${fmtDate(best.fecha)}</div>
+      <div class="record-date">Sem ${best.semanaNum} · ${datesStr}</div>
       <div class="record-date" style="opacity:0.7">${best.bossCount}/${totalBosses} jefes${allClear ? ' ✓' : ''}</div>
     </div>`;
   }
