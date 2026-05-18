@@ -1513,12 +1513,12 @@ function renderLogros() {
     return CAPABLE_CLASSES.has(cls) || (cls === 'Shaman' && CAPABLE_SHAMAN_SPECS.has(spec));
   }).filter(eligible);
   if (capable.length > 0) {
-    const sorted = capable.map(n => ({ name: n, val: intMap.get(n) ?? 0 })).sort((a, b) => a.val - b.val);
+    const sorted = capable.map(n => ({ name: n, val: perSem(intMap, n) })).sort((a, b) => a.val - b.val);
     const minVal = sorted[0].val;
     shames.push({
       icon: '🤐', titulo: 'El Sordo',
-      jugadores: sorted.filter(e => e.val === minVal).map(e => e.name),
-      valor: minVal + ' interrupts',
+      jugadores: sorted.filter(e => Math.abs(e.val - minVal) < 0.001).map(e => e.name),
+      valor: minVal.toFixed(1) + ' ints/sem',
       desc: 'Menos interrupts entre los capaces de hacerlos',
       comentario: pickRnd([
         'Tiene el botón de silencio activado desde el primer día.',
@@ -2404,10 +2404,16 @@ function renderSemanaView(semana) {
   for (const e of entries)
     for (const b of (e.bosses ?? []))
       if (b.killed)
-        for (const m of (b.tankMitigation ?? []))
-          if (!mitigMap.has(m.name) || m.pct > mitigMap.get(m.name).pct)
-            mitigMap.set(m.name, { ...m, boss: b.boss });
-  const mitigSorted = [...mitigMap.values()].sort((a, b) => b.pct - a.pct);
+        for (const m of (b.tankMitigation ?? [])) {
+          const curr = mitigMap.get(m.name) ?? { reduced: 0, gross: 0 };
+          curr.reduced += m.reduced;
+          curr.gross   += m.gross;
+          mitigMap.set(m.name, curr);
+        }
+  const mitigSorted = [...mitigMap.entries()]
+    .filter(([, v]) => v.gross > 0)
+    .map(([name, v]) => ({ name, pct: Math.round(v.reduced / v.gross * 1000) / 10 }))
+    .sort((a, b) => b.pct - a.pct);
   const mitigMax = mitigSorted[0]?.pct ?? 1;
   const mitigRows = mitigSorted.map((e, i) => `<tr>
     <td class="rank-num ${rankClass(i)}">${medalEmoji(i)}</td>
