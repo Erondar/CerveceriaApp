@@ -513,6 +513,7 @@ function agregarSemana(entries) {
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 const rendered = new Set();
 let TITULOS_F2 = null;         // populated when renderLogros runs
+let _mimadoTituloF2 = null;    // populated when loot sheet loads
 let _pendingReportCode = null; // for navigateToPorSemana
 
 function switchTab(tab) {
@@ -1738,6 +1739,9 @@ function renderLogros() {
     ]),
   });
 
+  // El Mimado — más ítems de loot recibidos (datos de Google Sheet)
+  if (_mimadoTituloF2) shames.push(_mimadoTituloF2);
+
   // ── HONOR ──
 
   // El Escudo (F2) — más dispels media/semana
@@ -1992,6 +1996,43 @@ function renderLogros() {
     ${f1Html}`;
 
   attachPlayerClicks('#tab-logros');
+
+  // Si el loot aún no está cargado, arrancarlo en segundo plano.
+  // Cuando termine, _checkLootReady → _calcMimadoF2 → renderLogros() de nuevo con El Mimado.
+  if (!lootLoaded) fetchLootData();
+}
+
+function _calcMimadoF2() {
+  if (!lootRows) return;
+  const count = new Map();
+  lootRows
+    .filter(r => ASSIGNED.has(r.response))
+    .forEach(r => { count.set(r.nombre, (count.get(r.nombre) ?? 0) + 1); });
+  if (!count.size) return;
+  const max = Math.max(...count.values());
+  const mimados = [...count.entries()]
+    .filter(([, c]) => c === max)
+    .map(([n]) => n);
+  const comments = [
+    'El loot le conoce por el nombre.',
+    'El banco del personaje necesita ampliación urgente.',
+    'Cada raid es Navidad para él.',
+    'Los demás farmean experiencia, él farmea ítems.',
+    'El sistema de loot funciona. Para él, concretamente.',
+    'No sabe lo que es irse de vacío. Estadísticamente.',
+    'Los demás votan, él recibe.',
+    'Su personaje brilla más cada semana. Literalmente.',
+  ];
+  _mimadoTituloF2 = {
+    id: 'mimado',
+    icon: '💸',
+    titulo: 'El Mimado',
+    desc: 'Más ítems de loot recibidos en F2',
+    jugadores: mimados,
+    comentario: comments[Math.floor(Math.random() * comments.length)],
+    valor: max + (max === 1 ? ' ítem' : ' ítems'),
+  };
+  if (TITULOS_F2 !== null) renderLogros();
 }
 
 function getF1DescById() {
@@ -3008,6 +3049,7 @@ function _checkLootReady() {
   lootLoaded = true;
   buildLootResumen();
   buildLootRegistroShell();
+  _calcMimadoF2();
   prefetchDisenchantQualities();
   if (window._pendingLootJugador) {
     const nombre = window._pendingLootJugador;
