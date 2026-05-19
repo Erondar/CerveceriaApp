@@ -528,6 +528,7 @@ function renderTab(tab) {
     case 'por-semana':    renderPorSemana();    break;
     case 'historial':     renderHistorialTab(); break;
     case 'jugador':       break; // search input is static HTML
+    case 'cla':           renderCLA();          break;
     case 'loot-resumen':  fetchLootData();      break;
     case 'loot-registro': fetchLootData();      break;
   }
@@ -3431,6 +3432,226 @@ function attachPlayerClicks(selector) {
     el.style.cursor = 'pointer';
     el.addEventListener('click', () => openPlayer(el.dataset.player));
   });
+}
+
+// ── CLA (Combat Log Analysis) ─────────────────────────────────────────────────
+
+function _claColor(pct) {
+  return pct >= 90 ? '#7dce82' : pct >= 70 ? '#f0c84a' : '#e07070';
+}
+
+function _claBar(pct) {
+  const color = _claColor(pct);
+  return `<div style="display:flex;align-items:center;gap:0.4rem">
+    <div style="flex:1;height:5px;background:rgba(255,255,255,0.1);border-radius:3px;min-width:40px;overflow:hidden">
+      <div style="height:100%;width:${pct}%;background:${color};border-radius:3px"></div>
+    </div>
+    <span style="color:${color};font-size:0.82rem;min-width:2.5rem;text-align:right">${pct}%</span>
+  </div>`;
+}
+
+// Clases melee que presuponen Windfury de chamán y no necesitan aceite de arma
+const _WF_MELEE_CLASSES = new Set(['Warrior', 'Paladin', 'Rogue']);
+
+// Devuelve el valor efectivo de mejora de arma para display, y un tooltip si aplica corrección Windfury
+function _effectiveArma(j, playerSpecs) {
+  const spec = j.spec ?? playerSpecs?.[j._name] ?? '';
+  if (j.clase === 'Shaman' && spec === 'Enhancement') {
+    return { val: 100, tooltip: 'Enhancement: Windfury propio — no aplica aceite de arma' };
+  }
+  if (_WF_MELEE_CLASSES.has(j.clase) && j.consumibles.arma === 0) {
+    return { val: 100, tooltip: 'Presupone Windfury de chamán — no enchanta el arma' };
+  }
+  return { val: j.consumibles.arma, tooltip: '' };
+}
+
+function renderCLAView(cla, playerSpecs = {}) {
+  const el = document.getElementById('cla-view');
+  if (!cla) { el.innerHTML = '<p style="color:var(--text-dim);font-style:italic">Sin datos CLA para esta semana.</p>'; return; }
+
+  const { jugadores, mediaRaid } = cla;
+  const sorted = Object.entries(jugadores).sort(([, a], [, b]) => b.prepPct - a.prepPct);
+
+  const rows = sorted.map(([name, j]) => {
+    const jWithName = { ...j, _name: name };
+    const clsColor  = CLASS_COLOR[j.clase] ?? 'var(--text-bright)';
+    const prepColor = _claColor(j.prepPct);
+    const gearCell  = j.gearIssues.length > 0
+      ? `<span data-tooltip="${j.gearIssues.map(i => `• ${i}`).join('<br>')}" style="color:#e07070;cursor:help;font-size:0.85rem">${j.gearIssues.length} problema${j.gearIssues.length > 1 ? 's' : ''}</span>`
+      : `<span style="color:#7dce82;font-size:0.85rem">Sin issues</span>`;
+
+    const { val: armaVal, tooltip: armaTip } = _effectiveArma(jWithName, playerSpecs);
+    const armaCell = armaTip
+      ? `<span data-tooltip="${armaTip}" style="cursor:help">${_claBar(armaVal)}</span>`
+      : _claBar(armaVal);
+
+    return `<tr>
+      <td><span class="player-link clickable-player" data-player="${name}" style="color:${clsColor}">${name}</span></td>
+      <td style="color:var(--text-dim);font-size:0.8rem">${CLASS_ES[j.clase] ?? j.clase}</td>
+      <td>${gearCell}</td>
+      <td>${_claBar(j.consumibles.frasco)}</td>
+      <td>${_claBar(j.consumibles.comida)}</td>
+      <td>${armaCell}</td>
+      <td style="font-family:'Cinzel',serif;font-weight:700;font-size:1rem;color:${prepColor};text-align:center">${j.prepPct}%</td>
+    </tr>`;
+  }).join('');
+
+  const mediaColor = _claColor(mediaRaid);
+  const avgFlask   = Math.round(sorted.reduce((s, [, j]) => s + j.consumibles.frasco, 0) / (sorted.length || 1));
+  const avgFood    = Math.round(sorted.reduce((s, [, j]) => s + j.consumibles.comida,  0) / (sorted.length || 1));
+  const avgWeapon  = Math.round(sorted.reduce((s, [name, j]) => s + _effectiveArma({ ...j, _name: name }, playerSpecs).val, 0) / (sorted.length || 1));
+  const issuesCount = sorted.filter(([, j]) => j.gearIssues.length > 0).length;
+
+  el.innerHTML = `
+    <div class="stats-grid" style="margin-bottom:1.5rem">
+      <div class="stat-card" style="text-align:center">
+        <div class="stat-label">Preparacion media</div>
+        <div class="stat-value" style="color:${mediaColor}">${mediaRaid}%</div>
+      </div>
+      <div class="stat-card" style="text-align:center">
+        <div class="stat-label">Media frasco/elixir</div>
+        <div class="stat-value" style="color:${_claColor(avgFlask)}">${avgFlask}%</div>
+      </div>
+      <div class="stat-card" style="text-align:center">
+        <div class="stat-label">Media comida</div>
+        <div class="stat-value" style="color:${_claColor(avgFood)}">${avgFood}%</div>
+      </div>
+      <div class="stat-card" style="text-align:center">
+        <div class="stat-label">Media mejora arma</div>
+        <div class="stat-value" style="color:${_claColor(avgWeapon)}">${avgWeapon}%</div>
+      </div>
+      <div class="stat-card" style="text-align:center">
+        <div class="stat-label">Con gear issues</div>
+        <div class="stat-value" style="color:${issuesCount > 0 ? '#e07070' : '#7dce82'}">${issuesCount}</div>
+        <div class="stat-sub">${sorted.length} jugadores</div>
+      </div>
+    </div>
+    <table class="ranked-list">
+      <thead>
+        <tr>
+          <th>Jugador</th>
+          <th>Clase</th>
+          <th>Gear Issues</th>
+          <th>Frasco / Elixir</th>
+          <th>Comida</th>
+          <th>Mejora Arma</th>
+          <th style="text-align:center">Prep %</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+
+  attachPlayerClicks('#cla-view');
+}
+
+function renderCLAHistorico(raids) {
+  const el = document.getElementById('cla-historico');
+  if (raids.length < 2) { el.innerHTML = ''; return; }
+
+  // Resumen por raid
+  const raidRows = [...raids].map(r => {
+    return `<tr>
+      <td style="color:var(--f2-accent);font-family:'Cinzel',serif;white-space:nowrap">S${r.semanaNum} · ${r.fecha}</td>
+      <td>${_claBar(r.cla.mediaRaid)}</td>
+      <td style="color:var(--text-dim);font-size:0.82rem;text-align:right">${Object.keys(r.cla.jugadores).length} jugadores</td>
+    </tr>`;
+  }).join('');
+
+  // Ranking historico por jugador (media de todas sus raids)
+  const playerPrep = new Map();
+  for (const r of raids) {
+    for (const [name, j] of Object.entries(r.cla.jugadores)) {
+      const c = playerPrep.get(name) ?? { total: 0, count: 0, clase: j.clase };
+      c.total += j.prepPct;
+      c.count++;
+      playerPrep.set(name, c);
+    }
+  }
+  const ranking = [...playerPrep.entries()]
+    .map(([name, { total, count, clase }]) => ({ name, clase, avg: Math.round(total / count), count }))
+    .filter(p => p.count >= 2)
+    .sort((a, b) => b.avg - a.avg);
+
+  const rankRows = ranking.map((p, i) => {
+    const clsColor = CLASS_COLOR[p.clase] ?? 'var(--text-bright)';
+    return `<tr>
+      <td style="color:var(--text-dim);font-size:0.85rem">${i + 1}</td>
+      <td><span class="player-link clickable-player" data-player="${p.name}" style="color:${clsColor}">${p.name}</span></td>
+      <td>${_claBar(p.avg)}</td>
+      <td style="color:var(--text-dim);font-size:0.8rem;text-align:right">${p.count} raids</td>
+    </tr>`;
+  }).join('');
+
+  el.innerHTML = `
+    <h3 style="font-family:'Cinzel',serif;color:var(--f2-accent);font-size:0.9rem;margin:2rem 0 0.75rem;border-bottom:1px solid rgba(93,173,226,0.2);padding-bottom:0.4rem">
+      Evolucion por Raid
+    </h3>
+    <table class="ranked-list" style="margin-bottom:2rem">
+      <thead><tr><th>Semana · Fecha</th><th>Media Raid</th><th style="text-align:right">Participantes</th></tr></thead>
+      <tbody>${raidRows}</tbody>
+    </table>
+    ${ranking.length > 0 ? `
+    <h3 style="font-family:'Cinzel',serif;color:var(--f2-accent);font-size:0.9rem;margin:0 0 0.75rem;border-bottom:1px solid rgba(93,173,226,0.2);padding-bottom:0.4rem">
+      Ranking Historico de Preparacion
+    </h3>
+    <table class="ranked-list">
+      <thead><tr><th>#</th><th>Jugador</th><th>Media Prep</th><th style="text-align:right">Raids</th></tr></thead>
+      <tbody>${rankRows}</tbody>
+    </table>` : ''}`;
+
+  attachPlayerClicks('#cla-historico');
+}
+
+function renderCLA() {
+  const el = document.getElementById('tab-cla');
+  if (!historial.length) {
+    el.innerHTML = '<p class="empty-msg">No hay sesiones registradas aun.</p>';
+    return;
+  }
+
+  // Lista plana de todas las raids con CLA, más reciente primero
+  const raids = [];
+  for (const entry of historial) {
+    if (!entry.claReports) continue;
+    const reports = entry.reports ?? (entry.report ? [entry.report] : []);
+    for (const code of reports) {
+      const cla = entry.claReports[code];
+      if (!cla) continue;
+      raids.push({ code, cla, fecha: cla.fecha ?? entry.fecha, semanaNum: entry.semanaNum, playerSpecs: entry.playerSpecs ?? {} });
+    }
+  }
+  raids.sort((a, b) => b.fecha.localeCompare(a.fecha));
+
+  if (!raids.length) {
+    el.innerHTML = `<div class="empty-msg">
+      <p>No hay datos CLA aun.</p>
+      <p style="font-size:0.85rem;color:var(--text-dim);margin-top:0.5rem">
+        Los datos CLA se generan al subir un report con <code>node subir_report.js</code>.
+      </p>
+    </div>`;
+    return;
+  }
+
+  const options = raids.map(r =>
+    `<option value="${r.code}">S${r.semanaNum} · ${r.fecha}</option>`
+  ).join('');
+
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap">
+      <span style="color:var(--text-dim);font-size:1rem;font-family:'Cinzel',serif;font-weight:600;letter-spacing:.05em;align-self:center">Raid</span>
+      <select class="loot-select" id="cla-raid-sel" style="min-width:200px;width:auto;margin-bottom:0">${options}</select>
+    </div>
+    <div id="cla-view"></div>
+    <div id="cla-historico"></div>`;
+
+  const sel = document.getElementById('cla-raid-sel');
+  sel.addEventListener('change', () => {
+    const r = raids.find(r => r.code === sel.value);
+    if (r) renderCLAView(r.cla, r.playerSpecs);
+  });
+
+  renderCLAView(raids[0].cla, raids[0].playerSpecs);
+  renderCLAHistorico(raids);
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
