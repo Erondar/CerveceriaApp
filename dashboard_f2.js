@@ -2578,7 +2578,8 @@ function renderHistorialTab() {
   const fmtKillMs = ms => { const s = Math.floor(ms / 1000), m = Math.floor(s / 60); return m > 0 ? `${m}m ${s % 60}s` : `${s}s`; };
 
   const timeCell = (boss, entry) => {
-    const b = (entry.bosses ?? []).find(x => x.boss === boss);
+    const all = (entry.bosses ?? []).filter(x => x.boss === boss);
+    const b = all.find(x => x.killed) ?? all[0];
     if (!b) return '<span class="td-dim">—</span>';
     if (!b.killed) return `<span class="td-dim" style="font-size:.8rem">${b.attempts ?? 1}W</span>`;
     if (!b.killDurationMs) return '<span style="color:var(--green);font-size:.85rem">✓</span>';
