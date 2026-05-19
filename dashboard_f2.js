@@ -3455,12 +3455,12 @@ const _WF_MELEE_CLASSES = new Set(['Warrior', 'Paladin', 'Rogue']);
 
 // Devuelve el valor efectivo de mejora de arma para display, y un tooltip si aplica corrección Windfury
 function _effectiveArma(j, playerSpecs) {
-  const spec = j.spec ?? playerSpecs?.[j._name] ?? '';
-  if (j.clase === 'Shaman' && spec === 'Enhancement') {
-    return { val: 100, tooltip: 'Enhancement: Windfury propio — no aplica aceite de arma' };
-  }
-  if (_WF_MELEE_CLASSES.has(j.clase) && j.consumibles.arma === 0) {
-    return { val: 100, tooltip: 'Presupone Windfury de chamán — no enchanta el arma' };
+  if (j.armaWindfury) {
+    const spec = j.spec ?? playerSpecs?.[j._name] ?? '';
+    const tip = (j.clase === 'Shaman' && spec === 'Enhancement')
+      ? 'Enhancement: Windfury propio — no aplica aceite de arma'
+      : 'Presupone Windfury de chamán — no enchanta el arma';
+    return { val: 100, tooltip: tip };
   }
   return { val: j.consumibles.arma, tooltip: '' };
 }
@@ -3472,14 +3472,11 @@ function renderCLAView(cla, playerSpecs = {}) {
   const { jugadores, mediaRaid } = cla;
   const sorted = Object.entries(jugadores).sort(([, a], [, b]) => b.prepPct - a.prepPct);
 
-  const rows = sorted.map(([name, j]) => {
+  // ── CONSUMIBLES ──────────────────────────────────────────────────────────────
+  const consumRows = sorted.map(([name, j]) => {
     const jWithName = { ...j, _name: name };
     const clsColor  = CLASS_COLOR[j.clase] ?? 'var(--text-bright)';
     const prepColor = _claColor(j.prepPct);
-    const gearCell  = j.gearIssues.length > 0
-      ? `<span data-tooltip="${j.gearIssues.map(i => `• ${i}`).join('<br>')}" style="color:#e07070;cursor:help;font-size:0.85rem">${j.gearIssues.length} problema${j.gearIssues.length > 1 ? 's' : ''}</span>`
-      : `<span style="color:#7dce82;font-size:0.85rem">Sin issues</span>`;
-
     const { val: armaVal, tooltip: armaTip } = _effectiveArma(jWithName, playerSpecs);
     const armaCell = armaTip
       ? `<span data-tooltip="${armaTip}" style="cursor:help">${_claBar(armaVal)}</span>`
@@ -3487,8 +3484,6 @@ function renderCLAView(cla, playerSpecs = {}) {
 
     return `<tr>
       <td><span class="player-link clickable-player" data-player="${name}" style="color:${clsColor}">${name}</span></td>
-      <td style="color:var(--text-dim);font-size:0.8rem">${CLASS_ES[j.clase] ?? j.clase}</td>
-      <td>${gearCell}</td>
       <td>${_claBar(j.consumibles.frasco)}</td>
       <td>${_claBar(j.consumibles.comida)}</td>
       <td>${armaCell}</td>
@@ -3497,12 +3492,59 @@ function renderCLAView(cla, playerSpecs = {}) {
   }).join('');
 
   const mediaColor = _claColor(mediaRaid);
-  const avgFlask   = Math.round(sorted.reduce((s, [, j]) => s + j.consumibles.frasco, 0) / (sorted.length || 1));
-  const avgFood    = Math.round(sorted.reduce((s, [, j]) => s + j.consumibles.comida,  0) / (sorted.length || 1));
-  const avgWeapon  = Math.round(sorted.reduce((s, [name, j]) => s + _effectiveArma({ ...j, _name: name }, playerSpecs).val, 0) / (sorted.length || 1));
-  const issuesCount = sorted.filter(([, j]) => j.gearIssues.length > 0).length;
+  const avgFlask  = Math.round(sorted.reduce((s, [, j]) => s + j.consumibles.frasco, 0) / (sorted.length || 1));
+  const avgFood   = Math.round(sorted.reduce((s, [, j]) => s + j.consumibles.comida,  0) / (sorted.length || 1));
+  const avgWeapon = Math.round(sorted.reduce((s, [name, j]) => s + _effectiveArma({ ...j, _name: name }, playerSpecs).val, 0) / (sorted.length || 1));
 
-  el.innerHTML = `
+  // ── EQUIPO ────────────────────────────────────────────────────────────────────
+  // Categorización de issues por tipo (compatible con formato antiguo y nuevo)
+  const _isEnchIssue = i => {
+    if (i.includes('[sin encantamiento]')) return true;          // formato antiguo/nuevo
+    const tag = (i.match(/\[([^\]]+)\]$/) ?? [])[1] ?? '';
+    return tag.includes(' - ');                                  // label de encantamiento bad (ej. "Bracers - 7 Str")
+  };
+  const _isGemIssue = i => {
+    if (i.includes('[socket vacio]') || i.includes('[baja calidad]')) return true; // formato antiguo
+    const tag = (i.match(/\[([^\]]+)\]$/) ?? [])[1] ?? '';
+    return tag === 'sin gema' || tag.startsWith('gema ');
+  };
+  const _isSubIssue = i => {
+    const tag = (i.match(/\[([^\]]+)\]$/) ?? [])[1] ?? '';
+    return tag.includes('inutil') || tag.includes('suboptimo');
+  };
+
+  const playersWithEnch = sorted.filter(([, j]) => (j.gearIssues ?? []).some(_isEnchIssue)).length;
+  const playersWithGems = sorted.filter(([, j]) => (j.gearIssues ?? []).some(_isGemIssue)).length;
+  const playersWithSub  = sorted.filter(([, j]) => (j.gearIssues ?? []).some(_isSubIssue)).length;
+
+  const gearRows = sorted.map(([name, j]) => {
+    const clsColor   = CLASS_COLOR[j.clase] ?? 'var(--text-bright)';
+    const issues     = j.gearIssues ?? [];
+    const enchIssues = issues.filter(_isEnchIssue);
+    const gemIssues  = issues.filter(_isGemIssue);
+    const subIssues  = issues.filter(_isSubIssue);
+
+    const enchCell = enchIssues.length > 0
+      ? `<span data-tooltip="${enchIssues.map(i => `• ${i}`).join('<br>')}" style="color:#e07070;cursor:help;font-size:0.85rem">${enchIssues.length} problema${enchIssues.length > 1 ? 's' : ''}</span>`
+      : `<span style="color:#7dce82;font-size:0.85rem">✓</span>`;
+
+    const gemCell = gemIssues.length > 0
+      ? `<span data-tooltip="${gemIssues.map(i => `• ${i}`).join('<br>')}" style="color:#e07070;cursor:help;font-size:0.85rem">${gemIssues.length} problema${gemIssues.length > 1 ? 's' : ''}</span>`
+      : `<span style="color:#7dce82;font-size:0.85rem">✓</span>`;
+
+    const subCell = subIssues.length > 0
+      ? `<span data-tooltip="${subIssues.map(i => `• ${i}`).join('<br>')}" style="color:#b9a3ee;cursor:help;font-size:0.85rem">${subIssues.length} item${subIssues.length > 1 ? 's' : ''}</span>`
+      : `<span style="color:#7dce82;font-size:0.85rem">✓</span>`;
+
+    return `<tr>
+      <td><span class="player-link clickable-player" data-player="${name}" style="color:${clsColor}">${name}</span></td>
+      <td>${enchCell}</td>
+      <td>${gemCell}</td>
+      <td>${subCell}</td>
+    </tr>`;
+  }).join('');
+
+  const consumHtml = `
     <div class="stats-grid" style="margin-bottom:1.5rem">
       <div class="stat-card" style="text-align:center">
         <div class="stat-label">Preparacion media</div>
@@ -3520,9 +3562,35 @@ function renderCLAView(cla, playerSpecs = {}) {
         <div class="stat-label">Media mejora arma</div>
         <div class="stat-value" style="color:${_claColor(avgWeapon)}">${avgWeapon}%</div>
       </div>
+    </div>
+    <table class="ranked-list">
+      <thead>
+        <tr>
+          <th>Jugador</th>
+          <th>Frasco / Elixir</th>
+          <th>Comida</th>
+          <th>Mejora Arma</th>
+          <th style="text-align:center">Prep %</th>
+        </tr>
+      </thead>
+      <tbody>${consumRows}</tbody>
+    </table>`;
+
+  const equipoHtml = `
+    <div class="stats-grid" style="margin-bottom:1.5rem">
       <div class="stat-card" style="text-align:center">
-        <div class="stat-label">Con gear issues</div>
-        <div class="stat-value" style="color:${issuesCount > 0 ? '#e07070' : '#7dce82'}">${issuesCount}</div>
+        <div class="stat-label">Sin encantamiento</div>
+        <div class="stat-value" style="color:${playersWithEnch > 0 ? '#e07070' : '#7dce82'}">${playersWithEnch}</div>
+        <div class="stat-sub">${sorted.length} jugadores</div>
+      </div>
+      <div class="stat-card" style="text-align:center">
+        <div class="stat-label">Gemas vacías / malas</div>
+        <div class="stat-value" style="color:${playersWithGems > 0 ? '#e07070' : '#7dce82'}">${playersWithGems}</div>
+        <div class="stat-sub">${sorted.length} jugadores</div>
+      </div>
+      <div class="stat-card" style="text-align:center">
+        <div class="stat-label">Equipo subóptimo</div>
+        <div class="stat-value" style="color:${playersWithSub > 0 ? '#b9a3ee' : '#7dce82'}">${playersWithSub}</div>
         <div class="stat-sub">${sorted.length} jugadores</div>
       </div>
     </div>
@@ -3530,76 +3598,31 @@ function renderCLAView(cla, playerSpecs = {}) {
       <thead>
         <tr>
           <th>Jugador</th>
-          <th>Clase</th>
-          <th>Gear Issues</th>
-          <th>Frasco / Elixir</th>
-          <th>Comida</th>
-          <th>Mejora Arma</th>
-          <th style="text-align:center">Prep %</th>
+          <th>Encantamientos</th>
+          <th>Gemas</th>
+          <th>Subóptimo</th>
         </tr>
       </thead>
-      <tbody>${rows}</tbody>
+      <tbody>${gearRows}</tbody>
     </table>`;
 
-  attachPlayerClicks('#cla-view');
-}
-
-function renderCLAHistorico(raids) {
-  const el = document.getElementById('cla-historico');
-  if (raids.length < 2) { el.innerHTML = ''; return; }
-
-  // Resumen por raid
-  const raidRows = [...raids].map(r => {
-    return `<tr>
-      <td style="color:var(--f2-accent);font-family:'Cinzel',serif;white-space:nowrap">S${r.semanaNum} · ${r.fecha}</td>
-      <td>${_claBar(r.cla.mediaRaid)}</td>
-      <td style="color:var(--text-dim);font-size:0.82rem;text-align:right">${Object.keys(r.cla.jugadores).length} jugadores</td>
-    </tr>`;
-  }).join('');
-
-  // Ranking historico por jugador (media de todas sus raids)
-  const playerPrep = new Map();
-  for (const r of raids) {
-    for (const [name, j] of Object.entries(r.cla.jugadores)) {
-      const c = playerPrep.get(name) ?? { total: 0, count: 0, clase: j.clase };
-      c.total += j.prepPct;
-      c.count++;
-      playerPrep.set(name, c);
-    }
-  }
-  const ranking = [...playerPrep.entries()]
-    .map(([name, { total, count, clase }]) => ({ name, clase, avg: Math.round(total / count), count }))
-    .filter(p => p.count >= 2)
-    .sort((a, b) => b.avg - a.avg);
-
-  const rankRows = ranking.map((p, i) => {
-    const clsColor = CLASS_COLOR[p.clase] ?? 'var(--text-bright)';
-    return `<tr>
-      <td style="color:var(--text-dim);font-size:0.85rem">${i + 1}</td>
-      <td><span class="player-link clickable-player" data-player="${p.name}" style="color:${clsColor}">${p.name}</span></td>
-      <td>${_claBar(p.avg)}</td>
-      <td style="color:var(--text-dim);font-size:0.8rem;text-align:right">${p.count} raids</td>
-    </tr>`;
-  }).join('');
-
   el.innerHTML = `
-    <h3 style="font-family:'Cinzel',serif;color:var(--f2-accent);font-size:0.9rem;margin:2rem 0 0.75rem;border-bottom:1px solid rgba(93,173,226,0.2);padding-bottom:0.4rem">
-      Evolucion por Raid
-    </h3>
-    <table class="ranked-list" style="margin-bottom:2rem">
-      <thead><tr><th>Semana · Fecha</th><th>Media Raid</th><th style="text-align:right">Participantes</th></tr></thead>
-      <tbody>${raidRows}</tbody>
-    </table>
-    ${ranking.length > 0 ? `
-    <h3 style="font-family:'Cinzel',serif;color:var(--f2-accent);font-size:0.9rem;margin:0 0 0.75rem;border-bottom:1px solid rgba(93,173,226,0.2);padding-bottom:0.4rem">
-      Ranking Historico de Preparacion
-    </h3>
-    <table class="ranked-list">
-      <thead><tr><th>#</th><th>Jugador</th><th>Media Prep</th><th style="text-align:right">Raids</th></tr></thead>
-      <tbody>${rankRows}</tbody>
-    </table>` : ''}`;
+    <div id="sub-nav-cla" style="display:flex;gap:0;border-bottom:1px solid rgba(255,255,255,0.1);margin-bottom:1.5rem">
+      <button class="sub-tab-btn active" data-clasub="consumibles">Consumibles</button>
+      <button class="sub-tab-btn" data-clasub="equipo">Equipo</button>
+    </div>
+    <div class="sub-tab-content active" id="clasub-consumibles">${consumHtml}</div>
+    <div class="sub-tab-content" id="clasub-equipo">${equipoHtml}</div>`;
 
-  attachPlayerClicks('#cla-historico');
+  document.getElementById('sub-nav-cla').addEventListener('click', e => {
+    const btn = e.target.closest('.sub-tab-btn');
+    if (!btn) return;
+    document.querySelectorAll('#sub-nav-cla .sub-tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+    const sub = btn.dataset.clasub;
+    document.querySelectorAll('#cla-view .sub-tab-content').forEach(c => c.classList.toggle('active', c.id === `clasub-${sub}`));
+  });
+
+  attachPlayerClicks('#cla-view');
 }
 
 function renderCLA() {
@@ -3641,8 +3664,7 @@ function renderCLA() {
       <span style="color:var(--text-dim);font-size:1rem;font-family:'Cinzel',serif;font-weight:600;letter-spacing:.05em;align-self:center">Raid</span>
       <select class="loot-select" id="cla-raid-sel" style="min-width:200px;width:auto;margin-bottom:0">${options}</select>
     </div>
-    <div id="cla-view"></div>
-    <div id="cla-historico"></div>`;
+    <div id="cla-view"></div>`;
 
   const sel = document.getElementById('cla-raid-sel');
   sel.addEventListener('change', () => {
@@ -3651,7 +3673,6 @@ function renderCLA() {
   });
 
   renderCLAView(raids[0].cla, raids[0].playerSpecs);
-  renderCLAHistorico(raids);
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
