@@ -3531,6 +3531,11 @@ function renderCLAView(cla, playerSpecs = {}, activeSub = 'consumibles') {
   const avgPocion = pocionPlayers.length > 0
     ? Math.round(pocionPlayers.reduce((s, [, j]) => s + j.consumibles.pociones, 0) / pocionPlayers.length)
     : null;
+  const scrollPlayers    = sorted.filter(([, j]) => (j.scrollBonus ?? 0) > 0);
+  const avgScroll        = sorted.length > 0
+    ? parseFloat((sorted.reduce((s, [, j]) => s + (j.scrollBonus ?? 0), 0) / sorted.length).toFixed(2))
+    : 0;
+  const scrollUsersCount = scrollPlayers.length;
 
   // ── EQUIPO ────────────────────────────────────────────────────────────────────
   // Categorización de issues por tipo (compatible con formato antiguo y nuevo)
@@ -3601,6 +3606,11 @@ function renderCLAView(cla, playerSpecs = {}, activeSub = 'consumibles') {
       <div class="stat-card" style="text-align:center">
         <div class="stat-label" style="color:#aaa">Pociones</div>
         <div class="stat-value" style="color:${avgPocion !== null ? _claColor(avgPocion) : 'var(--text-dim)'}">${avgPocion !== null ? avgPocion + '%' : 'N/A'}</div>
+      </div>
+      <div class="stat-card" style="text-align:center">
+        <div class="stat-label" style="color:#aaa">Bonus Pergaminos</div>
+        <div class="stat-value" style="color:${avgScroll > 0 ? '#d4af37' : 'var(--text-dim)'}">${avgScroll > 0 ? '+' + avgScroll + '%' : '—'}</div>
+        <div class="stat-sub">${scrollUsersCount}/${sorted.length} jugadores</div>
       </div>
     </div>
     <table class="ranked-list">
