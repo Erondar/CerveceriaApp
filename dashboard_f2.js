@@ -1070,8 +1070,15 @@ function renderMecanicas() {
 
   const raidCountMap = new Map();
   for (const e of historial) {
-    for (const name of (e.roster ?? [])) {
-      raidCountMap.set(name, (raidCountMap.get(name) ?? 0) + 1);
+    const codes = e.reports ?? (e.report ? [e.report] : []);
+    const hasCla = codes.some(c => e.claReports?.[c]);
+    if (hasCla) {
+      for (const code of codes)
+        for (const name of Object.keys(e.claReports?.[code]?.jugadores ?? {}))
+          raidCountMap.set(name, (raidCountMap.get(name) ?? 0) + 1);
+    } else {
+      for (const name of (e.roster ?? []))
+        raidCountMap.set(name, (raidCountMap.get(name) ?? 0) + codes.length);
     }
   }
 
