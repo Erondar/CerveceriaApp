@@ -3593,7 +3593,7 @@ function renderCLAView(cla, playerSpecs = {}, activeSub = 'consumibles') {
           <th>Frasco / Elixir</th>
           <th>Comida</th>
           <th>Mejora Arma</th>
-          <th><span data-tooltip="DPS: 1 pocion por boss = 100%<br>Tank/Healer: 1 pocion cada 2 bosses = 100%<br><br>Destruction: Warlock, Mage, Paladin, Balance, Elemental<br>Haste: Warrior, Rogue, Hunter, Feral, Enh Sham<br>Ironshield: Prot Warrior, Prot/Justicar Paladin<br>Mana: Priest, Paladin, Elemental, Resto Sham, Druid Resto/Bal, Hunter" style="cursor:help">Pociones (?)</span></th>
+          <th><span data-tooltip="DPS: 1 pocion por boss = 100%<br>Tank/Healer: 1 pocion cada 2 trys = 100%<br><br>Destruction: Warlock, Mage, Paladin, Balance, Elemental<br>Haste: Warrior, Rogue, Hunter, Feral, Enh Sham<br>Ironshield: Warrior, Feral, Prot/Justicar Paladin<br>Mana: Priest, Mage, Paladin, Elemental, Resto Sham, Druid Resto/Bal, Hunter" style="cursor:help">Pociones (?)</span></th>
           <th style="text-align:center">Prep %</th>
         </tr>
       </thead>
