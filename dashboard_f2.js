@@ -1062,16 +1062,23 @@ function renderProgresion() {
 
 // ── MECANICAS ─────────────────────────────────────────────────────────────────
 function renderMecanicas() {
-  const semanasMap = getSemanasPorJugador();
-  const totalSem   = new Set(historial.map(e => e.semanaNum)).size;
-  const minSem     = Math.max(1, Math.ceil(totalSem * 0.3));
-  const intMap     = getInterruptsByPlayer();
-  const dispMap    = getDispelsByPlayer();
+  const semanasMap  = getSemanasPorJugador();
+  const totalSem    = new Set(historial.map(e => e.semanaNum)).size;
+  const minSem      = Math.max(1, Math.ceil(totalSem * 0.3));
+  const intMap      = getInterruptsByPlayer();
+  const dispMap     = getDispelsByPlayer();
+
+  const raidCountMap = new Map();
+  for (const e of historial) {
+    for (const name of (e.roster ?? [])) {
+      raidCountMap.set(name, (raidCountMap.get(name) ?? 0) + 1);
+    }
+  }
 
   const mkRows = (map) => {
     const arr = [...map.entries()]
       .filter(([n]) => (semanasMap.get(n)?.size ?? 0) >= minSem)
-      .map(([name, total]) => ({ name, total, sem: semanasMap.get(name)?.size ?? 1 }))
+      .map(([name, total]) => ({ name, total, raids: raidCountMap.get(name) ?? 1 }))
       .sort((a, b) => b.total - a.total);
     if (!arr.length) return '<tr><td colspan="5" class="empty-msg">Sin datos</td></tr>';
     const maxV = arr[0].total;
@@ -1080,7 +1087,7 @@ function renderMecanicas() {
       <td><span class="clickable-player" data-player="${e.name}">${e.name}</span></td>
       <td class="bar-cell">${makeBar(Math.round((e.total / maxV) * 100))}</td>
       <td class="val-cell purple">${e.total}</td>
-      <td class="td-dim">${e.sem}</td>
+      <td class="td-dim">${e.raids}</td>
     </tr>`).join('');
   };
 
@@ -1092,14 +1099,14 @@ function renderMecanicas() {
       <div>
         <div class="section-title">Interrupts</div>
         <table class="ranked-list">
-          <thead><tr><th></th><th>Jugador</th><th class="bar-cell"></th><th>Total</th><th>Sems</th></tr></thead>
+          <thead><tr><th></th><th>Jugador</th><th class="bar-cell"></th><th>Total</th><th>Raids</th></tr></thead>
           <tbody>${mkRows(intMap)}</tbody>
         </table>
       </div>
       <div>
         <div class="section-title">Dispels</div>
         <table class="ranked-list">
-          <thead><tr><th></th><th>Jugador</th><th class="bar-cell"></th><th>Total</th><th>Sems</th></tr></thead>
+          <thead><tr><th></th><th>Jugador</th><th class="bar-cell"></th><th>Total</th><th>Raids</th></tr></thead>
           <tbody>${mkRows(dispMap)}</tbody>
         </table>
       </div>
@@ -1164,7 +1171,7 @@ function renderVerguenza() {
               <div class="shame-bar"><div class="shame-fill" style="width:${(p.score * 100).toFixed(0)}%"></div></div>
               <span class="rank-value">${(p.score * 100).toFixed(1)}%</span>
             </div>
-            <div class="rank-sub">${p.deathsPerSemana.toFixed(1)} muertes/sem · ${fmtDmg(p.avoidPerSemana)} evit/sem${p.dmgToAllies !== null ? ` · ${fmtDmg(p.dmgToAllies)} a aliados` : ''}${p.mcCount !== null ? ` · ${p.mcCount}× MC` : ''} · ${p.semanas} sem</div>
+            <div class="rank-sub">${p.deathsPerSemana.toFixed(1)} muertes/sem · ${fmtDmg(p.avoidPerSemana)} evit/sem${p.dmgToAllies !== null ? ` · ${fmtDmg(p.dmgToAllies)} a aliados` : ''}${p.mcCount !== null ? ` · ${p.mcCount}× MC` : ''} · ${p.semanas} sem · ${rcMap.get(p.name) ?? 0} raids</div>
           </div>`).join('')}
       </div>`;
 
