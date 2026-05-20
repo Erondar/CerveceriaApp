@@ -516,6 +516,7 @@ function switchTab(tab) {
     rendered.add(tab);
     renderTab(tab);
   }
+  location.hash = tab;
 }
 
 function renderTab(tab) {
@@ -2171,6 +2172,7 @@ function navigateToPorSemana(semanaNum) {
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.querySelector('.tab-btn[data-tab="por-semana"]')?.classList.add('active');
   document.getElementById('tab-por-semana')?.classList.add('active');
+  location.hash = 'por-semana';
   if (!rendered.has('por-semana')) {
     rendered.add('por-semana');
     renderPorSemana();
@@ -2320,11 +2322,12 @@ function renderSemanaView(semana) {
       for (const m of (b.avoidableDamage ?? []))
         for (const p of (m.players ?? []))
           avoidByName.set(p.name, (avoidByName.get(p.name) ?? 0) + (p.total ?? 0));
-  const deathsList = [...deathsByName.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
-  const avoidList  = [...avoidByName.entries()].map(([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total);
+  // Include ALL roster players (with 0 for missing) so percentile pool matches getShameRanking
+  const deathsList = [...rosterSet].map(name => ({ name, count: deathsByName.get(name) ?? 0 })).sort((a, b) => b.count - a.count);
+  const avoidList  = [...rosterSet].map(name => ({ name, total: avoidByName.get(name)  ?? 0 })).sort((a, b) => b.total - a.total);
   // Trolleos: construir listas individuales y calcular percentil combinado
   const starMechLists = [];
-  const buildStarList = (map) => [...map.entries()].map(([name, v]) => ({ name, v })).sort((a, b) => b.v - a.v);
+  const buildStarList = (map) => [...rosterSet].map(name => ({ name, v: map.get(name) ?? 0 })).sort((a, b) => b.v - a.v);
 
   const demonsByName2 = new Map();
   for (const e of entries)
@@ -2350,25 +2353,60 @@ function renderSemanaView(semana) {
           staticByName2.set(d.name, (staticByName2.get(d.name) ?? 0) + d.damageToAllies);
   if (staticByName2.size > 0) starMechLists.push(buildStarList(staticByName2));
 
-  const n = rosterSet.size;
-  const pct = (list, name) => {
-    const idx = list.findIndex(e => e.name === name);
-    return idx === -1 ? 0 : (n - 1 - idx) / Math.max(n - 1, 1);
-  };
-  const pctStar = (name) => starMechLists.length === 0 ? 0
-    : starMechLists.reduce((sum, list) => sum + pct(list, name), 0) / starMechLists.length;
+  // Attendance filter: ≥30% of raids in this semana (counted by WCL report codes, using CLA data if available)
+  const semAttCount = new Map();
+  let semTotalRaids = 0;
+  for (const e of entries) {
+    const codes = e.reports ?? (e.report ? [e.report] : []);
+    const hasCla = codes.some(c => e.claReports?.[c]);
+    if (hasCla) {
+      for (const c of codes) {
+        const jugs = e.claReports?.[c]?.jugadores;
+        if (!jugs) continue;
+        semTotalRaids++;
+        for (const name of Object.keys(jugs))
+          semAttCount.set(name, (semAttCount.get(name) ?? 0) + 1);
+      }
+    } else {
+      semTotalRaids += codes.length;
+      for (const name of (e.roster ?? []))
+        semAttCount.set(name, (semAttCount.get(name) ?? 0) + codes.length);
+    }
+  }
+  const semMinRaids = Math.ceil((semTotalRaids || 1) * 0.3);
+  const eligibleRoster = new Set([...rosterSet].filter(name => (semAttCount.get(name) ?? 0) >= semMinRaids));
 
-  const SHAME_TERMS = starMechLists.length > 0 ? 3 : 2;
-  const allShame = n > 1
-    ? [...rosterSet].map(name => ({
-        name,
-        score: (pct(deathsList, name) + pct(avoidList, name) + (SHAME_TERMS === 3 ? pctStar(name) : 0)) / SHAME_TERMS,
-      })).sort((a, b) => b.score - a.score)
+  function semPctOf(sorted, getValue, name) {
+    const n = sorted.length;
+    if (n <= 1) return 0;
+    const entry = sorted.find(e => e.name === name);
+    if (!entry) return 0;
+    const targetVal = getValue(entry);
+    if (targetVal <= 0) return 0;
+    let first = sorted.findIndex(e => getValue(e) === targetVal);
+    let last = first;
+    while (last + 1 < n && getValue(sorted[last + 1]) === targetVal) last++;
+    return (n - 1 - (first + last) / 2) / (n - 1);
+  }
+
+  // Compute shame over ALL roster players (same pool as getShameRanking)
+  const SHAME_TERMS = starMechLists.some(l => l.length > 0) ? 3 : 2;
+  const allShame = rosterSet.size > 1
+    ? [...rosterSet].map(name => {
+        const dPct = semPctOf(deathsList, e => e.count, name);
+        const aPct = semPctOf(avoidList,  e => e.total, name);
+        const sPct = SHAME_TERMS === 3
+          ? starMechLists.reduce((sum, l) => sum + semPctOf(l, e => e.v, name), 0) / starMechLists.length
+          : 0;
+        return { name, score: (dPct + aPct + (SHAME_TERMS === 3 ? sPct : 0)) / SHAME_TERMS };
+      }).sort((a, b) => b.score - a.score)
     : [];
-  const topScore = allShame[0]?.score ?? null;
-  const botScore = allShame[allShame.length - 1]?.score ?? null;
-  const hazGroup = allShame.filter(e => e.score === topScore);
-  const mvpGroup = allShame.filter(e => e.score === botScore);
+  // MVP/Artista only from players with ≥30% raid attendance
+  const allShameEligible = allShame.filter(e => eligibleRoster.has(e.name));
+  const topScore = allShameEligible[0]?.score ?? null;
+  const botScore = allShameEligible[allShameEligible.length - 1]?.score ?? null;
+  const hazGroup = allShameEligible.filter(e => e.score === topScore);
+  const mvpGroup = allShameEligible.filter(e => e.score === botScore);
   const nameFontSize = count => count === 1 ? '1.4rem' : count <= 3 ? '1.1rem' : '0.9rem';
   const renderNames = (group) => group.map(e => `<span class="clickable-player" data-player="${e.name}" style="font-size:inherit">${e.name}</span>`).join(', ');
   const artistaMvpHtml = (hazGroup.length && mvpGroup.length && hazGroup[0].name !== mvpGroup[0].name) ? `
@@ -4125,7 +4163,7 @@ function renderCLA() {
   }
 
   const options = raids.map(r =>
-    `<option value="${r.code}">S${r.semanaNum} · ${r.fecha}${r.instance ? ' · ' + r.instance : ''}</option>`
+    `<option value="${r.code}">S${r.semanaNum} · ${fmtDate(r.fecha)}${r.instance ? ' · ' + r.instance : ''}</option>`
   ).join('');
 
   el.innerHTML = `
@@ -4229,9 +4267,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
   setupJugador();
 
+  // Hash-based navigation
+  const VALID_TABS = new Set(['resumen','progresion','logros','por-semana','cla','verguenza','mecanicas','historial','jugador','loot-resumen','loot-registro']);
+  window.addEventListener('hashchange', () => {
+    const hash = location.hash.slice(1);
+    if (VALID_TABS.has(hash)) switchTab(hash);
+  });
+
   // Render inicial
-  rendered.add('resumen');
-  renderTab('resumen');
+  const initHash = location.hash.slice(1);
+  if (VALID_TABS.has(initHash)) {
+    switchTab(initHash);
+  } else {
+    rendered.add('resumen');
+    renderTab('resumen');
+  }
 });
 
 // ── CUSTOM TOOLTIP ────────────────────────────────────────────────────────────
