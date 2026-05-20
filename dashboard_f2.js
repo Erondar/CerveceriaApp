@@ -3470,7 +3470,7 @@ function renderCLAView(cla, playerSpecs = {}, activeSub = 'consumibles') {
   const el = document.getElementById('cla-view');
   if (!cla) { el.innerHTML = '<p style="color:var(--text-dim);font-style:italic">Sin datos CLA para esta semana.</p>'; return; }
 
-  const { jugadores, mediaRaid } = cla;
+  const { jugadores, mediaRaid, numBossGroups } = cla;
   const sorted = Object.entries(jugadores).sort(([, a], [, b]) => b.prepPct - a.prepPct);
 
   // ── CONSUMIBLES ──────────────────────────────────────────────────────────────
@@ -3499,13 +3499,27 @@ function renderCLAView(cla, playerSpecs = {}, activeSub = 'consumibles') {
       pocionCell = `<span data-tooltip="${tip}" style="cursor:help">${_claBar(pocionVal)}</span>`;
     }
 
+    // Pergaminos — bonus 0-10%
+    const scrollBonus   = j.scrollBonus ?? 0;
+    const scrollDetails = j.scrollDetails ?? {};
+    const nb = numBossGroups ?? '?';
+    let scrollCell;
+    if (scrollBonus === 0) {
+      scrollCell = `<span style="color:var(--text-dim)">—</span>`;
+    } else {
+      const scrollLines = Object.entries(scrollDetails).map(([k, v]) => `• ${k}: ${v}/${nb} bosses`);
+      const scrollTip   = scrollLines.join('<br>');
+      scrollCell = `<span data-tooltip="${scrollTip}" style="color:#d4af37;cursor:help;font-weight:600">+${scrollBonus}%</span>`;
+    }
+
     return `<tr>
       <td><span class="player-link clickable-player" data-player="${name}" style="color:${clsColor}">${name}</span></td>
+      <td style="font-family:'Cinzel',serif;font-weight:700;font-size:1rem;color:${prepColor};text-align:center">${j.prepPct}%</td>
       <td>${_claBar(j.consumibles.frasco)}</td>
       <td>${_claBar(j.consumibles.comida)}</td>
       <td>${armaCell}</td>
       <td>${pocionCell}</td>
-      <td style="font-family:'Cinzel',serif;font-weight:700;font-size:1rem;color:${prepColor};text-align:center">${j.prepPct}%</td>
+      <td style="text-align:center">${scrollCell}</td>
     </tr>`;
   }).join('');
 
@@ -3568,24 +3582,24 @@ function renderCLAView(cla, playerSpecs = {}, activeSub = 'consumibles') {
 
   const consumHtml = `
     <div class="stats-grid" style="margin-bottom:1.5rem">
-      <div class="stat-card" style="text-align:center">
-        <div class="stat-label">Preparacion media</div>
-        <div class="stat-value" style="color:${mediaColor}">${mediaRaid}%</div>
+      <div class="stat-card" style="text-align:center;border-color:${mediaColor};box-shadow:0 0 8px ${mediaColor}33">
+        <div class="stat-label" style="color:#bbb;font-size:0.78rem">Preparacion media</div>
+        <div class="stat-value" style="color:${mediaColor};font-size:2rem">${mediaRaid}%</div>
       </div>
       <div class="stat-card" style="text-align:center">
-        <div class="stat-label">Media frasco/elixir</div>
+        <div class="stat-label" style="color:#aaa">Frasco / Elixir</div>
         <div class="stat-value" style="color:${_claColor(avgFlask)}">${avgFlask}%</div>
       </div>
       <div class="stat-card" style="text-align:center">
-        <div class="stat-label">Media comida</div>
+        <div class="stat-label" style="color:#aaa">Comida</div>
         <div class="stat-value" style="color:${_claColor(avgFood)}">${avgFood}%</div>
       </div>
       <div class="stat-card" style="text-align:center">
-        <div class="stat-label">Media mejora arma</div>
+        <div class="stat-label" style="color:#aaa">Mejora Arma</div>
         <div class="stat-value" style="color:${_claColor(avgWeapon)}">${avgWeapon}%</div>
       </div>
       <div class="stat-card" style="text-align:center">
-        <div class="stat-label">Media pociones</div>
+        <div class="stat-label" style="color:#aaa">Pociones</div>
         <div class="stat-value" style="color:${avgPocion !== null ? _claColor(avgPocion) : 'var(--text-dim)'}">${avgPocion !== null ? avgPocion + '%' : 'N/A'}</div>
       </div>
     </div>
@@ -3593,11 +3607,12 @@ function renderCLAView(cla, playerSpecs = {}, activeSub = 'consumibles') {
       <thead>
         <tr>
           <th>Jugador</th>
+          <th style="text-align:center">Prep %</th>
           <th>Frasco / Elixir</th>
           <th>Comida</th>
           <th>Mejora Arma</th>
           <th><span data-tooltip="DPS: 1 pocion por boss = 100%<br>Tank/Healer: 1 pocion cada 2 trys = 100%<br><br>Destruction: Warlock, Mage, Paladin, Balance, Elemental<br>Haste: Warrior, Rogue, Hunter, Feral, Enh Sham<br>Ironshield: Warrior, Feral, Prot/Justicar Paladin<br>Mana: Priest, Mage, Paladin, Elemental, Resto Sham, Druid Resto/Bal, Hunter<br><br>Healing Potion (x0.5): todo el mundo — 2 por try = 100%" style="cursor:help">Pociones (?)</span></th>
-          <th style="text-align:center">Prep %</th>
+          <th style="text-align:center"><span data-tooltip="Bonus sobre el Prep% base (max +10%)<br><br>Nivel V (full) o IV (x0.5) de cada tipo:<br>• Strength, Agility, Armor<br><br>Los 3 pergaminos V en todos los bosses = +10%<br>Los 3 pergaminos IV en todos los bosses = +5%<br>1 pergamino V en todos los bosses = +3.33%<br>Cobertura parcial de bosses reduce proporcionalmente" style="cursor:help">Pergaminos (?)</span></th>
         </tr>
       </thead>
       <tbody>${consumRows}</tbody>
