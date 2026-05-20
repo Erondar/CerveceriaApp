@@ -3483,17 +3483,17 @@ function renderCLAView(cla, playerSpecs = {}, activeSub = 'consumibles') {
       ? `<span data-tooltip="${armaTip}" style="cursor:help">${_claBar(armaVal)}</span>`
       : _claBar(armaVal);
 
-    // Pociones — null si la clase no tiene poción esperada
+    // Pociones — null si la clase/spec no tiene poción esperada
     const pocionVal = j.consumibles?.pociones ?? null;
     let pocionCell;
     if (pocionVal === null) {
       pocionCell = `<span style="color:var(--text-dim);font-size:0.85rem">N/A</span>`;
     } else {
-      const usadas = j.pocionUsadas ?? {};
-      const total  = j.pocionesTotal ?? 0;
-      const lines  = Object.entries(usadas).map(([n, c]) => `• ${n}: ${c}/${total}`);
-      const tip    = lines.length > 0 ? lines.join('<br>') : 'Ninguna';
-      pocionCell   = `<span data-tooltip="${tip}" style="cursor:help">${_claBar(pocionVal)}</span>`;
+      const usadas   = j.pocionUsadas ?? {};
+      const numTries = j.numTries ?? 0;
+      const lines    = Object.entries(usadas).map(([n, c]) => `• ${n}: ${c} pociones en ${numTries} trys`);
+      const tip      = lines.length > 0 ? lines.join('<br>') : `Ninguna (${numTries} trys)`;
+      pocionCell     = `<span data-tooltip="${tip}" style="cursor:help">${_claBar(pocionVal)}</span>`;
     }
 
     return `<tr>
@@ -3593,7 +3593,7 @@ function renderCLAView(cla, playerSpecs = {}, activeSub = 'consumibles') {
           <th>Frasco / Elixir</th>
           <th>Comida</th>
           <th>Mejora Arma</th>
-          <th>Pociones</th>
+          <th><span data-tooltip="DPS: 1 pocion por boss = 100%&#10;Tank/Healer: 1 pocion cada 2 bosses = 100%&#10;Destruction (28508): Warlock, Mage, Paladin, Balance, Elemental&#10;Haste (28507): Warrior, Enh, Rogue, Hunter, Feral&#10;Ironshield (28515): Prot Warrior, Prot/Justicar Paladin&#10;Mana (x3): Priest, Paladin, Elemental, Resto Sham, Resto/Bal Druid, Hunter" style="cursor:help">Pociones (?)</span></th>
           <th style="text-align:center">Prep %</th>
         </tr>
       </thead>
