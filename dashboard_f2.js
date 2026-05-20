@@ -738,15 +738,15 @@ function progLegend(labels, colors) {
   ).join('')}</div>`;
 }
 
-function drawLineChart(xLabels, series, yFormat) {
+function drawLineChart(xLabels, series, yFormat, yMaxOverride) {
   const W = 800, H = 240;
   const pad = { top: 20, right: 20, bottom: 44, left: 64 };
   const cW = W - pad.left - pad.right, cH = H - pad.top - pad.bottom;
   const n = xLabels.length;
   const allVals = series.flatMap(s => s.values.filter(v => v != null));
   if (!allVals.length) return '<p class="section-note">Sin datos suficientes.</p>';
-  const yMax    = Math.max(...allVals);
-  const yBottom = Math.max(0, Math.min(...allVals) * 0.8);
+  const yMax    = yMaxOverride ?? Math.max(...allVals);
+  const yBottom = yMaxOverride != null ? 0 : Math.max(0, Math.min(...allVals) * 0.8);
   const yRange  = yMax - yBottom || 1;
   const xPos = i => pad.left + (n <= 1 ? cW / 2 : (i * cW) / (n - 1));
   const yPos = v => pad.top + cH - ((v - yBottom) / yRange) * cH;
@@ -1109,16 +1109,20 @@ function renderVerguenza() {
   const minSem     = Math.max(1, Math.ceil(totalSem * 0.3));
   const semanasMap = getSemanasPorJugador();
 
-  // Raid count per player (number of reports)
+  // Raid count per player — individual WCL report codes
   const rcMap = new Map();
   for (const e of historial) {
-    const players = e.roster
-      ? e.roster
-      : [
-          ...(e.deathStats?.deaths ?? []).map(d => d.name),
-          ...(e.deathStats?.timeDead ?? []).map(d => d.name),
-        ];
-    for (const name of players) rcMap.set(name, (rcMap.get(name) ?? 0) + 1);
+    const codes = e.reports ?? (e.report ? [e.report] : []);
+    const hasCla = codes.some(c => e.claReports?.[c]);
+    if (hasCla) {
+      for (const code of codes) {
+        for (const name of Object.keys(e.claReports?.[code]?.jugadores ?? {}))
+          rcMap.set(name, (rcMap.get(name) ?? 0) + 1);
+      }
+    } else {
+      for (const name of (e.roster ?? []))
+        rcMap.set(name, (rcMap.get(name) ?? 0) + codes.length);
+    }
   }
 
   // Sub-tab: Vergüenza
@@ -1398,17 +1402,57 @@ function renderVerguenza() {
 
 // ── LOGROS ────────────────────────────────────────────────────────────────────
 function renderLogros() {
-  const semanasMap = getSemanasPorJugador();
-  const totalSem   = new Set(historial.map(e => e.semanaNum)).size;
-  const minSem     = Math.max(1, Math.ceil(totalSem * 0.3));
+  // Contar raids individuales (WCL report codes), no entradas del historial
+  let totalRaids = 0;
+  const raidCountMap = new Map();
+  for (const e of historial) {
+    const codes = e.reports ?? (e.report ? [e.report] : []);
+    const hasCla = codes.some(c => e.claReports?.[c]);
+    if (hasCla) {
+      for (const code of codes) {
+        const jugs = e.claReports?.[code]?.jugadores;
+        if (!jugs) continue;
+        totalRaids++;
+        for (const name of Object.keys(jugs))
+          raidCountMap.set(name, (raidCountMap.get(name) ?? 0) + 1);
+      }
+    } else {
+      totalRaids += codes.length;
+      for (const name of (e.roster ?? []))
+        raidCountMap.set(name, (raidCountMap.get(name) ?? 0) + codes.length);
+    }
+  }
+  const minRaids = Math.max(1, Math.ceil(totalRaids * 0.3));
   const deathsMap  = getDeathsByPlayer();
   const avoidMap   = getAvoidByPlayer();
   const intMap     = getInterruptsByPlayer();
   const dispMap    = getDispelsByPlayer();
   const records    = getRecordsGlobales();
 
+  // CLA aggregation: avgPrep and subOccurrences per player
+  const claPrepMap = new Map(); // name → { sum, count }
+  const claSubMap  = new Map(); // name → total subOccurrences
+  for (const e of historial) {
+    const codes = e.reports ?? (e.report ? [e.report] : []);
+    for (const code of codes) {
+      const claEntry = e.claReports?.[code];
+      if (!claEntry?.jugadores) continue;
+      for (const [pname, jugador] of Object.entries(claEntry.jugadores)) {
+        const cons = (jugador.consumiblesScore ?? 0) + (jugador.scrollBonus ?? 0);
+        const gear = jugador.gearStats?.gearPrepPct ?? jugador.gearScore ?? null;
+        const prep = Math.min(100, Math.round(gear !== null ? (cons + gear) / 2 : cons));
+        if (!claPrepMap.has(pname)) claPrepMap.set(pname, { sum: 0, count: 0 });
+        claPrepMap.get(pname).sum += prep;
+        claPrepMap.get(pname).count++;
+        const sub = jugador.gearStats?.subOccurrences ?? 0;
+        claSubMap.set(pname, (claSubMap.get(pname) ?? 0) + sub);
+      }
+    }
+  }
+
+  const semanasMap = getSemanasPorJugador();
   function pickRnd(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
-  function eligible(name) { return (semanasMap.get(name)?.size ?? 0) >= minSem; }
+  function eligible(name) { return (raidCountMap.get(name) ?? 0) >= minRaids; }
   function perSem(map, name) { return (map.get(name) ?? 0) / (semanasMap.get(name)?.size ?? 1); }
   function topWinners(arr, key, dir) {
     if (!arr.length) return [];
@@ -1734,6 +1778,46 @@ function renderLogros() {
     ]),
   });
 
+  // El Tacaño — peor PREP % media
+  {
+    const list = [...claPrepMap.entries()]
+      .filter(([n]) => eligible(n))
+      .map(([name, d]) => ({ name, avg: d.sum / d.count }));
+    const winners = topWinners(list, 'avg', 'asc');
+    if (winners.length) shames.push({
+      icon: '💸', titulo: 'El Tacaño', ...mkPlayers(winners),
+      valor: winners[0].avg.toFixed(1) + '% prep media',
+      desc: 'Peor PREP % media entre los asiduos',
+      comentario: pickRnd([
+        'El frasco es para los débiles. O eso se dice para justificar no comprarlo.',
+        'Sus consumibles son opcionales. Su raid spot, también.',
+        'Ahorra en consumibles lo que cuesta al grupo entero en tiempo.',
+        'El vendor tiene su foto en la lista negra.',
+        'Llegó sin frasco, sin comida y con la certeza de que da igual.',
+      ]),
+    });
+  }
+
+  // El Domador — más subOccurrences/semana (riding crop y similares)
+  {
+    const list = [...claSubMap.entries()]
+      .filter(([n]) => eligible(n) && (claSubMap.get(n) ?? 0) > 0)
+      .map(([name, total]) => ({ name, perSem: total / (semanasMap.get(name)?.size ?? 1) }));
+    const winners = topWinners(list, 'perSem');
+    if (winners.length) shames.push({
+      icon: '🪢', titulo: 'El Domador', ...mkPlayers(winners),
+      valor: winners[0].perSem.toFixed(1) + ' subóptimos/sem',
+      desc: 'Más ítems subóptimos (fusta, ing., PvP) media/semana',
+      comentario: pickRnd([
+        'La fusta no es BiS. Tampoco le importa.',
+        'Cada semana alguien revisa el log y encuentra la fusta. Siempre es el mismo.',
+        'Técnicamente optimizado para montar. La raid requería otra cosa.',
+        'Los bosses del SSC han muerto viendo una fusta equipada. No está bien.',
+        'Su mochila tiene espacio para el BiS. Lo usa para la fusta.',
+      ]),
+    });
+  }
+
   // El Mimado — más ítems de loot recibidos (datos de Google Sheet)
   if (_mimadoTituloF2) shames.push(_mimadoTituloF2);
 
@@ -1819,7 +1903,7 @@ function renderLogros() {
   // El Intocable (F2) — menos daño evitable media/semana
   {
     const intocables = [...semanasMap.entries()]
-      .filter(([, s]) => s.size >= minSem)
+      .filter(([n]) => eligible(n))
       .map(([n]) => ({ name: n, val: perSem(avoidMap, n) }))
       .sort((a, b) => a.val - b.val);
     if (intocables.length > 0) {
@@ -1940,6 +2024,26 @@ function renderLogros() {
         'Sus compañeros no saben lo que les habría dolido sin él.',
         'Un tanque que hace que el boss parezca menos boss.',
         'Inamovible. Impenetrable. El Muro.',
+      ]),
+    });
+  }
+
+  // El Boy Scout — mejor PREP % media
+  {
+    const list = [...claPrepMap.entries()]
+      .filter(([n]) => eligible(n))
+      .map(([name, d]) => ({ name, avg: Math.round(d.sum / d.count) }));
+    const winners = topWinners(list, 'avg');
+    if (winners.length) honors.push({
+      icon: '🏕️', titulo: 'El Boy Scout', ...mkPlayers(winners),
+      valor: winners[0].avg + '% prep media',
+      desc: 'Mejor PREP % media entre los asiduos',
+      comentario: pickRnd([
+        'Tiene los consumibles preparados antes de que el raid leader diga invitar.',
+        'Sus buffs son más consistentes que la asistencia del 90% de la raid.',
+        'El vendor le guarda el stock. Solo para él.',
+        'Nunca ha pulsado el boss sin frasco. Ni una vez en su vida.',
+        'Mientras los demás buscaban la comida, él ya tenía el buff desde hace 10 minutos.',
       ]),
     });
   }
@@ -2850,6 +2954,34 @@ function renderJugador(name) {
   const totalTrolleos   = rows.reduce((s, r) => s + (r.dmgToAllies ?? 0), 0);
   const totalMcCount    = rows.reduce((s, r) => s + (r.mcCount    ?? 0), 0);
 
+  // CLA data + accurate raid count — use CLA presence as source of truth per report code.
+  // For entries without CLA, fall back to roster (count once per entry, not per code).
+  const claRaids = [];
+  let reportsCount = 0;
+  for (const e of historial) {
+    const codes = e.reports ?? (e.report ? [e.report] : []);
+    const hasCla = codes.some(c => e.claReports?.[c]);
+    if (hasCla) {
+      for (const code of codes) {
+        const jugador = e.claReports?.[code]?.jugadores?.[name];
+        if (!jugador) continue;
+        reportsCount++;
+        const cons = (jugador.consumiblesScore ?? 0) + (jugador.scrollBonus ?? 0);
+        const gear = jugador.gearStats?.gearPrepPct ?? jugador.gearScore ?? null;
+        const prep = Math.min(100, Math.round(gear !== null ? (cons + gear) / 2 : cons));
+        const fecha = e.claReports[code].fecha ?? e.fecha;
+        const [, m, d] = fecha.split('-');
+        claRaids.push({ label: `${d}/${m}`, prep, fecha });
+      }
+    } else if ((e.roster ?? []).includes(name)) {
+      reportsCount++;
+    }
+  }
+  claRaids.sort((a, b) => a.fecha.localeCompare(b.fecha));
+  const avgPrep = claRaids.length > 0
+    ? Math.round(claRaids.reduce((s, r) => s + r.prep, 0) / claRaids.length)
+    : null;
+
   // Title badges — ensure titles are computed even if Logros tab hasn't been visited
   if (!TITULOS_F2) renderLogros();
   const playerTitles = (TITULOS_F2 ?? []).filter(t => t.jugador === name || (t.jugadores ?? []).includes(name));
@@ -2876,8 +3008,8 @@ function renderJugador(name) {
     </div>
     ${badgesHTML}
     <div class="profile-stats">
-      <div class="pstat"><div class="plabel">Semanas</div><div class="pval purple">${semanasAttended}</div></div>
-      <div class="pstat"><div class="plabel">Raids</div><div class="pval purple">${reportsAttended.length}</div></div>
+      <div class="pstat"><div class="plabel">Raids</div><div class="pval purple">${reportsCount}</div></div>
+      ${avgPrep !== null ? `<div class="pstat"><div class="plabel">Prep. Media</div><div class="pval" style="color:${_claColor(avgPrep)}">${avgPrep}%</div></div>` : ''}
       <div class="pstat"><div class="plabel">Evitables</div><div class="pval red">${fmtDmg(totalAvoid)}</div></div>
       <div class="pstat" data-tooltip="Daño a aliados: Wrath of the Astromancer (Solarian) + Static Charge (Vashj)<br>MC: veces controlado por Inner Demon (Leotheras)" style="cursor:default"><div class="plabel">Trolleos</div><div class="pval red" style="font-size:1rem;white-space:nowrap">${[totalTrolleos ? fmtDmg(totalTrolleos) : '', totalMcCount ? totalMcCount + '× MC' : ''].filter(Boolean).join(' · ') || '—'}</div></div>
       <div class="pstat"><div class="plabel">Muertes</div><div class="pval red">${totalDeaths}</div></div>
@@ -2892,6 +3024,11 @@ function renderJugador(name) {
       ${prHeal     ? `<div class="record-card"><div class="record-icon">💚</div><div class="record-label">Mayor curación</div><div class="record-amount">${fmtDmg(prHeal.amount)}</div><div class="record-who">${name} → ${prHeal.target ?? '?'}</div>${prHeal.ability ? `<div class="record-ability">${prHeal.ability}</div>` : ''}<div class="record-date">${fmtDate(prHeal.fecha)}</div></div>` : ''}
       ${prReceived ? `<div class="record-card"><div class="record-icon">💀</div><div class="record-label">Mayor golpe recibido</div><div class="record-amount">${fmtDmg(prReceived.amount)}</div><div class="record-who">${prReceived.source ?? '?'} → ${name}</div>${prReceived.ability ? `<div class="record-ability">${prReceived.ability}</div>` : ''}<div class="record-date">${fmtDate(prReceived.fecha)}</div></div>` : ''}
     </div>` : ''}
+    ${claRaids.length >= 1 ? `
+      <div class="section-title">Evolución de Preparación</div>
+      <div class="prog-chart" style="margin-bottom:1.5rem">
+        ${drawLineChart(claRaids.map(r => r.label), [{ label: 'PREP %', color: '#7dce82', values: claRaids.map(r => r.prep) }], v => Math.round(v) + '%', 100)}
+      </div>` : ''}
     ${(() => {
       if (reportsAttended.length < 1) return '';
       const sorted = [...reportsAttended].sort((a, b) => a.fecha.localeCompare(b.fecha));
@@ -2912,7 +3049,7 @@ function renderJugador(name) {
       return `
         <div class="section-title">Evolución del Score de Vergüenza</div>
         <div class="prog-chart" style="margin-bottom:1.5rem">
-          ${drawLineChart(xLabels, series, v => v.toFixed(0) + '%')}
+          ${drawLineChart(xLabels, series, v => v.toFixed(0) + '%', 100)}
         </div>`;
     })()}
     <div class="section-title">Histórico por Raid</div>
@@ -3441,6 +3578,21 @@ function _claColor(pct) {
   return pct >= 90 ? '#7dce82' : pct >= 70 ? '#f0c84a' : '#e07070';
 }
 
+// Estado de ordenación de las tablas CLA (persiste entre rerenders)
+let _claSort = {
+  consum: { col: 'prepPct', dir: 1 },
+  equipo: { col: 'gearPrepPct', dir: 1 },
+};
+function _sortArrow(tab, col) {
+  const s = _claSort[tab];
+  const active = s.col === col;
+  return `<span class="sort-arrow${active ? ' active' : ''}">${active ? (s.dir === 1 ? '▼' : '▲') : '⇅'}</span>`;
+}
+function _sortEntries(entries, tab, getVal) {
+  const s = _claSort[tab];
+  return [...entries].sort((a, b) => s.dir * ((getVal(b[1], s.col) ?? -1) - (getVal(a[1], s.col) ?? -1)));
+}
+
 function _claBar(pct) {
   const color = _claColor(pct);
   return `<div style="display:flex;align-items:center;gap:0.4rem">
@@ -3470,14 +3622,40 @@ function renderCLAView(cla, playerSpecs = {}, activeSub = 'consumibles') {
   const el = document.getElementById('cla-view');
   if (!cla) { el.innerHTML = '<p style="color:var(--text-dim);font-style:italic">Sin datos CLA para esta semana.</p>'; return; }
 
-  const { jugadores, mediaRaid, numBossGroups } = cla;
-  const sorted = Object.entries(jugadores).sort(([, a], [, b]) => b.prepPct - a.prepPct);
+  const { jugadores, mediaRaid, numTotalFights } = cla;
+  const entries = Object.entries(jugadores);
+
+  // Helpers de extracción de valor por columna
+  const _consumVal = (j, col) => {
+    if (col === 'prepPct')    return (j.consumiblesScore ?? 0) + (j.scrollBonus ?? 0);
+    if (col === 'frasco')     return j.consumibles?.frasco ?? 0;
+    if (col === 'comida')     return j.consumibles?.comida ?? 0;
+    if (col === 'arma')       return j.consumibles?.arma ?? 0;
+    if (col === 'pociones')   return j.consumibles?.pociones ?? -1;
+    if (col === 'scroll')     return j.scrollBonus ?? 0;
+    return (j.consumiblesScore ?? 0) + (j.scrollBonus ?? 0);
+  };
+  const _gearVal = (j, col) => {
+    const gs = j.gearStats;
+    if (col === 'gearPrepPct')  return gs?.gearPrepPct ?? j.gearScore ?? 0;
+    if (col === 'enchantScore') return gs?.enchantScore ?? 0;
+    if (col === 'gemScore')     return gs?.gemScore ?? 0;
+    if (col === 'subOccurrences') return -(gs?.subOccurrences ?? 0); // menor = mejor
+    return gs?.gearPrepPct ?? j.gearScore ?? 0;
+  };
+
+  const consumSorted = _sortEntries(entries, 'consum', _consumVal);
+  const equipoSorted = _sortEntries(entries, 'equipo', _gearVal);
+
+  // Para compatibilidad con código existente que usa 'sorted'
+  const sorted = consumSorted;
 
   // ── CONSUMIBLES ──────────────────────────────────────────────────────────────
   const consumRows = sorted.map(([name, j]) => {
     const jWithName = { ...j, _name: name };
     const clsColor  = CLASS_COLOR[j.clase] ?? 'var(--text-bright)';
-    const prepColor = _claColor(j.prepPct);
+    const consWithScroll = Math.round((j.consumiblesScore ?? 0) + (j.scrollBonus ?? 0));
+    const prepColor = _claColor(consWithScroll);
     const { val: armaVal, tooltip: armaTip } = _effectiveArma(jWithName, playerSpecs);
     const armaCell = armaTip
       ? `<span data-tooltip="${armaTip}" style="cursor:help">${_claBar(armaVal)}</span>`
@@ -3502,19 +3680,19 @@ function renderCLAView(cla, playerSpecs = {}, activeSub = 'consumibles') {
     // Pergaminos — bonus 0-10%
     const scrollBonus   = j.scrollBonus ?? 0;
     const scrollDetails = j.scrollDetails ?? {};
-    const nb = numBossGroups ?? '?';
+    const nb = numTotalFights ?? '?';
     let scrollCell;
     if (scrollBonus === 0) {
       scrollCell = `<span style="color:var(--text-dim)">—</span>`;
     } else {
-      const scrollLines = Object.entries(scrollDetails).map(([k, v]) => `• ${k}: ${v}/${nb} bosses`);
+      const scrollLines = Object.entries(scrollDetails).map(([k, v]) => `• ${k}: ${v}/${nb} trys`);
       const scrollTip   = scrollLines.join('<br>');
       scrollCell = `<span data-tooltip="${scrollTip}" style="color:#d4af37;cursor:help;font-weight:600">+${scrollBonus}%</span>`;
     }
 
     return `<tr>
       <td><span class="player-link clickable-player" data-player="${name}" style="color:${clsColor}">${name}</span></td>
-      <td style="font-family:'Cinzel',serif;font-weight:700;font-size:1rem;color:${prepColor};text-align:center">${j.prepPct}%</td>
+      <td style="font-family:'Cinzel',serif;font-weight:700;font-size:1rem;color:${prepColor};text-align:center">${consWithScroll}%</td>
       <td>${_claBar(j.consumibles.frasco)}</td>
       <td>${_claBar(j.consumibles.comida)}</td>
       <td>${armaCell}</td>
@@ -3523,7 +3701,8 @@ function renderCLAView(cla, playerSpecs = {}, activeSub = 'consumibles') {
     </tr>`;
   }).join('');
 
-  const mediaColor = _claColor(mediaRaid);
+  const avgConsScore = Math.round(sorted.reduce((s, [, j]) => s + (j.consumiblesScore ?? 0) + (j.scrollBonus ?? 0), 0) / (sorted.length || 1));
+  const mediaColor = _claColor(avgConsScore);
   const avgFlask  = Math.round(sorted.reduce((s, [, j]) => s + j.consumibles.frasco, 0) / (sorted.length || 1));
   const avgFood   = Math.round(sorted.reduce((s, [, j]) => s + j.consumibles.comida,  0) / (sorted.length || 1));
   const avgWeapon = Math.round(sorted.reduce((s, [name, j]) => s + _effectiveArma({ ...j, _name: name }, playerSpecs).val, 0) / (sorted.length || 1));
@@ -3540,12 +3719,12 @@ function renderCLAView(cla, playerSpecs = {}, activeSub = 'consumibles') {
   // ── EQUIPO ────────────────────────────────────────────────────────────────────
   // Categorización de issues por tipo (compatible con formato antiguo y nuevo)
   const _isEnchIssue = i => {
-    if (i.includes('[sin encantamiento]')) return true;          // formato antiguo/nuevo
+    if (i.includes('[sin encantamiento]')) return true;
     const tag = (i.match(/\[([^\]]+)\]$/) ?? [])[1] ?? '';
-    return tag.includes(' - ');                                  // label de encantamiento bad (ej. "Bracers - 7 Str")
+    return tag.includes(' - ');
   };
   const _isGemIssue = i => {
-    if (i.includes('[socket vacio]') || i.includes('[baja calidad]')) return true; // formato antiguo
+    if (i.includes('[socket vacio]') || i.includes('[baja calidad]')) return true;
     const tag = (i.match(/\[([^\]]+)\]$/) ?? [])[1] ?? '';
     return tag === 'sin gema' || tag.startsWith('gema ');
   };
@@ -3554,42 +3733,87 @@ function renderCLAView(cla, playerSpecs = {}, activeSub = 'consumibles') {
     return tag.includes('inutil') || tag.includes('suboptimo') || tag.startsWith('gear pvp') || tag === 'gema meta inactiva';
   };
 
-  const playersWithEnch = sorted.filter(([, j]) => (j.gearIssues ?? []).some(_isEnchIssue)).length;
-  const playersWithGems = sorted.filter(([, j]) => (j.gearIssues ?? []).some(_isGemIssue)).length;
-  const playersWithSub  = sorted.filter(([, j]) => (j.gearIssues ?? []).some(_isSubIssue)).length;
+  // Promedios de gear para tarjetas de resumen
+  const playersWithGs    = equipoSorted.filter(([, j]) => j.gearStats);
+  const avgGearPrep  = playersWithGs.length ? Math.round(playersWithGs.reduce((s, [, j]) => s + (j.gearStats.gearPrepPct ?? 0), 0) / playersWithGs.length) : null;
+  const avgEnchant   = playersWithGs.length ? Math.round(playersWithGs.reduce((s, [, j]) => s + (j.gearStats.enchantScore ?? 0), 0) / playersWithGs.length) : null;
+  const avgGem       = playersWithGs.length ? Math.round(playersWithGs.reduce((s, [, j]) => s + (j.gearStats.gemScore ?? 0), 0) / playersWithGs.length) : null;
+  const playersWithSub = equipoSorted.filter(([, j]) => (j.gearStats?.subOccurrences ?? 0) > 0).length;
 
-  const gearRows = sorted.map(([name, j]) => {
-    const clsColor   = CLASS_COLOR[j.clase] ?? 'var(--text-bright)';
-    const issues     = j.gearIssues ?? [];
-    const enchIssues = issues.filter(_isEnchIssue);
-    const gemIssues  = issues.filter(_isGemIssue);
-    const subIssues  = issues.filter(_isSubIssue);
+  // Fallback para datos sin gearStats (datos históricos pre-backfill)
+  const _isEnchIssueFb  = i => { if (i.includes('[sin encantamiento]')) return true; const tag = (i.match(/\[([^\]]+)\]$/) ?? [])[1] ?? ''; return tag.includes(' - '); };
+  const _isGemIssueFb   = i => { if (i.includes('[socket vacio]') || i.includes('[baja calidad]')) return true; const tag = (i.match(/\[([^\]]+)\]$/) ?? [])[1] ?? ''; return tag === 'sin gema' || tag.startsWith('gema '); };
 
-    const enchCell = enchIssues.length > 0
-      ? `<span data-tooltip="${enchIssues.map(i => `• ${i}`).join('<br>')}" style="color:#e07070;cursor:help;font-size:0.85rem">${enchIssues.length} problema${enchIssues.length > 1 ? 's' : ''}</span>`
-      : `<span style="color:#7dce82;font-size:0.85rem">✓</span>`;
+  const gearRows = equipoSorted.map(([name, j]) => {
+    const clsColor = CLASS_COLOR[j.clase] ?? 'var(--text-bright)';
+    const gs       = j.gearStats;
+    const issues   = j.gearIssues ?? [];
 
-    const gemCell = gemIssues.length > 0
-      ? `<span data-tooltip="${gemIssues.map(i => `• ${i}`).join('<br>')}" style="color:#e07070;cursor:help;font-size:0.85rem">${gemIssues.length} problema${gemIssues.length > 1 ? 's' : ''}</span>`
-      : `<span style="color:#7dce82;font-size:0.85rem">✓</span>`;
+    let gearPrepCell, enchCell, gemCell;
 
-    const subCell = subIssues.length > 0
-      ? `<span data-tooltip="${subIssues.map(i => `• ${i}`).join('<br>')}" style="color:#b9a3ee;cursor:help;font-size:0.85rem">${subIssues.length} item${subIssues.length > 1 ? 's' : ''}</span>`
-      : `<span style="color:#7dce82;font-size:0.85rem">✓</span>`;
+    if (gs) {
+      // Datos nuevos con gearStats
+      const gearPrepColor = _claColor(gs.gearPrepPct);
+      const enchTip = issues.filter(_isEnchIssue).map(i => `• ${i}`).join('<br>') || 'Sin problemas';
+      const gemTip  = issues.filter(_isGemIssue).map(i => `• ${i}`).join('<br>') || 'Sin problemas';
+
+      let enchDetail = '';
+      if (gs.missingEnchants > 0 || gs.badEnchants > 0) {
+        enchDetail = `(${gs.missingEnchants} sin enc. / ${gs.badEnchants} malos de ${gs.totalEnchantSlots} slots)`;
+      }
+      let gemDetail = '';
+      if (gs.emptyGems > 0 || gs.badGems > 0) {
+        gemDetail = `(${gs.emptyGems} vacíos / ${gs.badGems} malos de ${gs.totalGemSockets} sockets)`;
+      }
+
+      const enchFullTip = [enchDetail, enchTip].filter(Boolean).join('<br>');
+      const gemFullTip  = [gemDetail, gemTip].filter(Boolean).join('<br>');
+
+      gearPrepCell = `<span style="font-family:'Cinzel',serif;font-weight:700;font-size:1rem;color:${gearPrepColor}">${Math.round(gs.gearPrepPct)}%</span>`;
+      enchCell = `<span data-tooltip="${enchFullTip}" style="cursor:help;display:block">${_claBar(gs.enchantScore)}</span>`;
+      gemCell  = `<span data-tooltip="${gemFullTip}" style="cursor:help;display:block">${_claBar(gs.gemScore)}</span>`;
+    } else {
+      // Fallback legacy: usar gearScore y conteo de issues
+      const legacyScore = j.gearScore ?? 0;
+      const enchIssues = issues.filter(_isEnchIssueFb);
+      const gemIssues  = issues.filter(_isGemIssueFb);
+      const enchTip = enchIssues.length ? enchIssues.map(i => `• ${i}`).join('<br>') : 'Sin problemas';
+      const gemTip  = gemIssues.length  ? gemIssues.map(i => `• ${i}`).join('<br>') : 'Sin problemas';
+      gearPrepCell = `<span style="font-family:'Cinzel',serif;font-weight:700;font-size:1rem;color:${_claColor(legacyScore)}">${Math.round(legacyScore)}%</span>`;
+      enchCell = enchIssues.length > 0 ? `<span data-tooltip="${enchTip}" style="cursor:help;display:block">${_claBar(0)}</span>` : _claBar(100);
+      gemCell  = gemIssues.length  > 0 ? `<span data-tooltip="${gemTip}"  style="cursor:help;display:block">${_claBar(0)}</span>`  : _claBar(100);
+    }
+
+    const subIssuesList = issues.filter(_isSubIssue);
+    const subOcc  = gs?.subOccurrences ?? subIssuesList.length;
+    const subPen  = gs?.subPenalty ?? 0;
+    const metaPen = gs?.metaPenalty ?? 0;
+    const totalPen = subPen + metaPen;
+    let subCell;
+    if (subOcc > 0 || metaPen > 0) {
+      const subLines = subIssuesList.map(i => `• ${i}`);
+      if (gs?.metaInactive) subLines.push('• Meta gem inactiva (−5%)');
+      if (subPen > 0) subLines.push(`Penalización: −${subPen}% (${subOcc} × 3%, cap 30%)`);
+      const displayPen = (gs && totalPen > 0) ? `-${totalPen}%` : `${subOcc} item${subOcc !== 1 ? 's' : ''}${metaPen > 0 ? ' + meta' : ''}`;
+      subCell = `<span data-tooltip="${subLines.join('<br>')}" style="cursor:help;color:#e07070;font-size:0.9rem;font-weight:600">${displayPen}</span>`;
+    } else {
+      subCell = `<span style="color:var(--text-dim)">—</span>`;
+    }
 
     return `<tr>
       <td><span class="player-link clickable-player" data-player="${name}" style="color:${clsColor}">${name}</span></td>
+      <td style="text-align:center">${gearPrepCell}</td>
       <td>${enchCell}</td>
       <td>${gemCell}</td>
-      <td>${subCell}</td>
+      <td data-sort-sub="${subOcc}">${subCell}</td>
     </tr>`;
   }).join('');
 
   const consumHtml = `
     <div class="stats-grid" style="margin-bottom:1.5rem">
       <div class="stat-card" style="text-align:center;border-color:${mediaColor};box-shadow:0 0 8px ${mediaColor}33">
-        <div class="stat-label" style="color:#bbb;font-size:0.78rem">Preparacion media</div>
-        <div class="stat-value" style="color:${mediaColor};font-size:2rem">${mediaRaid}%</div>
+        <div class="stat-label" style="color:var(--gold);font-size:0.82rem;font-weight:700;letter-spacing:0.06em">CONS PREP MEDIA</div>
+        <div class="stat-value" style="color:${mediaColor};font-size:2rem">${avgConsScore}%</div>
       </div>
       <div class="stat-card" style="text-align:center">
         <div class="stat-label" style="color:#aaa">Frasco / Elixir</div>
@@ -3608,64 +3832,135 @@ function renderCLAView(cla, playerSpecs = {}, activeSub = 'consumibles') {
         <div class="stat-value" style="color:${avgPocion !== null ? _claColor(avgPocion) : 'var(--text-dim)'}">${avgPocion !== null ? avgPocion + '%' : 'N/A'}</div>
       </div>
       <div class="stat-card" style="text-align:center">
-        <div class="stat-label" style="color:#aaa">Bonus Pergaminos</div>
-        <div class="stat-value" style="color:${avgScroll > 0 ? '#d4af37' : 'var(--text-dim)'}">${avgScroll > 0 ? '+' + avgScroll + '%' : '—'}</div>
-        <div class="stat-sub">${scrollUsersCount}/${sorted.length} jugadores</div>
+        <div class="stat-label" style="color:#aaa">Pergaminos</div>
+        <div class="stat-value" style="color:${scrollUsersCount > 0 ? '#d4af37' : 'var(--text-dim)'}">${scrollUsersCount}/${sorted.length}</div>
       </div>
     </div>
-    <table class="ranked-list">
+    <table class="ranked-list" style="table-layout:fixed;width:100%">
       <thead>
         <tr>
-          <th>Jugador</th>
-          <th style="text-align:center">Prep %</th>
-          <th>Frasco / Elixir</th>
-          <th>Comida</th>
-          <th>Mejora Arma</th>
-          <th><span data-tooltip="DPS: 1 pocion por boss = 100%<br>Tank/Healer: 1 pocion cada 2 trys = 100%<br><br>Destruction: Warlock, Mage, Paladin, Balance, Elemental<br>Haste: Warrior, Rogue, Hunter, Feral, Enh Sham<br>Ironshield: Warrior, Feral, Prot/Justicar Paladin<br>Mana: Priest, Mage, Paladin, Elemental, Resto Sham, Druid Resto/Bal, Hunter<br><br>Healing Potion (x0.5): todo el mundo — 2 por try = 100%" style="cursor:help">Pociones (?)</span></th>
-          <th style="text-align:center"><span data-tooltip="Bonus sobre el Prep% base (max +10%)<br><br>Nivel V (full) o IV (x0.5) de cada tipo:<br>• Strength, Agility, Armor<br><br>Los 3 pergaminos V en todos los bosses = +10%<br>Los 3 pergaminos IV en todos los bosses = +5%<br>1 pergamino V en todos los bosses = +3.33%<br>Cobertura parcial de bosses reduce proporcionalmente" style="cursor:help">Pergaminos (?)</span></th>
+          <th style="width:17%;white-space:nowrap;overflow:hidden">Jugador</th>
+          <th data-sort="prepPct" style="width:10%;text-align:center;white-space:nowrap;overflow:hidden">CONS % ${_sortArrow('consum','prepPct')}</th>
+          <th data-sort="frasco" style="width:16%;white-space:nowrap;overflow:hidden">Flask/Elix ${_sortArrow('consum','frasco')}</th>
+          <th data-sort="comida" style="width:16%;white-space:nowrap;overflow:hidden">Comida ${_sortArrow('consum','comida')}</th>
+          <th data-sort="arma" style="width:16%;white-space:nowrap;overflow:hidden">Arma ${_sortArrow('consum','arma')}</th>
+          <th data-sort="pociones" style="width:16%;white-space:nowrap;overflow:hidden"><span data-tooltip="DPS: 1 pocion por boss = 100%<br>Tank/Healer: 1 pocion cada 2 trys = 100%<br><br>Destruction: Warlock, Mage, Paladin, Balance, Elemental<br>Haste: Warrior, Rogue, Hunter, Feral, Enh Sham<br>Ironshield: Warrior, Feral, Prot/Justicar Paladin<br>Mana: Priest, Mage, Paladin, Elemental, Resto Sham, Druid Resto/Bal, Hunter<br><br>Healing Potion (x0.5): todo el mundo — 2 por try = 100%" style="cursor:help">Pociones (?)</span> ${_sortArrow('consum','pociones')}</th>
+          <th data-sort="scroll" style="width:9%;text-align:center;white-space:nowrap;overflow:hidden"><span data-tooltip="Bonus sobre el CONS% base (max +5%)<br><br>Nivel V (full) o IV (x0.5) de cada tipo:<br>• Strength, Agility, Armor<br><br>Los 3 pergaminos V en todos los bosses = +5%<br>Los 3 pergaminos IV en todos los bosses = +2.5%<br>1 pergamino V en todos los bosses = +1.66%<br>Cobertura parcial de bosses reduce proporcionalmente" style="cursor:help">Pergs (?)</span> ${_sortArrow('consum','scroll')}</th>
         </tr>
       </thead>
       <tbody>${consumRows}</tbody>
     </table>`;
 
   const equipoHtml = `
-    <div class="stats-grid" style="margin-bottom:1.5rem">
-      <div class="stat-card" style="text-align:center">
-        <div class="stat-label">Sin encantamiento</div>
-        <div class="stat-value" style="color:${playersWithEnch > 0 ? '#e07070' : '#7dce82'}">${playersWithEnch}</div>
-        <div class="stat-sub">${sorted.length} jugadores</div>
+    <div class="stats-grid" style="margin-bottom:1.5rem;grid-template-columns:repeat(4,1fr)">
+      <div class="stat-card" style="text-align:center;border-color:${avgGearPrep !== null ? _claColor(avgGearPrep) : 'var(--border)'};box-shadow:0 0 8px ${avgGearPrep !== null ? _claColor(avgGearPrep) : 'transparent'}33">
+        <div class="stat-label" style="color:var(--gold);font-size:0.82rem;font-weight:700;letter-spacing:0.06em">GEAR PREP MEDIA</div>
+        <div class="stat-value" style="color:${avgGearPrep !== null ? _claColor(avgGearPrep) : 'var(--text-dim)'};font-size:2rem">${avgGearPrep !== null ? avgGearPrep + '%' : '—'}</div>
       </div>
       <div class="stat-card" style="text-align:center">
-        <div class="stat-label">Gemas vacías / malas</div>
-        <div class="stat-value" style="color:${playersWithGems > 0 ? '#e07070' : '#7dce82'}">${playersWithGems}</div>
-        <div class="stat-sub">${sorted.length} jugadores</div>
+        <div class="stat-label" style="color:#aaa">Enchants</div>
+        <div class="stat-value" style="color:${avgEnchant !== null ? _claColor(avgEnchant) : 'var(--text-dim)'}">${avgEnchant !== null ? avgEnchant + '%' : '—'}</div>
       </div>
       <div class="stat-card" style="text-align:center">
-        <div class="stat-label">Equipo subóptimo</div>
-        <div class="stat-value" style="color:${playersWithSub > 0 ? '#b9a3ee' : '#7dce82'}">${playersWithSub}</div>
-        <div class="stat-sub">${sorted.length} jugadores</div>
+        <div class="stat-label" style="color:#aaa">Gemas</div>
+        <div class="stat-value" style="color:${avgGem !== null ? _claColor(avgGem) : 'var(--text-dim)'}">${avgGem !== null ? avgGem + '%' : '—'}</div>
+      </div>
+      <div class="stat-card" style="text-align:center">
+        <div class="stat-label" style="color:#aaa">Equipo subóptimo</div>
+        <div class="stat-value" style="color:${playersWithSub > 0 ? '#b9a3ee' : '#7dce82'}">${playersWithSub} / ${equipoSorted.length}</div>
       </div>
     </div>
-    <table class="ranked-list">
+    <table class="ranked-list" style="table-layout:fixed;width:100%">
       <thead>
         <tr>
-          <th>Jugador</th>
-          <th>Encantamientos</th>
-          <th>Gemas</th>
-          <th>Subóptimo</th>
+          <th style="width:20%">Jugador</th>
+          <th data-sort="gearPrepPct" style="width:12%;text-align:center">GEAR % ${_sortArrow('equipo','gearPrepPct')}</th>
+          <th data-sort="enchantScore" style="width:23%">Enchants ${_sortArrow('equipo','enchantScore')}</th>
+          <th data-sort="gemScore" style="width:23%">Gemas ${_sortArrow('equipo','gemScore')}</th>
+          <th data-sort="subOccurrences" style="width:22%"><span data-tooltip="Items subóptimos detectados (montura, PvP, ingeniería…)<br>−3% por cada aparición en un boss (cap −30%)<br>Meta gem inactiva: −5% adicional" style="cursor:help">Subóptimo (?)</span> ${_sortArrow('equipo','subOccurrences')}</th>
         </tr>
       </thead>
       <tbody>${gearRows}</tbody>
     </table>`;
 
+  // ── RESUMEN: cálculo por jugador ─────────────────────────────────────────────
+  // PREP % = avg(consumiblesScore + scrollBonus, gearPrepPct) — calculado en tiempo real
+  // para evitar datos desactualizados en entradas antiguas con backfill parcial
+  const _calcOverall = (j) => {
+    const cons  = (j.consumiblesScore ?? 0) + (j.scrollBonus ?? 0);
+    const gear  = j.gearStats?.gearPrepPct ?? j.gearScore ?? null;
+    const raw   = gear !== null ? (cons + gear) / 2 : cons;
+    return Math.min(100, Math.round(raw));
+  };
+
+  const playersWithGear = entries.filter(([, j]) => (j.gearStats?.gearPrepPct ?? j.gearScore ?? null) !== null);
+  const avgGearResumen  = playersWithGear.length
+    ? Math.round(playersWithGear.reduce((s, [, j]) => s + (j.gearStats?.gearPrepPct ?? j.gearScore ?? 0), 0) / playersWithGear.length)
+    : null;
+
+  const resumenSorted = [...entries].sort((a, b) => {
+    const prepDiff = _calcOverall(b[1]) - _calcOverall(a[1]);
+    if (prepDiff !== 0) return prepDiff;
+    const consDiff = ((b[1].consumiblesScore ?? 0) + (b[1].scrollBonus ?? 0)) - ((a[1].consumiblesScore ?? 0) + (a[1].scrollBonus ?? 0));
+    if (consDiff !== 0) return consDiff;
+    return (b[1].gearStats?.gearPrepPct ?? b[1].gearScore ?? 0) - (a[1].gearStats?.gearPrepPct ?? a[1].gearScore ?? 0);
+  });
+  const avgOverall    = resumenSorted.length
+    ? Math.round(resumenSorted.reduce((s, [, j]) => s + _calcOverall(j), 0) / resumenSorted.length)
+    : 0;
+
+  const resumenRows = resumenSorted.map(([name, j]) => {
+    const clsColor     = CLASS_COLOR[j.clase] ?? 'var(--text-bright)';
+    const overall      = _calcOverall(j);
+    const consTotal    = Math.round((j.consumiblesScore ?? 0) + (j.scrollBonus ?? 0));
+    const equipPct     = j.gearStats?.gearPrepPct ?? j.gearScore ?? null;
+    const equipRounded = equipPct !== null ? Math.round(equipPct) : null;
+    return `<tr>
+      <td><span class="player-link clickable-player" data-player="${name}" style="color:${clsColor}">${name}</span></td>
+      <td style="text-align:center"><span style="font-family:'Cinzel',serif;font-weight:700;font-size:1rem;color:${_claColor(overall)}">${overall}%</span></td>
+      <td>${_claBar(consTotal)}</td>
+      <td>${equipRounded !== null ? _claBar(equipRounded) : '<span style="color:var(--text-dim)">—</span>'}</td>
+    </tr>`;
+  }).join('');
+
+  const resumenHtml = `
+    <div class="stats-grid" style="margin-bottom:1.5rem;grid-template-columns:repeat(3,1fr)">
+      <div class="stat-card" style="text-align:center;border-color:${_claColor(avgOverall)};box-shadow:0 0 8px ${_claColor(avgOverall)}33">
+        <div class="stat-label" style="color:var(--gold);font-size:0.82rem;font-weight:700;letter-spacing:0.06em">PREP % MEDIA</div>
+        <div class="stat-value" style="color:${_claColor(avgOverall)};font-size:2rem">${avgOverall}%</div>
+      </div>
+      <div class="stat-card" style="text-align:center">
+        <div class="stat-label" style="color:#aaa">CONS % media</div>
+        <div class="stat-value" style="color:${_claColor(avgConsScore)}">${avgConsScore}%</div>
+      </div>
+      <div class="stat-card" style="text-align:center">
+        <div class="stat-label" style="color:#aaa">GEAR % media</div>
+        <div class="stat-value" style="color:${avgGearResumen !== null ? _claColor(avgGearResumen) : 'var(--text-dim)'}">${avgGearResumen !== null ? avgGearResumen + '%' : '—'}</div>
+      </div>
+    </div>
+    <table class="ranked-list" style="margin-bottom:1.5rem;table-layout:fixed;width:100%">
+      <thead>
+        <tr>
+          <th style="width:20%">Jugador</th>
+          <th style="width:12%;text-align:center">PREP %</th>
+          <th style="width:34%">CONS %</th>
+          <th style="width:34%">GEAR %</th>
+        </tr>
+      </thead>
+      <tbody>${resumenRows}</tbody>
+    </table>`;
+
   el.innerHTML = `
     <div id="sub-nav-cla" style="display:flex;gap:0;border-bottom:1px solid rgba(255,255,255,0.1);margin-bottom:1.5rem">
+      <button class="sub-tab-btn ${activeSub === 'resumen' ? 'active' : ''}" data-clasub="resumen">Resumen</button>
       <button class="sub-tab-btn ${activeSub === 'consumibles' ? 'active' : ''}" data-clasub="consumibles">Consumibles</button>
       <button class="sub-tab-btn ${activeSub === 'equipo' ? 'active' : ''}" data-clasub="equipo">Equipo</button>
     </div>
+    <div class="sub-tab-content ${activeSub === 'resumen' ? 'active' : ''}" id="clasub-resumen">${resumenHtml}</div>
     <div class="sub-tab-content ${activeSub === 'consumibles' ? 'active' : ''}" id="clasub-consumibles">${consumHtml}</div>
     <div class="sub-tab-content ${activeSub === 'equipo' ? 'active' : ''}" id="clasub-equipo">${equipoHtml}</div>`;
 
+  // Sub-tab switching
   document.getElementById('sub-nav-cla').addEventListener('click', e => {
     const btn = e.target.closest('.sub-tab-btn');
     if (!btn) return;
@@ -3674,7 +3969,127 @@ function renderCLAView(cla, playerSpecs = {}, activeSub = 'consumibles') {
     document.querySelectorAll('#cla-view .sub-tab-content').forEach(c => c.classList.toggle('active', c.id === `clasub-${sub}`));
   });
 
+  // Sort on column header click
+  document.querySelectorAll('#clasub-consumibles th[data-sort]').forEach(th => {
+    th.style.cursor = 'pointer';
+    th.addEventListener('click', () => {
+      const col = th.dataset.sort;
+      if (_claSort.consum.col === col) _claSort.consum.dir *= -1;
+      else _claSort.consum = { col, dir: -1 };
+      renderCLAView(cla, playerSpecs, 'consumibles');
+    });
+  });
+  document.querySelectorAll('#clasub-equipo th[data-sort]').forEach(th => {
+    th.style.cursor = 'pointer';
+    th.addEventListener('click', () => {
+      const col = th.dataset.sort;
+      if (_claSort.equipo.col === col) _claSort.equipo.dir *= -1;
+      else _claSort.equipo = { col, dir: -1 };
+      renderCLAView(cla, playerSpecs, 'equipo');
+    });
+  });
+
   attachPlayerClicks('#cla-view');
+}
+
+function renderCLAGlobal(raids) {
+  // ── Agregado por jugador ──────────────────────────────────────────────────
+  const playerMap = new Map();
+  for (const r of raids) {
+    for (const [name, j] of Object.entries(r.cla.jugadores)) {
+      if (!playerMap.has(name)) playerMap.set(name, { clase: j.clase, prepSum: 0, consSum: 0, gearSum: 0, gearCount: 0, count: 0 });
+      const d    = playerMap.get(name);
+      const cons = (j.consumiblesScore ?? 0) + (j.scrollBonus ?? 0);
+      const gear = j.gearStats?.gearPrepPct ?? j.gearScore ?? null;
+      const prep = Math.min(100, Math.round(gear !== null ? (cons + gear) / 2 : cons));
+      d.prepSum += prep;
+      d.consSum += cons;
+      if (gear !== null) { d.gearSum += gear; d.gearCount++; }
+      d.count++;
+    }
+  }
+  const players = [...playerMap.entries()].map(([name, d]) => ({
+    name, clase: d.clase, count: d.count,
+    avgPrep: Math.min(100, Math.round(d.prepSum / d.count)),
+    avgCons: Math.round(d.consSum / d.count),
+    avgGear: d.gearCount > 0 ? Math.round(d.gearSum / d.gearCount) : null,
+  })).sort((a, b) => {
+    const pd = b.avgPrep - a.avgPrep; if (pd !== 0) return pd;
+    const cd = b.avgCons - a.avgCons; if (cd !== 0) return cd;
+    return (b.avgGear ?? 0) - (a.avgGear ?? 0);
+  });
+
+  // ── Badges ────────────────────────────────────────────────────────────────
+  const guildAvg   = players.length ? Math.round(players.reduce((s, p) => s + p.avgPrep, 0) / players.length) : 0;
+  const bestPrep   = players[0]?.avgPrep ?? 0;
+  const worstPrep  = players[players.length - 1]?.avgPrep ?? 0;
+  const bestList   = players.filter(p => p.avgPrep === bestPrep);
+  const worstList  = players.filter(p => p.avgPrep === worstPrep);
+  const guildColor = _claColor(guildAvg);
+  const nameSpans  = ps => ps.map(p =>
+    `<span class="clickable-player" data-player="${p.name}" style="color:${CLASS_COLOR[p.clase] ?? 'var(--text-bright)'};cursor:pointer">${p.name}</span>`
+  ).join(', ');
+
+  // ── Gráfica evolutiva (orden cronológico) ─────────────────────────────────
+  const raidsChron = [...raids].reverse();
+  const chartLabels = raidsChron.map(r => { const [y,m,d] = r.fecha.split('-'); return `${d}/${m}`; });
+  const chartValues = raidsChron.map(r => {
+    const jugs = Object.values(r.cla.jugadores);
+    if (!jugs.length) return null;
+    const vals = jugs.map(j => {
+      const cons = (j.consumiblesScore ?? 0) + (j.scrollBonus ?? 0);
+      const gear = j.gearStats?.gearPrepPct ?? j.gearScore ?? null;
+      return Math.min(100, gear !== null ? (cons + gear) / 2 : cons);
+    });
+    return Math.round(vals.reduce((s, v) => s + v, 0) / vals.length);
+  });
+  const chart = drawLineChart(chartLabels, [{ label: 'PREP % media', color: '#7dce82', values: chartValues }], v => Math.round(v) + '%');
+
+  // ── Tabla ─────────────────────────────────────────────────────────────────
+  const tableRows = players.map(p => {
+    const clsColor = CLASS_COLOR[p.clase] ?? 'var(--text-bright)';
+    return `<tr>
+      <td><span class="player-link clickable-player" data-player="${p.name}" style="color:${clsColor}">${p.name}</span></td>
+      <td style="text-align:center;color:var(--text-dim);font-size:0.85rem">${p.count}</td>
+      <td style="text-align:center"><span style="font-family:'Cinzel',serif;font-weight:700;font-size:1rem;color:${_claColor(p.avgPrep)}">${p.avgPrep}%</span></td>
+      <td>${_claBar(p.avgCons)}</td>
+      <td>${p.avgGear !== null ? _claBar(p.avgGear) : '<span style="color:var(--text-dim)">—</span>'}</td>
+    </tr>`;
+  }).join('');
+
+  return `
+    <div class="stats-grid" style="margin-bottom:1.5rem;grid-template-columns:repeat(3,1fr)">
+      <div class="stat-card" style="text-align:center;border-color:${guildColor};box-shadow:0 0 8px ${guildColor}33">
+        <div class="stat-label" style="color:var(--gold);font-size:0.82rem;font-weight:700;letter-spacing:0.06em">PREP % MEDIA GUILD</div>
+        <div class="stat-value" style="color:${guildColor};font-size:2rem">${guildAvg}%</div>
+      </div>
+      <div class="stat-card" style="text-align:center">
+        <div class="stat-label" style="color:#aaa">Mejor preparado</div>
+        <div class="stat-value" style="color:#7dce82;font-size:1.4rem">${bestPrep}%</div>
+        <div style="margin-top:0.4rem;font-size:0.85rem">${nameSpans(bestList)}</div>
+      </div>
+      <div class="stat-card" style="text-align:center">
+        <div class="stat-label" style="color:#aaa">Peor preparado</div>
+        <div class="stat-value" style="color:#e07070;font-size:1.4rem">${worstPrep}%</div>
+        <div style="margin-top:0.4rem;font-size:0.85rem">${nameSpans(worstList)}</div>
+      </div>
+    </div>
+    <div class="prog-chart" style="margin-bottom:1.5rem">
+      <div class="prog-chart-title">PREP % medio de la raid por semana</div>
+      ${chart}
+    </div>
+    <table class="ranked-list" style="table-layout:fixed;width:100%">
+      <thead>
+        <tr>
+          <th style="width:20%;white-space:nowrap;overflow:hidden">Jugador</th>
+          <th style="width:8%;text-align:center;white-space:nowrap;overflow:hidden">Raids</th>
+          <th style="width:12%;text-align:center;white-space:nowrap;overflow:hidden">PREP %</th>
+          <th style="width:30%;white-space:nowrap;overflow:hidden">CONS %</th>
+          <th style="width:30%;white-space:nowrap;overflow:hidden">GEAR %</th>
+        </tr>
+      </thead>
+      <tbody>${tableRows}</tbody>
+    </table>`;
 }
 
 function renderCLA() {
@@ -3714,21 +4129,88 @@ function renderCLA() {
   ).join('');
 
   el.innerHTML = `
-    <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap">
-      <span style="color:var(--text-dim);font-size:1rem;font-family:'Cinzel',serif;font-weight:600;letter-spacing:.05em;align-self:center">Raid</span>
-      <select class="loot-select" id="cla-raid-sel" style="min-width:200px;width:auto;margin-bottom:0">${options}</select>
+    <div style="display:flex;align-items:stretch;border-bottom:1px solid rgba(255,255,255,0.1);margin-bottom:1.5rem">
+      <div id="sub-nav-cla-main" style="display:flex;gap:0;flex:1">
+        <button class="sub-tab-btn active" data-clamain="general">Resumen General</button>
+        <button class="sub-tab-btn" data-clamain="porraid">Por Raid</button>
+      </div>
+      <button id="cla-calc-btn" class="sub-tab-btn" style="margin-left:auto;border-left:1px solid rgba(255,255,255,0.08);border-bottom-color:transparent;-webkit-font-smoothing:antialiased">ℹ️ Cálculos</button>
     </div>
-    <div id="cla-view"></div>`;
+    <div id="cla-calc-modal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);overflow-y:auto;padding:2rem 1rem">
+      <div style="max-width:700px;margin:auto;background:var(--bg-card);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:2rem;position:relative">
+        <button id="cla-calc-close" style="position:absolute;top:1rem;right:1rem;background:none;border:none;color:var(--text-dim);font-size:1.4rem;cursor:pointer;line-height:1" onmouseover="this.style.color='var(--text-bright)'" onmouseout="this.style.color='var(--text-dim)'">&times;</button>
+        <h3 style="font-family:'Cinzel',serif;font-size:1rem;letter-spacing:0.08em;color:var(--gold);margin:0 0 1.2rem;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility">Cómo se realizan los cálculos</h3>
+        <div class="cla-details-body">
+          <p>El <strong>PREP % de consumibles</strong> es la media de las siguientes categorías, medidas en cada boss fight:</p>
+          <ul>
+            <li><strong>Flask/Elixir</strong>: % de bosses donde llevabas preparación activa. Puedes usar un <em>Frasco de Batalla</em> (cuenta como ambos elixires), o la combinación <em>Elixir de Guardián + Elixir de Batalla</em>.</li>
+            <li><strong>Comida</strong>: % de bosses donde llevabas buff de comida.</li>
+            <li><strong>Mejora de Arma</strong>: % de bosses con aceite, sharpening stone o equivalente. Enhancement y melees con 0% cuentan 100% (Windfury de chamán).</li>
+            <li><strong>Pociones</strong> (si aplica según clase/spec): DPS = 1 poción por try = 100%; Tanks/Healers = 1 cada 2 trys = 100%.</li>
+          </ul>
+          <p>Los <strong>Pergaminos</strong> (Strength, Agility, Armor) son opcionales y añaden un bonus de hasta <strong>+5%</strong> al CONS %. No penaliza no llevarlos, pero llevarlos sube el CONS % y con ello el PREP % final. El <strong>PREP % nunca superará el 100%</strong>.</p>
+          <p>El <strong>Gear PREP %</strong> combina tres componentes:</p>
+          <ul>
+            <li><strong>Enchant %</strong>: porcentaje de slots enchantables con encantamiento correcto. Se comprueba cabeza, hombros, pecho, brazales, guantes, piernas, botas, capa y arma(s).
+              <ul>
+                <li>Slot sin encantamiento → <code>−(100 / total slots)%</code></li>
+                <li>Encantamiento subóptimo → <code>−(50 / total slots)%</code></li>
+              </ul>
+            </li>
+            <li><strong>Gem %</strong>: porcentaje de sockets con gema correcta (usando la base de datos de sockets de TBC).
+              <ul>
+                <li>Socket vacío → <code>−(100 / total sockets)%</code></li>
+                <li>Gema subóptima, sin cortar o de tipo equivocado → <code>−(50 / total sockets)%</code></li>
+              </ul>
+            </li>
+            <li><strong>Equipo subóptimo</strong>: items de montura, ingeniería o PvP detectados durante el combate. <code>−3% por cada aparición en un boss</code>, con un máximo de <strong>−30%</strong>.</li>
+            <li><strong>Meta gem inactiva</strong>: si llevas meta gema pero los requisitos de color no están cumplidos → <strong>−5%</strong> fijo.</li>
+          </ul>
+          <p>Fórmula: <code>Gear PREP = avg(Enchant%, Gem%) − penalización subóptimo − penalización meta</code></p>
+          <p>El <strong>PREP % final</strong> es la media de los dos grandes bloques, cappado al 100%:</p>
+          <p style="margin-left:1rem"><code>PREP General = min(100, avg(CONS % + Pergaminos, Gear PREP))</code></p>
+          <p>Esto da igual peso a consumibles y equipo. En ningún caso el resultado final superará el 100%.</p>
+        </div>
+      </div>
+    </div>
+    <div class="sub-tab-content active" id="clamain-general">${renderCLAGlobal(raids)}</div>
+    <div class="sub-tab-content" id="clamain-porraid">
+      <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap">
+        <span style="color:var(--text-dim);font-size:1rem;font-family:'Cinzel',serif;font-weight:600;letter-spacing:.05em;align-self:center">Raid</span>
+        <select class="loot-select" id="cla-raid-sel" style="min-width:200px;width:auto;margin-bottom:0">${options}</select>
+      </div>
+      <div id="cla-view"></div>
+    </div>`;
 
+  // Top-level tab switching
+  document.getElementById('sub-nav-cla-main').addEventListener('click', e => {
+    const btn = e.target.closest('.sub-tab-btn');
+    if (!btn) return;
+    document.querySelectorAll('#sub-nav-cla-main .sub-tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+    const main = btn.dataset.clamain;
+    document.getElementById('clamain-general').classList.toggle('active', main === 'general');
+    document.getElementById('clamain-porraid').classList.toggle('active', main === 'porraid');
+  });
+
+  // Popup cálculos
+  const calcModal = document.getElementById('cla-calc-modal');
+  document.getElementById('cla-calc-btn').addEventListener('click', () => { calcModal.style.display = 'block'; });
+  document.getElementById('cla-calc-close').addEventListener('click', () => { calcModal.style.display = 'none'; });
+  calcModal.addEventListener('click', e => { if (e.target === calcModal) calcModal.style.display = 'none'; });
+
+  // Player clicks en resumen general
+  attachPlayerClicks('#clamain-general');
+
+  // Raid selector
   const sel = document.getElementById('cla-raid-sel');
   sel.addEventListener('change', () => {
     const r = raids.find(r => r.code === sel.value);
     if (!r) return;
-    const activeSub = document.querySelector('#sub-nav-cla .sub-tab-btn.active')?.dataset.clasub ?? 'consumibles';
+    const activeSub = document.querySelector('#sub-nav-cla .sub-tab-btn.active')?.dataset.clasub ?? 'resumen';
     renderCLAView(r.cla, r.playerSpecs, activeSub);
   });
 
-  renderCLAView(raids[0].cla, raids[0].playerSpecs);
+  renderCLAView(raids[0].cla, raids[0].playerSpecs, 'resumen');
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
