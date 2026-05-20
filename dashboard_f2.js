@@ -3466,7 +3466,7 @@ function _effectiveArma(j, playerSpecs) {
   return { val: j.consumibles.arma, tooltip: '' };
 }
 
-function renderCLAView(cla, playerSpecs = {}) {
+function renderCLAView(cla, playerSpecs = {}, activeSub = 'consumibles') {
   const el = document.getElementById('cla-view');
   if (!cla) { el.innerHTML = '<p style="color:var(--text-dim);font-style:italic">Sin datos CLA para esta semana.</p>'; return; }
 
@@ -3483,11 +3483,25 @@ function renderCLAView(cla, playerSpecs = {}) {
       ? `<span data-tooltip="${armaTip}" style="cursor:help">${_claBar(armaVal)}</span>`
       : _claBar(armaVal);
 
+    // Pociones — null si la clase no tiene poción esperada
+    const pocionVal = j.consumibles?.pociones ?? null;
+    let pocionCell;
+    if (pocionVal === null) {
+      pocionCell = `<span style="color:var(--text-dim);font-size:0.85rem">N/A</span>`;
+    } else {
+      const usadas = j.pocionUsadas ?? {};
+      const total  = j.pocionesTotal ?? 0;
+      const lines  = Object.entries(usadas).map(([n, c]) => `• ${n}: ${c}/${total}`);
+      const tip    = lines.length > 0 ? lines.join('<br>') : 'Ninguna';
+      pocionCell   = `<span data-tooltip="${tip}" style="cursor:help">${_claBar(pocionVal)}</span>`;
+    }
+
     return `<tr>
       <td><span class="player-link clickable-player" data-player="${name}" style="color:${clsColor}">${name}</span></td>
       <td>${_claBar(j.consumibles.frasco)}</td>
       <td>${_claBar(j.consumibles.comida)}</td>
       <td>${armaCell}</td>
+      <td>${pocionCell}</td>
       <td style="font-family:'Cinzel',serif;font-weight:700;font-size:1rem;color:${prepColor};text-align:center">${j.prepPct}%</td>
     </tr>`;
   }).join('');
@@ -3496,6 +3510,10 @@ function renderCLAView(cla, playerSpecs = {}) {
   const avgFlask  = Math.round(sorted.reduce((s, [, j]) => s + j.consumibles.frasco, 0) / (sorted.length || 1));
   const avgFood   = Math.round(sorted.reduce((s, [, j]) => s + j.consumibles.comida,  0) / (sorted.length || 1));
   const avgWeapon = Math.round(sorted.reduce((s, [name, j]) => s + _effectiveArma({ ...j, _name: name }, playerSpecs).val, 0) / (sorted.length || 1));
+  const pocionPlayers = sorted.filter(([, j]) => (j.consumibles?.pociones ?? null) !== null);
+  const avgPocion = pocionPlayers.length > 0
+    ? Math.round(pocionPlayers.reduce((s, [, j]) => s + j.consumibles.pociones, 0) / pocionPlayers.length)
+    : null;
 
   // ── EQUIPO ────────────────────────────────────────────────────────────────────
   // Categorización de issues por tipo (compatible con formato antiguo y nuevo)
@@ -3511,7 +3529,7 @@ function renderCLAView(cla, playerSpecs = {}) {
   };
   const _isSubIssue = i => {
     const tag = (i.match(/\[([^\]]+)\]$/) ?? [])[1] ?? '';
-    return tag.includes('inutil') || tag.includes('suboptimo');
+    return tag.includes('inutil') || tag.includes('suboptimo') || tag.startsWith('gear pvp') || tag === 'gema meta inactiva';
   };
 
   const playersWithEnch = sorted.filter(([, j]) => (j.gearIssues ?? []).some(_isEnchIssue)).length;
@@ -3563,6 +3581,10 @@ function renderCLAView(cla, playerSpecs = {}) {
         <div class="stat-label">Media mejora arma</div>
         <div class="stat-value" style="color:${_claColor(avgWeapon)}">${avgWeapon}%</div>
       </div>
+      <div class="stat-card" style="text-align:center">
+        <div class="stat-label">Media pociones</div>
+        <div class="stat-value" style="color:${avgPocion !== null ? _claColor(avgPocion) : 'var(--text-dim)'}">${avgPocion !== null ? avgPocion + '%' : 'N/A'}</div>
+      </div>
     </div>
     <table class="ranked-list">
       <thead>
@@ -3571,6 +3593,7 @@ function renderCLAView(cla, playerSpecs = {}) {
           <th>Frasco / Elixir</th>
           <th>Comida</th>
           <th>Mejora Arma</th>
+          <th>Pociones</th>
           <th style="text-align:center">Prep %</th>
         </tr>
       </thead>
@@ -3609,11 +3632,11 @@ function renderCLAView(cla, playerSpecs = {}) {
 
   el.innerHTML = `
     <div id="sub-nav-cla" style="display:flex;gap:0;border-bottom:1px solid rgba(255,255,255,0.1);margin-bottom:1.5rem">
-      <button class="sub-tab-btn active" data-clasub="consumibles">Consumibles</button>
-      <button class="sub-tab-btn" data-clasub="equipo">Equipo</button>
+      <button class="sub-tab-btn ${activeSub === 'consumibles' ? 'active' : ''}" data-clasub="consumibles">Consumibles</button>
+      <button class="sub-tab-btn ${activeSub === 'equipo' ? 'active' : ''}" data-clasub="equipo">Equipo</button>
     </div>
-    <div class="sub-tab-content active" id="clasub-consumibles">${consumHtml}</div>
-    <div class="sub-tab-content" id="clasub-equipo">${equipoHtml}</div>`;
+    <div class="sub-tab-content ${activeSub === 'consumibles' ? 'active' : ''}" id="clasub-consumibles">${consumHtml}</div>
+    <div class="sub-tab-content ${activeSub === 'equipo' ? 'active' : ''}" id="clasub-equipo">${equipoHtml}</div>`;
 
   document.getElementById('sub-nav-cla').addEventListener('click', e => {
     const btn = e.target.closest('.sub-tab-btn');
@@ -3641,7 +3664,9 @@ function renderCLA() {
     for (const code of reports) {
       const cla = entry.claReports[code];
       if (!cla) continue;
-      raids.push({ code, cla, fecha: cla.fecha ?? entry.fecha, semanaNum: entry.semanaNum, playerSpecs: entry.playerSpecs ?? {} });
+      const claFecha = cla.fecha ?? entry.fecha;
+      const instance = cla.instance ?? null;
+      raids.push({ code, cla, fecha: claFecha, semanaNum: entry.semanaNum, playerSpecs: entry.playerSpecs ?? {}, instance });
     }
   }
   raids.sort((a, b) => b.fecha.localeCompare(a.fecha));
@@ -3657,7 +3682,7 @@ function renderCLA() {
   }
 
   const options = raids.map(r =>
-    `<option value="${r.code}">S${r.semanaNum} · ${r.fecha}</option>`
+    `<option value="${r.code}">S${r.semanaNum} · ${r.fecha}${r.instance ? ' · ' + r.instance : ''}</option>`
   ).join('');
 
   el.innerHTML = `
@@ -3670,7 +3695,9 @@ function renderCLA() {
   const sel = document.getElementById('cla-raid-sel');
   sel.addEventListener('change', () => {
     const r = raids.find(r => r.code === sel.value);
-    if (r) renderCLAView(r.cla, r.playerSpecs);
+    if (!r) return;
+    const activeSub = document.querySelector('#sub-nav-cla .sub-tab-btn.active')?.dataset.clasub ?? 'consumibles';
+    renderCLAView(r.cla, r.playerSpecs, activeSub);
   });
 
   renderCLAView(raids[0].cla, raids[0].playerSpecs);
