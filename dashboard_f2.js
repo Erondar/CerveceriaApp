@@ -3489,11 +3489,14 @@ function renderCLAView(cla, playerSpecs = {}, activeSub = 'consumibles') {
     if (pocionVal === null) {
       pocionCell = `<span style="color:var(--text-dim);font-size:0.85rem">N/A</span>`;
     } else {
-      const usadas   = j.pocionUsadas ?? {};
-      const numTries = j.numTries ?? 0;
-      const lines    = Object.entries(usadas).map(([n, c]) => `• ${n}: ${c} pociones en ${numTries} trys`);
-      const tip      = lines.length > 0 ? lines.join('<br>') : `Ninguna (${numTries} trys)`;
-      pocionCell     = `<span data-tooltip="${tip}" style="cursor:help">${_claBar(pocionVal)}</span>`;
+      const usadas     = j.pocionUsadas ?? {};
+      const healUsadas = j.healPocionUsadas ?? {};
+      const numTries   = j.numTries ?? 0;
+      const lines = Object.entries(usadas).map(([n, c]) => `• ${n}: ${c} pociones en ${numTries} trys`);
+      const healLines = Object.entries(healUsadas).map(([n, c]) => `• ${n} (x0.5): ${c} pociones en ${numTries} trys`);
+      const allLines = [...lines, ...healLines];
+      const tip = allLines.length > 0 ? allLines.join('<br>') : `Ninguna (${numTries} trys)`;
+      pocionCell = `<span data-tooltip="${tip}" style="cursor:help">${_claBar(pocionVal)}</span>`;
     }
 
     return `<tr>
@@ -3593,7 +3596,7 @@ function renderCLAView(cla, playerSpecs = {}, activeSub = 'consumibles') {
           <th>Frasco / Elixir</th>
           <th>Comida</th>
           <th>Mejora Arma</th>
-          <th><span data-tooltip="DPS: 1 pocion por boss = 100%<br>Tank/Healer: 1 pocion cada 2 trys = 100%<br><br>Destruction: Warlock, Mage, Paladin, Balance, Elemental<br>Haste: Warrior, Rogue, Hunter, Feral, Enh Sham<br>Ironshield: Warrior, Feral, Prot/Justicar Paladin<br>Mana: Priest, Mage, Paladin, Elemental, Resto Sham, Druid Resto/Bal, Hunter" style="cursor:help">Pociones (?)</span></th>
+          <th><span data-tooltip="DPS: 1 pocion por boss = 100%<br>Tank/Healer: 1 pocion cada 2 trys = 100%<br><br>Destruction: Warlock, Mage, Paladin, Balance, Elemental<br>Haste: Warrior, Rogue, Hunter, Feral, Enh Sham<br>Ironshield: Warrior, Feral, Prot/Justicar Paladin<br>Mana: Priest, Mage, Paladin, Elemental, Resto Sham, Druid Resto/Bal, Hunter<br><br>Healing Potion (x0.5): todo el mundo — 2 por try = 100%" style="cursor:help">Pociones (?)</span></th>
           <th style="text-align:center">Prep %</th>
         </tr>
       </thead>
