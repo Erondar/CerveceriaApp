@@ -160,6 +160,21 @@ function fmtMs(ms) {
   return m > 0 ? `${m}m ${s % 60}s` : `${s}s`;
 }
 
+function _attachChartTooltips(container) {
+  let tip = document.getElementById('prog-tooltip-global');
+  if (!tip) {
+    tip = document.createElement('div');
+    tip.id = 'prog-tooltip-global';
+    tip.className = 'prog-tooltip';
+    document.body.appendChild(tip);
+  }
+  container.querySelectorAll('.prog-pt').forEach(pt => {
+    pt.addEventListener('mouseenter', () => { tip.textContent = pt.dataset.tip; tip.classList.add('visible'); });
+    pt.addEventListener('mousemove', e => { tip.style.left = e.clientX + 14 + 'px'; tip.style.top = e.clientY - 36 + 'px'; });
+    pt.addEventListener('mouseleave', () => tip.classList.remove('visible'));
+  });
+}
+
 // ── Agregación ────────────────────────────────────────────────────────────────
 
 function getSemanas() {
@@ -3144,6 +3159,7 @@ function renderJugador(name) {
     </div>`;
     })()}
   `;
+  _attachChartTooltips(profile);
 }
 
 // ── LOOT ──────────────────────────────────────────────────────────────────────
@@ -4081,7 +4097,7 @@ function renderCLAGlobal(raids) {
     });
     return Math.round(vals.reduce((s, v) => s + v, 0) / vals.length);
   });
-  const chart = drawLineChart(chartLabels, [{ label: 'PREP % media', color: '#7dce82', values: chartValues }], v => Math.round(v) + '%');
+  const chart = drawLineChart(chartLabels, [{ label: 'PREP % media', color: '#7dce82', values: chartValues }], v => Math.round(v) + '%', 100);
 
   // ── Tabla ─────────────────────────────────────────────────────────────────
   const tableRows = players.map(p => {
@@ -4113,7 +4129,7 @@ function renderCLAGlobal(raids) {
       </div>
     </div>
     <div class="prog-chart" style="margin-bottom:1.5rem">
-      <div class="prog-chart-title">PREP % medio de la raid por semana</div>
+      <div class="prog-chart-title">Evolución del PREP % medio</div>
       ${chart}
     </div>
     <table class="ranked-list" style="table-layout:fixed;width:100%">
@@ -4239,6 +4255,7 @@ function renderCLA() {
 
   // Player clicks en resumen general
   attachPlayerClicks('#clamain-general');
+  _attachChartTooltips(document.getElementById('clamain-general'));
 
   // Raid selector
   const sel = document.getElementById('cla-raid-sel');
