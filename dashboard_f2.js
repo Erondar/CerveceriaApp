@@ -1099,9 +1099,6 @@ function renderMecanicas() {
   };
 
   document.getElementById('tab-mecanicas').innerHTML = `
-    <p style="font-size:.78rem;color:#888;margin-bottom:1.5rem">
-      Solo jugadores con al menos ${minSem} semana${minSem !== 1 ? 's' : ''} asistidas.
-    </p>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:2rem">
       <div>
         <div class="section-title">Interrupts</div>
