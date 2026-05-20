@@ -4169,8 +4169,8 @@ function renderCLA() {
   el.innerHTML = `
     <div style="display:flex;align-items:stretch;border-bottom:1px solid rgba(255,255,255,0.1);margin-bottom:1.5rem">
       <div id="sub-nav-cla-main" style="display:flex;gap:0;flex:1">
-        <button class="sub-tab-btn active" data-clamain="general">Resumen General</button>
-        <button class="sub-tab-btn" data-clamain="porraid">Por Raid</button>
+        <button class="sub-tab-btn active" data-clamain="general" style="font-family:'Cinzel',serif;font-size:0.93rem;font-weight:600;letter-spacing:.06em;padding:.55rem 1.5rem;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility">Resumen General</button>
+        <button class="sub-tab-btn" data-clamain="porraid" style="font-family:'Cinzel',serif;font-size:0.93rem;font-weight:600;letter-spacing:.06em;padding:.55rem 1.5rem;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility">Por Raid</button>
       </div>
       <button id="cla-calc-btn" class="sub-tab-btn" style="margin-left:auto;border-left:1px solid rgba(255,255,255,0.08);border-bottom-color:transparent;-webkit-font-smoothing:antialiased">ℹ️ Cálculos</button>
     </div>
@@ -4179,6 +4179,7 @@ function renderCLA() {
         <button id="cla-calc-close" style="position:absolute;top:1rem;right:1rem;background:none;border:none;color:var(--text-dim);font-size:1.4rem;cursor:pointer;line-height:1" onmouseover="this.style.color='var(--text-bright)'" onmouseout="this.style.color='var(--text-dim)'">&times;</button>
         <h3 style="font-family:'Cinzel',serif;font-size:1rem;letter-spacing:0.08em;color:var(--gold);margin:0 0 1.2rem;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility">Cómo se realizan los cálculos</h3>
         <div class="cla-details-body">
+          <p>Todos los cálculos se realizan <strong>únicamente sobre peleas de boss</strong> (tries y kills). El trash no se tiene en cuenta.</p>
           <p>El <strong>PREP % de consumibles</strong> es la media de las siguientes categorías, medidas en cada boss fight:</p>
           <ul>
             <li><strong>Flask/Elixir</strong>: % de bosses donde llevabas preparación activa. Puedes usar un <em>Frasco de Batalla</em> (cuenta como ambos elixires), o la combinación <em>Elixir de Guardián + Elixir de Batalla</em>.</li>
