@@ -4244,8 +4244,8 @@ function renderCLA() {
       <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap">
         <span style="color:var(--text-dim);font-size:1rem;font-family:'Cinzel',serif;font-weight:600;letter-spacing:.05em;align-self:center">Raid</span>
         <select class="loot-select" id="cla-raid-sel" style="min-width:200px;width:auto;margin-bottom:0">${options}</select>
-        <span style="color:var(--text-dim);font-size:0.8rem;line-height:1.4">
-          Ve a <strong style="color:var(--text-bright)">Consumibles</strong> o <strong style="color:var(--text-bright)">Equipo</strong> para ver el detalle de cada jugador.<br>
+        <span style="color:var(--text-dim);font-size:0.8rem;line-height:1.4;margin-left:1rem;padding-left:1rem;border-left:1px solid rgba(255,255,255,0.1)">
+          Ve a <strong style="color:var(--text-bright)">Consumibles</strong> o <strong style="color:var(--text-bright)">Equipo</strong> para ver el detalle.<br>
           Pasa el ratón por encima de los % de encantamientos/gemas para ver qué slots llevas mal.
         </span>
       </div>
