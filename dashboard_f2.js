@@ -4302,6 +4302,91 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
+// ── CHANGELOG ─────────────────────────────────────────────────────────────────
+
+const CHANGELOG = [
+  {
+    fecha: '20/05/2026',
+    titulo: 'Combat Log Analysis & Mejoras de Preparación',
+    secciones: [
+      {
+        nombre: 'Preparación — nuevo tab',
+        items: [
+          'Nuevo tab <strong>CLA (Combat Log Analysis)</strong>: analiza los logs de combate para medir la preparación real de cada jugador en cada raid.',
+          'Vista <strong>Resumen General</strong>: media de PREP % por jugador sobre todas las raids, con barras de consumibles y gear, gráfica evolutiva y badges de mejor/peor preparado.',
+          'Vista <strong>Por Raid</strong>: desglose detallado por jugador de consumibles (flask, comida, mejora de arma, pociones, pergaminos) y gear (encantamientos, gemas, items subóptimos).',
+          'Botón <em>ℹ️ Cálculos</em> con la explicación completa de cómo se calculan todos los porcentajes. Solo se tienen en cuenta peleas de boss (tries y kills), no trash.',
+        ],
+      },
+      {
+        nombre: 'Ficha de Jugador',
+        items: [
+          'Nueva sección <strong>Evolución de Preparación</strong> en la ficha de cada jugador con gráfica histórica de su PREP % raid a raid.',
+          'Nuevo stat <strong>Prep. Media</strong> en el resumen de estadísticas del jugador.',
+        ],
+      },
+      {
+        nombre: 'Vergüenza & Logros',
+        items: [
+          'Corregidos algunos cálculos del score de vergüenza que no estaban bien aplicados.',
+          'Los rankings de vergüenza, logros y otros apartados ahora requieren un <strong>mínimo del 30% de asistencia a raids</strong> para aparecer, evitando resultados sesgados por poca muestra.',
+        ],
+      },
+    ],
+  },
+]
+
+;(function initChangelog() {
+  const modal    = document.getElementById('changelog-modal');
+  const overlay  = document.getElementById('changelog-overlay');
+  const closeBtn = document.getElementById('changelog-close');
+  const openBtn  = document.getElementById('btn-changelog');
+  const timeline = document.getElementById('changelog-timeline');
+  const entries  = document.getElementById('changelog-entries');
+
+  entries.innerHTML = CHANGELOG.map((entry, i) => {
+    const id = `cl-${i}`;
+    const sectionsHTML = entry.secciones.map(s => `
+      <div class="cl-section">
+        <div class="cl-section-name">${s.nombre}</div>
+        <ul>${s.items.map(item => `<li>${item}</li>`).join('')}</ul>
+      </div>`).join('');
+    return `<div class="cl-entry" id="${id}">
+      <div class="cl-date">${entry.fecha}</div>
+      <div class="cl-title">${entry.titulo}</div>
+      ${sectionsHTML}
+    </div>`;
+  }).join('<hr style="border:none;border-top:1px solid var(--border);margin:1.5rem 0">');
+
+  timeline.innerHTML = CHANGELOG.map((entry, i) =>
+    `<a href="#cl-${i}" data-idx="${i}">${entry.fecha}</a>`
+  ).join('');
+
+  const entryEls = entries.querySelectorAll('.cl-entry');
+  const timeLinks = timeline.querySelectorAll('a');
+  if (timeLinks[0]) timeLinks[0].classList.add('active');
+  entries.addEventListener('scroll', () => {
+    let current = 0;
+    entryEls.forEach((el, i) => { if (el.offsetTop - entries.scrollTop <= 20) current = i; });
+    timeLinks.forEach((a, i) => a.classList.toggle('active', i === current));
+  });
+
+  timeline.querySelectorAll('a').forEach(a => {
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      const el = entries.querySelector(`#cl-${a.dataset.idx}`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  const open  = () => modal.classList.add('open');
+  const close = () => modal.classList.remove('open');
+  openBtn.addEventListener('click', open);
+  closeBtn.addEventListener('click', close);
+  overlay.addEventListener('click', close);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+})();
+
 // ── CUSTOM TOOLTIP ────────────────────────────────────────────────────────────
 ;(function () {
   const tip = document.getElementById('custom-tooltip');
