@@ -293,6 +293,24 @@
   .record-date { font-size: 0.82rem; color: var(--text-muted); }
 
   /* ── RANKED LIST ── */
+  /* CLA — Resumen desplegable */
+  .cla-details { border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; margin-bottom: 0.75rem; overflow: hidden; }
+  .cla-details summary { padding: 0.75rem 1rem; cursor: pointer; font-family: 'Cinzel', serif; font-size: 0.92rem; font-weight: 700; letter-spacing: 0.06em; color: var(--gold); background: rgba(255,255,255,0.03); list-style: none; display: flex; justify-content: space-between; align-items: center; user-select: none; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+  .cla-details summary::-webkit-details-marker { display: none; }
+  .cla-details summary::after { content: '▼'; font-size: 0.65rem; opacity: 0.6; transition: transform 0.2s; }
+  .cla-details[open] summary::after { transform: rotate(180deg); }
+  .cla-details-body { padding: 1rem 1.2rem; font-size: 0.875rem; line-height: 1.6; color: var(--text-dim); }
+  .cla-details-body p { margin: 0 0 0.6rem; }
+  .cla-details-body ul { margin: 0.3rem 0 0.6rem 1.2rem; padding: 0; }
+  .cla-details-body li { margin-bottom: 0.3rem; }
+  .cla-details-body strong { color: var(--text-bright); }
+  .cla-details-body code { background: rgba(255,255,255,0.08); padding: 0.1em 0.4em; border-radius: 3px; font-size: 0.82rem; color: #c9d1d9; }
+  /* CLA — headers sortables */
+  .ranked-list th[data-sort] { cursor: pointer; }
+  .ranked-list th[data-sort]:hover { color: var(--gold); }
+  .sort-arrow { margin-left: 0.3em; opacity: 0.5; font-size: 0.65rem; }
+  .sort-arrow.active { opacity: 1; color: var(--gold); }
+
   .ranked-list { width: 100%; border-collapse: collapse; }
   .ranked-list th {
     font-family: 'Cinzel', serif;
