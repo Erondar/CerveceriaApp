@@ -6,6 +6,7 @@
 <link rel="icon" type="image/x-icon" href="favicon.ico">
 <title>Cronica de Incompetentes Acuaticos — Dashboard F2</title>
 <script src="historial_f2.js" onerror="void 0"></script>
+<script src="performance_f2.js" onerror="void 0"></script>
 <script src="f1_achievements.js" onerror="void 0"></script>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;900&family=Barlow:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="dashboard.css">
@@ -407,6 +408,10 @@
 #tab-jugador .record-ability { font-size: 0.82rem; color: var(--purple2); font-style: italic; margin-bottom: 0.25rem; }
 #tab-jugador .record-date { font-size: 0.82rem; color: var(--text-muted); }
 #tab-jugador .records-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.25rem; margin-bottom: 2.5rem; }
+#perf-tip-box { position:fixed;z-index:9999;pointer-events:none;display:none;background:#1a1a2e;border:1px solid rgba(255,255,255,.18);border-radius:6px;padding:.45rem .7rem;font-size:.8rem;line-height:1.6;box-shadow:0 4px 16px rgba(0,0,0,.65);min-width:150px; }
+#perf-tip-box .tip-row { display:flex;justify-content:space-between;gap:1.2rem; }
+#perf-tip-box .tip-name { color:#d4b896;white-space:nowrap; }
+#perf-tip-box .tip-count { color:#aaa; }
 </style>
 <script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: false};</script>
 <script src="https://wow.zamimg.com/widgets/power.js"></script>
@@ -445,6 +450,7 @@
     <button class="tab-btn" data-tab="logros">Logros</button>
     <button class="tab-btn" data-tab="por-semana">Por Semana</button>
     <button class="tab-btn" data-tab="cla">Preparacion</button>
+    <button class="tab-btn" data-tab="performance">Rendimiento</button>
     <button class="tab-btn" data-tab="verguenza">Verguenza</button>
     <button class="tab-btn" data-tab="mecanicas">Control</button>
     <button class="tab-btn" data-tab="historial">Historial</button>
@@ -482,6 +488,7 @@
     </section>
 
     <section id="tab-cla" class="tab-panel"></section>
+    <section id="tab-performance" class="tab-panel"></section>
   </main>
 
 </div>
