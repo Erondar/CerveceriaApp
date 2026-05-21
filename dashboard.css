@@ -342,6 +342,11 @@
   }
   .ranked-list tr:hover td { background: rgba(226,188,92,0.06) !important; }
   .ranked-list tr:hover .player-link { color: var(--gold2); }
+  /* Compact matrix for performance uptime tables */
+  .perf-matrix { width: auto; }
+  .perf-matrix th { padding: 0.1rem 0.15rem; font-size: 0.62rem; white-space: nowrap; letter-spacing: 0; }
+  .perf-matrix td { padding: 0.1rem 0.15rem; font-size: 0.75rem; white-space: nowrap; }
+  .perf-matrix td a img { margin-right: 0.12rem !important; }
   .rank-num {
     font-family: 'Cinzel', serif;
     color: var(--text);
