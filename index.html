@@ -512,5 +512,14 @@
 </div>
 
 <script src="dashboard_f2.js"></script>
+<script>
+  // Pestaña Rendimiento solo visible en local (file://)
+  if (location.protocol !== 'file:') {
+    const btn = document.querySelector('[data-tab="performance"]');
+    const sec = document.getElementById('tab-performance');
+    if (btn) btn.remove();
+    if (sec) sec.remove();
+  }
+</script>
 </body>
 </html>
