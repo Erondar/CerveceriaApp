@@ -545,6 +545,7 @@ function renderTab(tab) {
     case 'historial':     renderHistorialTab(); break;
     case 'jugador':       break; // search input is static HTML
     case 'cla':           renderCLA();          break;
+    case 'performance':   renderPerformance();  break;
     case 'loot-resumen':  fetchLootData();      break;
     case 'loot-registro': fetchLootData();      break;
   }
@@ -3835,8 +3836,8 @@ function renderCLAView(cla, playerSpecs = {}, activeSub = 'consumibles') {
       const gemFullTip  = [gemDetail, gemTip].filter(Boolean).join('<br>');
 
       gearPrepCell = `<span style="font-family:'Cinzel',serif;font-weight:700;font-size:1rem;color:${gearPrepColor}">${Math.round(gs.gearPrepPct)}%</span>`;
-      enchCell = `<span data-tooltip="${enchFullTip}" style="cursor:help;display:block">${_claBar(gs.enchantScore)}</span>`;
-      gemCell  = `<span data-tooltip="${gemFullTip}" style="cursor:help;display:block">${_claBar(gs.gemScore)}</span>`;
+      enchCell = `<div data-tooltip="${enchFullTip}" style="cursor:help">${_claBar(gs.enchantScore)}</div>`;
+      gemCell  = `<div data-tooltip="${gemFullTip}" style="cursor:help">${_claBar(gs.gemScore)}</div>`;
     } else {
       // Fallback legacy: usar gearScore y conteo de issues
       const legacyScore = j.gearScore ?? 0;
@@ -3845,8 +3846,8 @@ function renderCLAView(cla, playerSpecs = {}, activeSub = 'consumibles') {
       const enchTip = enchIssues.length ? enchIssues.map(i => `• ${i}`).join('<br>') : 'Sin problemas';
       const gemTip  = gemIssues.length  ? gemIssues.map(i => `• ${i}`).join('<br>') : 'Sin problemas';
       gearPrepCell = `<span style="font-family:'Cinzel',serif;font-weight:700;font-size:1rem;color:${_claColor(legacyScore)}">${Math.round(legacyScore)}%</span>`;
-      enchCell = enchIssues.length > 0 ? `<span data-tooltip="${enchTip}" style="cursor:help;display:block">${_claBar(0)}</span>` : _claBar(100);
-      gemCell  = gemIssues.length  > 0 ? `<span data-tooltip="${gemTip}"  style="cursor:help;display:block">${_claBar(0)}</span>`  : _claBar(100);
+      enchCell = `<div data-tooltip="${enchTip}" style="cursor:help">${_claBar(enchIssues.length > 0 ? 0 : 100)}</div>`;
+      gemCell  = `<div data-tooltip="${gemTip}"  style="cursor:help">${_claBar(gemIssues.length  > 0 ? 0 : 100)}</div>`;
     }
 
     const subIssuesList = issues.filter(_isSubIssue);
@@ -4017,9 +4018,18 @@ function renderCLAView(cla, playerSpecs = {}, activeSub = 'consumibles') {
 
   el.innerHTML = `
     <div id="sub-nav-cla" style="display:flex;gap:0;border-bottom:1px solid rgba(255,255,255,0.1);margin-bottom:1.5rem">
-      <button class="sub-tab-btn ${activeSub === 'resumen' ? 'active' : ''}" data-clasub="resumen">Resumen</button>
-      <button class="sub-tab-btn ${activeSub === 'consumibles' ? 'active' : ''}" data-clasub="consumibles">Consumibles</button>
-      <button class="sub-tab-btn ${activeSub === 'equipo' ? 'active' : ''}" data-clasub="equipo">Equipo</button>
+      <button class="cla-sub-pill ${activeSub === 'resumen' ? 'active' : ''}" data-clasub="resumen">
+        <span class="cla-sub-icon">📋</span>
+        <span class="cla-sub-label">Resumen</span>
+      </button>
+      <button class="cla-sub-pill ${activeSub === 'consumibles' ? 'active' : ''}" data-clasub="consumibles">
+        <span class="cla-sub-icon">🧪</span>
+        <span class="cla-sub-label">Consumibles</span>
+      </button>
+      <button class="cla-sub-pill ${activeSub === 'equipo' ? 'active' : ''}" data-clasub="equipo">
+        <span class="cla-sub-icon">🛡️</span>
+        <span class="cla-sub-label">Equipo</span>
+      </button>
     </div>
     <div class="sub-tab-content ${activeSub === 'resumen' ? 'active' : ''}" id="clasub-resumen">${resumenHtml}</div>
     <div class="sub-tab-content ${activeSub === 'consumibles' ? 'active' : ''}" id="clasub-consumibles">${consumHtml}</div>
@@ -4027,9 +4037,9 @@ function renderCLAView(cla, playerSpecs = {}, activeSub = 'consumibles') {
 
   // Sub-tab switching
   document.getElementById('sub-nav-cla').addEventListener('click', e => {
-    const btn = e.target.closest('.sub-tab-btn');
+    const btn = e.target.closest('.cla-sub-pill');
     if (!btn) return;
-    document.querySelectorAll('#sub-nav-cla .sub-tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+    document.querySelectorAll('#sub-nav-cla .cla-sub-pill').forEach(b => b.classList.toggle('active', b === btn));
     const sub = btn.dataset.clasub;
     document.querySelectorAll('#cla-view .sub-tab-content').forEach(c => c.classList.toggle('active', c.id === `clasub-${sub}`));
   });
@@ -4138,6 +4148,24 @@ function renderCLAGlobal(raids) {
         <div class="stat-value" style="color:#e07070;font-size:1.4rem">${worstPrep}%</div>
         <div style="margin-top:0.4rem;font-size:0.85rem">${nameSpans(worstList)}</div>
       </div>
+    </div>
+    <div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1.5rem">
+      <button class="cla-goto-card" data-goto="consumibles">
+        <span style="font-size:1.6rem;line-height:1;flex-shrink:0">🧪</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:'Cinzel',serif;font-weight:700;font-size:.88rem;color:var(--text-bright);letter-spacing:.04em">Consumibles por Raid</div>
+          <div style="font-size:.78rem;color:var(--text-dim);margin-top:.15rem">Flask, comida, pociones y pergaminos</div>
+        </div>
+        <span class="cla-goto-arrow" style="color:var(--text-dim);font-size:1.1rem;flex-shrink:0;transition:color .15s">→</span>
+      </button>
+      <button class="cla-goto-card" data-goto="equipo">
+        <span style="font-size:1.6rem;line-height:1;flex-shrink:0">🛡️</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:'Cinzel',serif;font-weight:700;font-size:.88rem;color:var(--text-bright);letter-spacing:.04em">Equipo por Raid</div>
+          <div style="font-size:.78rem;color:var(--text-dim);margin-top:.15rem">Enchants, gemas e ítems subóptimos</div>
+        </div>
+        <span class="cla-goto-arrow" style="color:var(--text-dim);font-size:1.1rem;flex-shrink:0;transition:color .15s">→</span>
+      </button>
     </div>
     <div class="prog-chart" style="margin-bottom:1.5rem">
       <div class="prog-chart-title">Evolución del PREP % medio</div>
@@ -4272,6 +4300,18 @@ function renderCLA() {
   attachPlayerClicks('#clamain-general');
   _attachChartTooltips(document.getElementById('clamain-general'));
 
+  // Shortcut cards: navegar a Por Raid + subtab concreto
+  document.getElementById('clamain-general').addEventListener('click', e => {
+    const card = e.target.closest('[data-goto]');
+    if (!card) return;
+    const sub = card.dataset.goto;
+    document.querySelectorAll('#sub-nav-cla-main .sub-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.clamain === 'porraid'));
+    document.getElementById('clamain-general').classList.remove('active');
+    document.getElementById('clamain-porraid').classList.add('active');
+    const r = raids[0];
+    renderCLAView(r.cla, r.playerSpecs, sub);
+  });
+
   // Raid selector
   const sel = document.getElementById('cla-raid-sel');
   sel.addEventListener('change', () => {
@@ -4282,6 +4322,291 @@ function renderCLA() {
   });
 
   renderCLAView(raids[0].cla, raids[0].playerSpecs, 'resumen');
+}
+
+// ── PERFORMANCE ───────────────────────────────────────────────────────────────
+
+function renderPerformance() {
+  const el = document.getElementById('tab-performance');
+  const perfData = window.__PERFORMANCE_F2__ ?? [];
+
+  if (!perfData.length) {
+    el.innerHTML = '<p class="empty-msg">No hay datos de rendimiento aún. Ejecuta <code>node backfill_performance.js</code>.</p>';
+    return;
+  }
+
+  const semanas = [...perfData].sort((a, b) => b.semana.localeCompare(a.semana));
+
+  function weekEndStr(semana) {
+    const d = new Date(semana + 'T12:00:00');
+    d.setDate(d.getDate() + 6);
+    return `${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getFullYear()}`;
+  }
+  function semanaLabel(s) {
+    const [y,m,d] = s.semana.split('-');
+    return `S${s.semanaNum} · ${d}/${m}/${y} – ${weekEndStr(s.semana)}`;
+  }
+
+  // Merge duplicate boss entries (same boss can appear in multiple reports of same semana)
+  function mergeBosses(sd) {
+    const bossMap = new Map();
+    for (const b of sd.bosses) {
+      const key = `${b.boss}|${b.raid}`;
+      if (!bossMap.has(key)) bossMap.set(key, { boss: b.boss, raid: b.raid, attempts: [] });
+      const entry = bossMap.get(key);
+      for (const a of b.attempts) {
+        entry.attempts.push({ ...a, attempt: entry.attempts.length + 1 });
+      }
+    }
+    return [...bossMap.values()].sort((a, b) => {
+      if (a.raid !== b.raid) return a.raid === 'SSC' ? -1 : 1;
+      const order = a.raid === 'SSC' ? SSC_BOSSES : TK_BOSSES;
+      return order.indexOf(a.boss) - order.indexOf(b.boss);
+    });
+  }
+
+  // Icon + WoWHead link helpers
+  function perfIcon(iconFile, size = 18) {
+    if (!iconFile) return '';
+    return `<img src="https://wow.zamimg.com/images/wow/icons/small/${iconFile}" class="item-icon" alt="" style="width:${size}px;height:${size}px;border-radius:2px;vertical-align:middle;margin-right:0.35rem;flex-shrink:0;border:1px solid rgba(255,255,255,0.15)">`;
+  }
+  function perfLink(id, name, iconFile, isItem = false) {
+    const type = isItem ? 'item' : 'spell';
+    return `<a href="https://www.wowhead.com/tbc/${type}=${id}" class="item-link" target="_blank" style="display:inline-flex;align-items:center;color:var(--text-bright);text-decoration:none;white-space:nowrap">${perfIcon(iconFile)}${name}</a>`;
+  }
+
+  // Build per-player ability map from an attempt
+  function buildPlayerMap(attempt) {
+    const map = new Map();
+    for (const ab of (attempt.castsByAbility ?? [])) {
+      for (const c of ab.casters) {
+        if (!map.has(c.name)) map.set(c.name, { name: c.name, cooldowns: [], trinkets: [] });
+        const p = map.get(c.name);
+        if (ab.isTrinket)   p.trinkets.push({ ...ab, count: c.count });
+        else if (ab.isCooldown) p.cooldowns.push({ ...ab, count: c.count });
+      }
+    }
+    return map;
+  }
+
+  // Render content for a given attempt + active sub-tab
+  function renderAttemptContent(attempt, sub, playerClasses) {
+    const playerMap  = buildPlayerMap(attempt);
+    const players    = [...playerMap.values()].sort((a, b) => a.name.localeCompare(b.name));
+    const cooldowns  = attempt.castsByAbility?.filter(a => a.isCooldown) ?? [];
+    const trinkets   = attempt.castsByAbility?.filter(a => a.isTrinket)  ?? [];
+    const bossDebuffs = attempt.bossDebuffs ?? [];
+    const playerBuffs = attempt.playerBuffs ?? [];
+
+    const SUBTABS = [
+      { key: 'jugadores',   label: 'Por Jugador' },
+      { key: 'habilidades', label: 'Habilidades' },
+      { key: 'buffs',       label: 'Buffs' },
+      { key: 'debuffs',     label: 'Debuffs en Boss' },
+      { key: 'trinkets',    label: 'Trinkets' },
+    ];
+    const tabsHTML = SUBTABS.map(t =>
+      `<button class="sub-tab-btn ${t.key === sub ? 'active' : ''}" data-perfSub="${t.key}">${t.label}</button>`
+    ).join('');
+
+    let bodyHTML = '';
+
+    if (sub === 'jugadores') {
+      if (!players.length) {
+        bodyHTML = '<p class="td-dim" style="font-style:italic;padding:1rem 0">Sin datos para este intento.</p>';
+      } else {
+        bodyHTML = players.map(p => {
+          const cls = playerClasses[p.name] ?? '';
+          const chips = [
+            ...p.cooldowns.map(a =>
+              `<span style="display:inline-flex;align-items:center;gap:0.25rem;background:rgba(93,173,226,0.07);border:1px solid rgba(93,173,226,0.2);border-radius:3px;padding:0.12rem 0.45rem;font-size:0.82rem">${perfLink(a.id, a.name, a.icon, false)}<span class="td-dim">×${a.count}</span></span>`),
+            ...p.trinkets.map(a =>
+              `<span style="display:inline-flex;align-items:center;gap:0.25rem;background:rgba(155,89,182,0.07);border:1px solid rgba(155,89,182,0.2);border-radius:3px;padding:0.12rem 0.45rem;font-size:0.82rem">${perfLink(a.id, a.name, a.icon, true)}<span class="td-dim">×${a.count}</span></span>`),
+          ].join('');
+          return `<div style="display:flex;align-items:flex-start;gap:1rem;padding:0.55rem 0;border-bottom:1px solid rgba(255,255,255,0.05);flex-wrap:wrap">
+            <div style="min-width:150px">
+              <span class="player-link" style="font-weight:600">${p.name}</span>
+              ${cls ? `<div style="font-size:0.72rem;color:var(--text-dim);margin-top:0.1rem">${cls}</div>` : ''}
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:0.3rem;flex:1">${chips || '<span class="td-dim" style="font-size:0.82rem;font-style:italic">Sin habilidades</span>'}</div>
+          </div>`;
+        }).join('');
+      }
+    }
+
+    else if (sub === 'habilidades') {
+      if (!cooldowns.length) {
+        bodyHTML = '<p class="td-dim" style="font-style:italic;padding:1rem 0">Sin cooldowns de clase para este intento.</p>';
+      } else {
+        const rows = cooldowns.map(ab => {
+          const casters = ab.casters.map(c => `<span style="color:var(--name)">${c.name}</span><span class="td-dim"> ×${c.count}</span>`).join('&ensp;');
+          return `<tr>
+            <td style="white-space:nowrap">${perfLink(ab.id, ab.name, ab.icon, false)}</td>
+            <td>${ab.class ? `<span class="td-dim">${ab.class}</span>` : ''}</td>
+            <td style="font-size:0.88rem">${casters}</td>
+          </tr>`;
+        }).join('');
+        bodyHTML = `<table class="ranked-list"><thead><tr><th>Habilidad</th><th>Clase</th><th>Jugadores</th></tr></thead><tbody>${rows}</tbody></table>`;
+      }
+    }
+
+    else if (sub === 'buffs') {
+      if (!playerBuffs.length) {
+        bodyHTML = '<p class="td-dim" style="font-style:italic;padding:1rem 0">Sin datos de buffs. Los datos de buffs se generan en el próximo <code>subir_report.js</code> o <code>backfill_performance.js</code>.</p>';
+      } else {
+        const rows = playerBuffs.map(b => {
+          const segs = Math.round(b.totalUptime / 1000);
+          return `<tr>
+            <td style="white-space:nowrap">${perfLink(b.id, b.name, b.icon, false)}</td>
+            <td>${b.class ? `<span class="td-dim">${b.class}</span>` : ''}</td>
+            <td class="val-cell">${b.uses}</td>
+            <td class="td-dim">${fmtMs(b.totalUptime)} activo</td>
+          </tr>`;
+        }).join('');
+        bodyHTML = `<table class="ranked-list"><thead><tr><th>Buff</th><th>Clase</th><th>Usos</th><th>Tiempo activo</th></tr></thead><tbody>${rows}</tbody></table>`;
+      }
+    }
+
+    else if (sub === 'debuffs') {
+      if (!bossDebuffs.length) {
+        bodyHTML = '<p class="td-dim" style="font-style:italic;padding:1rem 0">Sin debuffs de boss para este intento.</p>';
+      } else {
+        const rows = bossDebuffs.map(d => {
+          const color = d.uptime >= 80 ? 'var(--f2-accent)' : d.uptime >= 50 ? '#f0c84a' : '#e07070';
+          return `<tr>
+            <td style="white-space:nowrap">${perfLink(d.id, d.name, d.icon, false)}</td>
+            <td class="val-cell" style="color:${color}">${d.uptime}%</td>
+            <td class="bar-cell"><div class="bar-wrap"><div class="bar-fill" style="width:${Math.min(d.uptime,100)}%;background:${color}"></div></div></td>
+            <td class="td-dim">${d.uses} veces</td>
+          </tr>`;
+        }).join('');
+        bodyHTML = `<table class="ranked-list"><thead><tr><th>Debuff en Boss</th><th>Uptime</th><th></th><th>Usos</th></tr></thead><tbody>${rows}</tbody></table>`;
+      }
+    }
+
+    else if (sub === 'trinkets') {
+      if (!trinkets.length) {
+        bodyHTML = '<p class="td-dim" style="font-style:italic;padding:1rem 0">Sin trinkets para este intento.</p>';
+      } else {
+        const rows = trinkets.map(ab => {
+          const casters = ab.casters.map(c => `<span style="color:var(--name)">${c.name}</span><span class="td-dim"> ×${c.count}</span>`).join('&ensp;');
+          return `<tr>
+            <td style="white-space:nowrap">${perfLink(ab.id, ab.name, ab.icon, true)}</td>
+            <td style="font-size:0.88rem">${casters}</td>
+          </tr>`;
+        }).join('');
+        bodyHTML = `<table class="ranked-list"><thead><tr><th>Trinket</th><th>Jugadores</th></tr></thead><tbody>${rows}</tbody></table>`;
+      }
+    }
+
+    return `
+      <div class="sub-nav" style="padding:0;margin:0 0 1.25rem;border-bottom:1px solid rgba(255,255,255,0.08);flex-wrap:wrap;display:flex" id="perf-subtabs">${tabsHTML}</div>
+      <div id="perf-content">${bodyHTML}</div>
+    `;
+  }
+
+  // Main render for a semana
+  function renderView(sd) {
+    const bosses = mergeBosses(sd);
+
+    // Get playerClasses from historial for this semana
+    const hEntry = historial.find(e => e.semana === sd.semana);
+    const playerClasses = hEntry?.playerClasses ?? {};
+
+    // State (captured via closure for this semana)
+    let activeBoss = bosses[0] ?? null;
+    let activeAIdx = activeBoss ? Math.max(0, [...activeBoss.attempts].reverse().findIndex(a => a.killed) !== -1
+      ? activeBoss.attempts.length - 1 - [...activeBoss.attempts].reverse().findIndex(a => a.killed)
+      : activeBoss.attempts.length - 1) : 0;
+    let activeSub  = 'jugadores';
+
+    function render() {
+      // Boss pills
+      const bossPills = bosses.map(b => {
+        const isSel  = activeBoss && b.boss === activeBoss.boss && b.raid === activeBoss.raid;
+        const kills  = b.attempts.filter(a => a.killed).length;
+        return `<button class="sub-tab-btn ${isSel ? 'active' : ''}" data-pboss="${b.boss}" data-praid="${b.raid}" style="display:flex;align-items:center;gap:0.35rem">
+          <span class="raid-badge ${b.raid.toLowerCase()}" style="font-size:0.62rem">${b.raid}</span>
+          ${b.boss}
+          <span style="font-size:0.7rem;color:${kills ? '#7dce82' : '#e07070'}">${kills ? '✓' : '✗'}</span>
+        </button>`;
+      }).join('');
+
+      // Attempt pills
+      let attemptPills = '';
+      if (activeBoss) {
+        let wipeCount = 0;
+        attemptPills = activeBoss.attempts.map((a, i) => {
+          const label = a.killed ? 'Kill' : `Wipe ${++wipeCount}`;
+          return `<button class="sub-tab-btn ${i === activeAIdx ? 'active' : ''}" data-paidx="${i}">${label} <span class="td-dim" style="font-size:0.72rem">${fmtMs(a.durationMs)}</span></button>`;
+        }).join('');
+      }
+
+      const attempt = activeBoss?.attempts[activeAIdx];
+
+      const body = document.getElementById('perf-body');
+      body.innerHTML = `
+        <div style="margin-bottom:1rem">
+          <div style="font-size:0.72rem;color:#666;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.5rem">Boss</div>
+          <div style="display:flex;flex-wrap:wrap;gap:0.3rem" id="perf-boss-pills">${bossPills}</div>
+        </div>
+        ${activeBoss ? `
+        <div style="margin-bottom:1.5rem">
+          <div style="font-size:0.72rem;color:#666;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.5rem">Intento</div>
+          <div style="display:flex;flex-wrap:wrap;gap:0.3rem" id="perf-attempt-pills">${attemptPills}</div>
+        </div>
+        <div id="perf-sub-area" style="border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:1rem 1.25rem">
+          ${attempt ? renderAttemptContent(attempt, activeSub, playerClasses) : '<p class="td-dim">Sin datos.</p>'}
+        </div>` : ''}
+      `;
+
+      document.getElementById('perf-boss-pills')?.addEventListener('click', e => {
+        const btn = e.target.closest('[data-pboss]');
+        if (!btn) return;
+        activeBoss = bosses.find(b => b.boss === btn.dataset.pboss && b.raid === btn.dataset.praid);
+        if (activeBoss) {
+          const li = activeBoss.attempts.map((a, i) => a.killed ? i : -1).filter(i => i !== -1);
+          activeAIdx = li.length ? li[li.length - 1] : activeBoss.attempts.length - 1;
+        }
+        render();
+      });
+
+      document.getElementById('perf-attempt-pills')?.addEventListener('click', e => {
+        const btn = e.target.closest('[data-paidx]');
+        if (!btn) return;
+        activeAIdx = +btn.dataset.paidx;
+        render();
+      });
+
+      document.getElementById('perf-subtabs')?.addEventListener('click', e => {
+        const btn = e.target.closest('[data-perfSub]');
+        if (!btn) return;
+        activeSub = btn.dataset.perfsub;
+        render();
+      });
+
+      if (typeof $WowheadPower !== 'undefined') $WowheadPower.refreshLinks();
+    }
+
+    render();
+  }
+
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap">
+      <span style="color:var(--text-dim);font-size:1rem;font-family:'Cinzel',serif;font-weight:600;letter-spacing:.05em">Semana</span>
+      <select class="loot-select" id="perf-semana-sel" style="min-width:260px;width:auto;margin-bottom:0">
+        ${semanas.map(s => `<option value="${s.semana}">${semanaLabel(s)}</option>`).join('')}
+      </select>
+    </div>
+    <div id="perf-body"></div>
+  `;
+
+  document.getElementById('perf-semana-sel').addEventListener('change', e => {
+    const sd = semanas.find(s => s.semana === e.target.value);
+    if (sd) renderView(sd);
+  });
+
+  renderView(semanas[0]);
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
@@ -4301,7 +4626,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupJugador();
 
   // Hash-based navigation
-  const VALID_TABS = new Set(['resumen','progresion','logros','por-semana','cla','verguenza','mecanicas','historial','jugador','loot-resumen','loot-registro']);
+  const VALID_TABS = new Set(['resumen','progresion','logros','por-semana','cla','performance','verguenza','mecanicas','historial','jugador','loot-resumen','loot-registro']);
   window.addEventListener('hashchange', () => {
     const hash = location.hash.slice(1);
     if (VALID_TABS.has(hash)) switchTab(hash);
