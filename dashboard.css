@@ -151,6 +151,14 @@
   .sub-tab-btn { padding: .45rem 1.1rem; background: none; border: none; border-bottom: 2px solid transparent; margin-bottom: -1px; color: var(--text-dim); cursor: pointer; font-family: 'Barlow', sans-serif; font-size: .88rem; font-weight: 500; letter-spacing: .03em; transition: color .15s, border-color .15s; }
   .sub-tab-btn:hover { color: var(--text-bright); }
   .sub-tab-btn.active { color: var(--text-bright); font-weight: 700; border-bottom-color: var(--gold); }
+  .cla-sub-pill { display:flex; flex-direction:column; align-items:center; gap:.2rem; padding:.65rem 1.8rem; background:none; border:none; border-bottom:3px solid transparent; margin-bottom:-1px; color:var(--text-dim); cursor:pointer; font-family:'Barlow',sans-serif; transition:color .15s,border-color .15s,background .15s; }
+  .cla-sub-pill:hover { color:var(--text-bright); background:rgba(255,255,255,.04); }
+  .cla-sub-pill.active { color:var(--text-bright); border-bottom-color:var(--gold); background:rgba(255,255,255,.04); }
+  .cla-sub-pill .cla-sub-icon { font-size:1.3rem; line-height:1; }
+  .cla-sub-pill .cla-sub-label { font-size:.75rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+  .cla-goto-card { display:flex; align-items:center; gap:1rem; padding:1rem 1.25rem; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.1); border-radius:8px; cursor:pointer; transition:background .15s,border-color .15s; width:100%; text-align:left; font-family:inherit; }
+  .cla-goto-card:hover { background:rgba(255,255,255,.08); border-color:rgba(212,175,55,.4); }
+  .cla-goto-card:hover .cla-goto-arrow { color:var(--gold); }
   .sub-tab-content { display: none; }
   .sub-tab-content.active { display: block; }
 
