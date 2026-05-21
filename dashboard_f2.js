@@ -4325,7 +4325,7 @@ function renderCLA() {
 }
 
 // ── PERFORMANCE ───────────────────────────────────────────────────────────────
-
+// eslint-disable-next-line no-unused-vars
 function renderPerformance() {
   const el = document.getElementById('tab-performance');
   const perfData = window.__PERFORMANCE_F2__ ?? [];
@@ -4337,6 +4337,13 @@ function renderPerformance() {
 
   const semanas = [...perfData].sort((a, b) => b.semana.localeCompare(a.semana));
 
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  const CLASS_ORDER  = ['Warrior','Paladin','Hunter','Rogue','Priest','Shaman','Mage','Warlock','Druid'];
+  const CLASS_COLORS = {
+    Warrior:'#C79C6E',Paladin:'#F58CBA',Hunter:'#ABD473',Rogue:'#FFF569',
+    Priest:'#FFFFFF',Shaman:'#0070DE',Mage:'#69CCF0',Warlock:'#9482C9',Druid:'#FF7D0A',
+  };
+
   function weekEndStr(semana) {
     const d = new Date(semana + 'T12:00:00');
     d.setDate(d.getDate() + 6);
@@ -4347,16 +4354,96 @@ function renderPerformance() {
     return `S${s.semanaNum} · ${d}/${m}/${y} – ${weekEndStr(s.semana)}`;
   }
 
-  // Merge duplicate boss entries (same boss can appear in multiple reports of same semana)
+  // Mapa spell-ID → item-ID para trinkets donde se conoce el item ID real de WoWHead.
+  // Los IDs en TRACKED_TRINKETS son spell/buff IDs (los que usa WCL). Para el tooltip
+  // de WoWHead necesitamos el item ID. Si no está en el mapa, se usa spell= como fallback
+  // (muestra el tooltip del efecto, no la ficha completa del item).
+  const TRINKET_ITEM_IDS = {
+    35163: 29370,  // Icon of the Silver Crescent
+    // Añadir aquí otros trinkets si el tooltip muestra el item incorrecto:
+    // spellId: itemId,
+  };
+
+  // Icon + WoWHead link helpers (NO $WowheadPower.refreshLinks — evita iconos duplicados)
+  function perfIcon(iconFile, size) {
+    if (!iconFile) return '';
+    const sz = size || 18;
+    return `<img src="https://wow.zamimg.com/images/wow/icons/small/${iconFile}" alt="" style="width:${sz}px;height:${sz}px;border-radius:2px;vertical-align:middle;margin-right:0.35rem;flex-shrink:0;border:1px solid rgba(255,255,255,0.15)">`;
+  }
+  function perfLink(id, name, iconFile, isItem) {
+    // Para trinkets: si hay item ID conocido → item=X, si no → spell=X (evita tooltip incorrecto)
+    const href = isItem
+      ? (TRINKET_ITEM_IDS[id] ? `item=${TRINKET_ITEM_IDS[id]}` : `spell=${id}`)
+      : `spell=${id}`;
+    return `<a href="https://www.wowhead.com/tbc/${href}" class="item-link" target="_blank" style="display:inline-flex;align-items:center;color:var(--text-bright);text-decoration:none;white-space:nowrap">${perfIcon(iconFile)}${name}</a>`;
+  }
+  function uptimeColor(u) {
+    return u >= 80 ? 'var(--f2-accent)' : u >= 50 ? '#f0c84a' : '#e07070';
+  }
+  function playerColor(name, playerClasses) {
+    const cls = playerClasses[name] ?? '';
+    return CLASS_COLORS[cls] ?? 'var(--text-bright)';
+  }
+  function playerNameHtml(name, playerClasses) {
+    return `<span style="font-weight:600;color:${playerColor(name, playerClasses)}">${name}</span>`;
+  }
+  function sortByClass(arr, playerClasses, getName) {
+    const fn = getName ?? (x => x.name);
+    return [...arr].sort((a, b) => {
+      const ca = CLASS_ORDER.indexOf(playerClasses[fn(a)] ?? '');
+      const cb = CLASS_ORDER.indexOf(playerClasses[fn(b)] ?? '');
+      if (ca !== cb) return (ca === -1 ? 999 : ca) - (cb === -1 ? 999 : cb);
+      return fn(a).localeCompare(fn(b));
+    });
+  }
+
+  // Tooltip flotante con position:fixed — no lo corta ningún overflow
+  if (!document.getElementById('perf-tip-box')) {
+    const box = document.createElement('div');
+    box.id = 'perf-tip-box';
+    document.body.appendChild(box);
+
+    document.addEventListener('mouseover', e => {
+      const cell = e.target.closest('[data-perf-tip]');
+      if (!cell) return;
+      box.innerHTML = cell.dataset.perfTip.split(';').map(s => {
+        const i = s.lastIndexOf('|');
+        return `<div class="tip-row"><span class="tip-name">${s.slice(0,i)}</span><span class="tip-count">×${s.slice(i+1)}</span></div>`;
+      }).join('');
+      box.style.display = 'block';
+    });
+    document.addEventListener('mousemove', e => {
+      if (box.style.display === 'none') return;
+      const x = e.clientX + 14, y = e.clientY + 14;
+      box.style.left = (x + box.offsetWidth  > window.innerWidth  ? e.clientX - box.offsetWidth  - 8 : x) + 'px';
+      box.style.top  = (y + box.offsetHeight > window.innerHeight ? e.clientY - box.offsetHeight - 8 : y) + 'px';
+    });
+    document.addEventListener('mouseout', e => {
+      if (!e.target.closest('[data-perf-tip]')) return;
+      if (e.relatedTarget?.closest('[data-perf-tip]')) return;
+      box.style.display = 'none';
+    });
+  }
+
+  // Uptime % bar + value cell con data-perf-tip para el tooltip
+  function uptimeCell(u, casters) {
+    const color = uptimeColor(u);
+    const tipData = casters && casters.length
+      ? casters.map(c => `${c.name}|${c.count}`).join(';')
+      : '';
+    const tipAttr = tipData ? ` data-perf-tip="${tipData}"` : '';
+    return `<td class="val-cell" style="color:${color};${tipData ? 'cursor:help' : ''}"${tipAttr}>${u}%</td>
+      <td class="bar-cell"><div class="bar-wrap"><div class="bar-fill" style="width:${Math.min(u,100)}%;background:${color}"></div></div></td>`;
+  }
+
+  // Merge duplicate boss entries (same boss can appear across multiple reports in a semana)
   function mergeBosses(sd) {
     const bossMap = new Map();
     for (const b of sd.bosses) {
       const key = `${b.boss}|${b.raid}`;
       if (!bossMap.has(key)) bossMap.set(key, { boss: b.boss, raid: b.raid, attempts: [] });
       const entry = bossMap.get(key);
-      for (const a of b.attempts) {
-        entry.attempts.push({ ...a, attempt: entry.attempts.length + 1 });
-      }
+      for (const a of b.attempts) entry.attempts.push({ ...a, attempt: entry.attempts.length + 1 });
     }
     return [...bossMap.values()].sort((a, b) => {
       if (a.raid !== b.raid) return a.raid === 'SSC' ? -1 : 1;
@@ -4365,242 +4452,395 @@ function renderPerformance() {
     });
   }
 
-  // Icon + WoWHead link helpers
-  function perfIcon(iconFile, size = 18) {
-    if (!iconFile) return '';
-    return `<img src="https://wow.zamimg.com/images/wow/icons/small/${iconFile}" class="item-icon" alt="" style="width:${size}px;height:${size}px;border-radius:2px;vertical-align:middle;margin-right:0.35rem;flex-shrink:0;border:1px solid rgba(255,255,255,0.15)">`;
-  }
-  function perfLink(id, name, iconFile, isItem = false) {
-    const type = isItem ? 'item' : 'spell';
-    return `<a href="https://www.wowhead.com/tbc/${type}=${id}" class="item-link" target="_blank" style="display:inline-flex;align-items:center;color:var(--text-bright);text-decoration:none;white-space:nowrap">${perfIcon(iconFile)}${name}</a>`;
-  }
-
-  // Build per-player ability map from an attempt
-  function buildPlayerMap(attempt) {
+  // Build per-player map for a single attempt
+  function buildPlayerAttemptMap(attempt) {
     const map = new Map();
+    function ensure(name) {
+      if (!map.has(name)) map.set(name, { name, debuffs: [], cooldowns: [], trinkets: [] });
+      return map.get(name);
+    }
+    for (const d of (attempt.bossDebuffs ?? [])) {
+      for (const c of (d.casters ?? [])) {
+        ensure(c.name).debuffs.push({ id: d.id, name: d.name, icon: d.icon, uptime: d.uptime, uses: c.count });
+      }
+    }
     for (const ab of (attempt.castsByAbility ?? [])) {
-      for (const c of ab.casters) {
-        if (!map.has(c.name)) map.set(c.name, { name: c.name, cooldowns: [], trinkets: [] });
-        const p = map.get(c.name);
-        if (ab.isTrinket)   p.trinkets.push({ ...ab, count: c.count });
-        else if (ab.isCooldown) p.cooldowns.push({ ...ab, count: c.count });
+      for (const c of (ab.casters ?? [])) {
+        const p = ensure(c.name);
+        if (ab.isTrinket)    p.trinkets.push({ id: ab.id, name: ab.name, icon: ab.icon, count: c.count });
+        else if (ab.isCooldown) p.cooldowns.push({ id: ab.id, name: ab.name, icon: ab.icon, count: c.count });
       }
     }
     return map;
   }
 
-  // Render content for a given attempt + active sub-tab
-  function renderAttemptContent(attempt, sub, playerClasses) {
-    const playerMap  = buildPlayerMap(attempt);
-    const players    = [...playerMap.values()].sort((a, b) => a.name.localeCompare(b.name));
-    const cooldowns  = attempt.castsByAbility?.filter(a => a.isCooldown) ?? [];
-    const trinkets   = attempt.castsByAbility?.filter(a => a.isTrinket)  ?? [];
-    const bossDebuffs = attempt.bossDebuffs ?? [];
-    const playerBuffs = attempt.playerBuffs ?? [];
+  // ── Render helpers ─────────────────────────────────────────────────────────
 
-    const SUBTABS = [
-      { key: 'jugadores',   label: 'Por Jugador' },
-      { key: 'habilidades', label: 'Habilidades' },
-      { key: 'buffs',       label: 'Buffs' },
-      { key: 'debuffs',     label: 'Debuffs en Boss' },
-      { key: 'trinkets',    label: 'Trinkets' },
-    ];
-    const tabsHTML = SUBTABS.map(t =>
-      `<button class="sub-tab-btn ${t.key === sub ? 'active' : ''}" data-perfSub="${t.key}">${t.label}</button>`
-    ).join('');
+  // "Por Jugador" sub-tab for a single attempt
+  function renderPorJugador(attempt, playerClasses) {
+    const playerMap = buildPlayerAttemptMap(attempt);
+    const players = sortByClass([...playerMap.values()], playerClasses);
+    if (!players.length) return '<p class="td-dim" style="font-style:italic;padding:1rem 0">Sin datos para este intento.</p>';
 
-    let bodyHTML = '';
+    return players.map(p => {
+      const cls = playerClasses[p.name] ?? '';
 
-    if (sub === 'jugadores') {
-      if (!players.length) {
-        bodyHTML = '<p class="td-dim" style="font-style:italic;padding:1rem 0">Sin datos para este intento.</p>';
-      } else {
-        bodyHTML = players.map(p => {
-          const cls = playerClasses[p.name] ?? '';
-          const chips = [
-            ...p.cooldowns.map(a =>
-              `<span style="display:inline-flex;align-items:center;gap:0.25rem;background:rgba(93,173,226,0.07);border:1px solid rgba(93,173,226,0.2);border-radius:3px;padding:0.12rem 0.45rem;font-size:0.82rem">${perfLink(a.id, a.name, a.icon, false)}<span class="td-dim">×${a.count}</span></span>`),
-            ...p.trinkets.map(a =>
-              `<span style="display:inline-flex;align-items:center;gap:0.25rem;background:rgba(155,89,182,0.07);border:1px solid rgba(155,89,182,0.2);border-radius:3px;padding:0.12rem 0.45rem;font-size:0.82rem">${perfLink(a.id, a.name, a.icon, true)}<span class="td-dim">×${a.count}</span></span>`),
-          ].join('');
-          return `<div style="display:flex;align-items:flex-start;gap:1rem;padding:0.55rem 0;border-bottom:1px solid rgba(255,255,255,0.05);flex-wrap:wrap">
-            <div style="min-width:150px">
-              <span class="player-link" style="font-weight:600">${p.name}</span>
-              ${cls ? `<div style="font-size:0.72rem;color:var(--text-dim);margin-top:0.1rem">${cls}</div>` : ''}
-            </div>
-            <div style="display:flex;flex-wrap:wrap;gap:0.3rem;flex:1">${chips || '<span class="td-dim" style="font-size:0.82rem;font-style:italic">Sin habilidades</span>'}</div>
-          </div>`;
-        }).join('');
-      }
-    }
+      const debuffChips = p.debuffs.map(d =>
+        `<span style="display:inline-flex;align-items:center;gap:0.25rem;background:rgba(224,112,112,0.08);border:1px solid rgba(224,112,112,0.25);border-radius:3px;padding:0.1rem 0.45rem;font-size:0.82rem">
+          ${perfLink(d.id, d.name, d.icon, false)}
+          <span style="color:${uptimeColor(d.uptime)};font-size:0.78rem">${d.uptime}%</span>
+          <span class="td-dim" style="font-size:0.75rem">×${d.uses}</span>
+        </span>`
+      ).join('');
 
-    else if (sub === 'habilidades') {
-      if (!cooldowns.length) {
-        bodyHTML = '<p class="td-dim" style="font-style:italic;padding:1rem 0">Sin cooldowns de clase para este intento.</p>';
-      } else {
-        const rows = cooldowns.map(ab => {
-          const casters = ab.casters.map(c => `<span style="color:var(--name)">${c.name}</span><span class="td-dim"> ×${c.count}</span>`).join('&ensp;');
-          return `<tr>
-            <td style="white-space:nowrap">${perfLink(ab.id, ab.name, ab.icon, false)}</td>
-            <td>${ab.class ? `<span class="td-dim">${ab.class}</span>` : ''}</td>
-            <td style="font-size:0.88rem">${casters}</td>
-          </tr>`;
-        }).join('');
-        bodyHTML = `<table class="ranked-list"><thead><tr><th>Habilidad</th><th>Clase</th><th>Jugadores</th></tr></thead><tbody>${rows}</tbody></table>`;
-      }
-    }
+      const cdChips = p.cooldowns.map(a =>
+        `<span style="display:inline-flex;align-items:center;gap:0.25rem;background:rgba(93,173,226,0.07);border:1px solid rgba(93,173,226,0.2);border-radius:3px;padding:0.1rem 0.45rem;font-size:0.82rem">
+          ${perfLink(a.id, a.name, a.icon, false)}
+          <span class="td-dim">×${a.count}</span>
+        </span>`
+      ).join('');
 
-    else if (sub === 'buffs') {
-      if (!playerBuffs.length) {
-        bodyHTML = '<p class="td-dim" style="font-style:italic;padding:1rem 0">Sin datos de buffs. Los datos de buffs se generan en el próximo <code>subir_report.js</code> o <code>backfill_performance.js</code>.</p>';
-      } else {
-        const rows = playerBuffs.map(b => {
-          const segs = Math.round(b.totalUptime / 1000);
-          return `<tr>
-            <td style="white-space:nowrap">${perfLink(b.id, b.name, b.icon, false)}</td>
-            <td>${b.class ? `<span class="td-dim">${b.class}</span>` : ''}</td>
-            <td class="val-cell">${b.uses}</td>
-            <td class="td-dim">${fmtMs(b.totalUptime)} activo</td>
-          </tr>`;
-        }).join('');
-        bodyHTML = `<table class="ranked-list"><thead><tr><th>Buff</th><th>Clase</th><th>Usos</th><th>Tiempo activo</th></tr></thead><tbody>${rows}</tbody></table>`;
-      }
-    }
+      const tkChips = p.trinkets.map(a =>
+        `<span style="display:inline-flex;align-items:center;gap:0.25rem;background:rgba(155,89,182,0.07);border:1px solid rgba(155,89,182,0.2);border-radius:3px;padding:0.1rem 0.45rem;font-size:0.82rem">
+          ${perfLink(a.id, a.name, a.icon, true)}
+          <span class="td-dim">×${a.count}</span>
+        </span>`
+      ).join('');
 
-    else if (sub === 'debuffs') {
-      if (!bossDebuffs.length) {
-        bodyHTML = '<p class="td-dim" style="font-style:italic;padding:1rem 0">Sin debuffs de boss para este intento.</p>';
-      } else {
-        const rows = bossDebuffs.map(d => {
-          const color = d.uptime >= 80 ? 'var(--f2-accent)' : d.uptime >= 50 ? '#f0c84a' : '#e07070';
-          return `<tr>
-            <td style="white-space:nowrap">${perfLink(d.id, d.name, d.icon, false)}</td>
-            <td class="val-cell" style="color:${color}">${d.uptime}%</td>
-            <td class="bar-cell"><div class="bar-wrap"><div class="bar-fill" style="width:${Math.min(d.uptime,100)}%;background:${color}"></div></div></td>
-            <td class="td-dim">${d.uses} veces</td>
-          </tr>`;
-        }).join('');
-        bodyHTML = `<table class="ranked-list"><thead><tr><th>Debuff en Boss</th><th>Uptime</th><th></th><th>Usos</th></tr></thead><tbody>${rows}</tbody></table>`;
-      }
-    }
-
-    else if (sub === 'trinkets') {
-      if (!trinkets.length) {
-        bodyHTML = '<p class="td-dim" style="font-style:italic;padding:1rem 0">Sin trinkets para este intento.</p>';
-      } else {
-        const rows = trinkets.map(ab => {
-          const casters = ab.casters.map(c => `<span style="color:var(--name)">${c.name}</span><span class="td-dim"> ×${c.count}</span>`).join('&ensp;');
-          return `<tr>
-            <td style="white-space:nowrap">${perfLink(ab.id, ab.name, ab.icon, true)}</td>
-            <td style="font-size:0.88rem">${casters}</td>
-          </tr>`;
-        }).join('');
-        bodyHTML = `<table class="ranked-list"><thead><tr><th>Trinket</th><th>Jugadores</th></tr></thead><tbody>${rows}</tbody></table>`;
-      }
-    }
-
-    return `
-      <div class="sub-nav" style="padding:0;margin:0 0 1.25rem;border-bottom:1px solid rgba(255,255,255,0.08);flex-wrap:wrap;display:flex" id="perf-subtabs">${tabsHTML}</div>
-      <div id="perf-content">${bodyHTML}</div>
-    `;
+      const hasAny = debuffChips || cdChips || tkChips;
+      return `<div style="display:grid;grid-template-columns:160px 1fr;gap:0.5rem 1rem;padding:0.6rem 0;border-bottom:1px solid rgba(255,255,255,0.05);align-items:start">
+        <div>
+          ${playerNameHtml(p.name, playerClasses)}
+          ${cls ? `<div style="font-size:0.72rem;color:var(--text-dim);margin-top:0.1rem">${cls}</div>` : ''}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:0.35rem">
+          ${debuffChips ? `<div style="display:flex;flex-wrap:wrap;gap:0.25rem">${debuffChips}</div>` : ''}
+          ${cdChips     ? `<div style="display:flex;flex-wrap:wrap;gap:0.25rem">${cdChips}</div>` : ''}
+          ${tkChips     ? `<div style="display:flex;flex-wrap:wrap;gap:0.25rem">${tkChips}</div>` : ''}
+          ${!hasAny ? '<span class="td-dim" style="font-size:0.82rem;font-style:italic">Sin habilidades registradas</span>' : ''}
+        </div>
+      </div>`;
+    }).join('');
   }
 
-  // Main render for a semana
-  function renderView(sd) {
+  // Shared table for debuffs OR buffs on boss — uptime% + bar + usos + casters
+  function renderAurasTable(auras, emptyMsg, label) {
+    if (!auras.length) return `<p class="td-dim" style="font-style:italic;padding:1rem 0">${emptyMsg}</p>`;
+    const rows = auras.map(d => {
+      const castersHtml = (d.casters ?? []).map(c =>
+        `<span style="color:var(--name)">${c.name}</span><span class="td-dim"> ×${c.count}</span>`
+      ).join('&ensp;');
+      return `<tr>
+        <td style="white-space:nowrap">${perfLink(d.id, d.name, d.icon, false)}</td>
+        ${uptimeCell(d.uptime, null)}
+        <td class="td-dim">${d.uses} veces</td>
+        <td style="font-size:0.85rem">${castersHtml}</td>
+      </tr>`;
+    }).join('');
+    return `<table class="ranked-list"><thead><tr><th>${label}</th><th>Uptime</th><th></th><th>Usos</th><th>Aplicado por</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+
+  // ── Resumen de Semana ───────────────────────────────────────────────────────
+  function renderSemanaResumen(sd, playerClasses) {
     const bosses = mergeBosses(sd);
+    const killsByBoss = bosses.map(b => ({
+      boss: b.boss, raid: b.raid,
+      kills: b.attempts.filter(a => a.killed),
+    })).filter(b => b.kills.length);
 
-    // Get playerClasses from historial for this semana
-    const hEntry = historial.find(e => e.semana === sd.semana);
-    const playerClasses = hEntry?.playerClasses ?? {};
+    if (!killsByBoss.length) return '<p class="td-dim" style="font-style:italic;padding:1rem 0">Sin kills esta semana.</p>';
 
-    // State (captured via closure for this semana)
-    let activeBoss = bosses[0] ?? null;
-    let activeAIdx = activeBoss ? Math.max(0, [...activeBoss.attempts].reverse().findIndex(a => a.killed) !== -1
-      ? activeBoss.attempts.length - 1 - [...activeBoss.attempts].reverse().findIndex(a => a.killed)
-      : activeBoss.attempts.length - 1) : 0;
-    let activeSub  = 'jugadores';
+    // Builds an uptime matrix HTML for a given aura source (debuffs or buffs)
+    function buildMatrix(getAuras, sectionLabel) {
+      const auraMap = new Map();
+      for (const { kills } of killsByBoss) {
+        for (const kill of kills) {
+          for (const a of (getAuras(kill) ?? [])) {
+            if (!auraMap.has(a.id)) auraMap.set(a.id, { id: a.id, name: a.name, icon: a.icon });
+          }
+        }
+      }
+      const allAuras = [...auraMap.values()];
+      if (!allAuras.length) return '';
+
+      // Split by raid
+      const sscBosses = killsByBoss.filter(b => b.raid === 'SSC');
+      const tkBosses  = killsByBoss.filter(b => b.raid === 'TK');
+
+      function buildTable(bossGroup, raidLabel) {
+        if (!bossGroup.length) return '';
+        const headers = bossGroup.map(({ boss }) => `<th style="text-align:center">${boss}</th>`).join('');
+        const rows = allAuras.map(af => {
+          let sumAll = 0, countAll = 0;
+          const cells = bossGroup.map(({ kills }) => {
+            const uptimes = [];
+            const casterMap = new Map();
+            for (const kill of kills) {
+              const a = (getAuras(kill) ?? []).find(a => a.id === af.id);
+              if (a) {
+                uptimes.push(a.uptime);
+                for (const c of (a.casters ?? [])) casterMap.set(c.name, (casterMap.get(c.name) ?? 0) + c.count);
+              }
+            }
+            if (!uptimes.length) return '<td class="td-dim" style="text-align:center">—</td>';
+            const avg = Math.round(uptimes.reduce((a, b) => a + b, 0) / uptimes.length);
+            sumAll += avg; countAll++;
+            const color = uptimeColor(avg);
+            const tipData = [...casterMap.entries()].map(([n,c]) => `${n}|${c}`).join(';');
+            const tipAttr = tipData ? ` data-perf-tip="${tipData}"` : '';
+            return `<td style="text-align:center;color:${color};font-weight:600;cursor:${tipData ? 'help' : 'default'}"${tipAttr}>${avg}%</td>`;
+          });
+          const avgAll = countAll ? Math.round(sumAll / countAll) : null;
+          const avgCell = avgAll !== null
+            ? `<td style="text-align:center;color:${uptimeColor(avgAll)};font-weight:700;border-left:1px solid rgba(255,255,255,0.1)">${avgAll}%</td>`
+            : '<td class="td-dim" style="text-align:center;border-left:1px solid rgba(255,255,255,0.1)">—</td>';
+          return `<tr><td style="white-space:nowrap">${perfLink(af.id, af.name, af.icon, false)}</td>${cells.join('')}${avgCell}</tr>`;
+        });
+        return `<div style="margin-bottom:0.5rem;font-size:0.75rem;color:var(--text-dim);font-weight:600;letter-spacing:0.06em">${raidLabel}</div>
+          <div style="overflow-x:auto;margin-bottom:1.5rem">
+            <table class="ranked-list">
+              <thead><tr><th>${sectionLabel}</th>${headers}<th style="text-align:center;border-left:1px solid rgba(255,255,255,0.1)">Media</th></tr></thead>
+              <tbody>${rows.join('')}</tbody>
+            </table>
+          </div>`;
+      }
+
+      const sscHtml = buildTable(sscBosses, 'SSC');
+      const tkHtml  = buildTable(tkBosses,  'TK');
+      if (!sscHtml && !tkHtml) return '';
+      return sscHtml + tkHtml;
+    }
+
+    const debuffMatrix = buildMatrix(k => k.bossDebuffs, 'Debuff en Boss');
+    const buffMatrix   = buildMatrix(k => k.playerBuffs,  'Buff');
+
+    // Per-player summary aggregated across all kills
+    const playerSummary = new Map();
+    function ensurePlayer(name) {
+      if (!playerSummary.has(name)) playerSummary.set(name, { debuffs: new Map(), cooldowns: new Map(), trinkets: new Map() });
+      return playerSummary.get(name);
+    }
+    for (const { kills } of killsByBoss) {
+      for (const kill of kills) {
+        for (const d of (kill.bossDebuffs ?? [])) {
+          for (const c of (d.casters ?? [])) {
+            const p = ensurePlayer(c.name);
+            if (!p.debuffs.has(d.id)) p.debuffs.set(d.id, { id: d.id, name: d.name, icon: d.icon, uptimes: [], uses: 0 });
+            const e = p.debuffs.get(d.id);
+            e.uptimes.push(d.uptime); e.uses += c.count;
+          }
+        }
+        for (const ab of (kill.castsByAbility ?? [])) {
+          for (const c of (ab.casters ?? [])) {
+            const p = ensurePlayer(c.name);
+            if (ab.isTrinket) {
+              if (!p.trinkets.has(ab.id)) p.trinkets.set(ab.id, { id: ab.id, name: ab.name, icon: ab.icon, counts: [] });
+              p.trinkets.get(ab.id).counts.push(c.count);
+            } else if (ab.isCooldown) {
+              if (!p.cooldowns.has(ab.id)) p.cooldowns.set(ab.id, { id: ab.id, name: ab.name, icon: ab.icon, counts: [] });
+              p.cooldowns.get(ab.id).counts.push(c.count);
+            }
+          }
+        }
+      }
+    }
+
+    const sortedPlayers = sortByClass(
+      [...playerSummary.entries()].map(([name, data]) => ({ name, ...data })),
+      playerClasses
+    );
+
+    const playerRows = sortedPlayers.map(({ name, debuffs, cooldowns, trinkets }) => {
+      const cls = playerClasses[name] ?? '';
+      const debuffChips = [...debuffs.values()].map(d => {
+        const avg = Math.round(d.uptimes.reduce((a, b) => a + b, 0) / d.uptimes.length);
+        return `<span style="display:inline-flex;align-items:center;gap:0.25rem;background:rgba(224,112,112,0.08);border:1px solid rgba(224,112,112,0.25);border-radius:3px;padding:0.1rem 0.45rem;font-size:0.8rem">
+          ${perfLink(d.id, d.name, d.icon, false)}
+          <span style="color:${uptimeColor(avg)};font-size:0.78rem">${avg}%</span>
+          <span class="td-dim" style="font-size:0.75rem">×${d.uses}</span>
+        </span>`;
+      }).join('');
+      const cdChips = [...cooldowns.values()].map(a => {
+        const total = a.counts.reduce((s, c) => s + c, 0);
+        return `<span style="display:inline-flex;align-items:center;gap:0.25rem;background:rgba(93,173,226,0.07);border:1px solid rgba(93,173,226,0.2);border-radius:3px;padding:0.1rem 0.45rem;font-size:0.8rem">
+          ${perfLink(a.id, a.name, a.icon, false)}<span class="td-dim">×${total}</span>
+        </span>`;
+      }).join('');
+      const tkChips = [...trinkets.values()].map(a => {
+        const total = a.counts.reduce((s, c) => s + c, 0);
+        return `<span style="display:inline-flex;align-items:center;gap:0.25rem;background:rgba(155,89,182,0.07);border:1px solid rgba(155,89,182,0.2);border-radius:3px;padding:0.1rem 0.45rem;font-size:0.8rem">
+          ${perfLink(a.id, a.name, a.icon, true)}<span class="td-dim">×${total}</span>
+        </span>`;
+      }).join('');
+      const hasAny = debuffChips || cdChips || tkChips;
+      return `<div style="display:grid;grid-template-columns:160px 1fr;gap:0.5rem 1rem;padding:0.6rem 0;border-bottom:1px solid rgba(255,255,255,0.05);align-items:start">
+        <div>
+          ${playerNameHtml(name, playerClasses)}
+          ${cls ? `<div style="font-size:0.72rem;color:var(--text-dim);margin-top:0.1rem">${cls}</div>` : ''}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:0.35rem">
+          ${debuffChips ? `<div style="display:flex;flex-wrap:wrap;gap:0.25rem">${debuffChips}</div>` : ''}
+          ${cdChips     ? `<div style="display:flex;flex-wrap:wrap;gap:0.25rem">${cdChips}</div>` : ''}
+          ${tkChips     ? `<div style="display:flex;flex-wrap:wrap;gap:0.25rem">${tkChips}</div>` : ''}
+          ${!hasAny ? '<span class="td-dim" style="font-size:0.82rem;font-style:italic">Sin habilidades registradas</span>' : ''}
+        </div>
+      </div>`;
+    }).join('');
+
+    const sections = [];
+    if (debuffMatrix) sections.push(`<div style="margin-bottom:2rem">
+      <div style="font-size:0.78rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.7rem">Uptime de Debuffs en Boss (media de kills)</div>
+      ${debuffMatrix}
+    </div>`);
+    if (buffMatrix) sections.push(`<div style="margin-bottom:2rem">
+      <div style="font-size:0.78rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.7rem">Uptime de Buffs de Raid (media de kills)</div>
+      ${buffMatrix}
+    </div>`);
+    sections.push(`<div style="margin-bottom:2rem">
+      <div style="font-size:0.78rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.7rem">Resumen por Jugador (acumulado de kills)</div>
+      ${playerRows || '<p class="td-dim" style="font-style:italic;padding:1rem 0">Sin datos de jugadores.</p>'}
+    </div>`);
+    return sections.join('');
+  }
+
+  // ── Por Boss view ───────────────────────────────────────────────────────────
+  function renderBossView(sd, playerClasses) {
+    const bosses = mergeBosses(sd);
+    const state = { activeBoss: bosses[0] ?? null, activeAIdx: 0, activeSub: 'jugadores' };
+    if (state.activeBoss) {
+      const kills = state.activeBoss.attempts.map((a, i) => a.killed ? i : -1).filter(i => i !== -1);
+      state.activeAIdx = kills.length ? kills[kills.length - 1] : state.activeBoss.attempts.length - 1;
+    }
+
+    const container = document.createElement('div');
 
     function render() {
-      // Boss pills
+      const SUBTABS = [
+        { key: 'jugadores', label: 'Por Jugador' },
+        { key: 'debuffs',   label: 'Debuffs en Boss' },
+        { key: 'buffs',     label: 'Buffs' },
+      ];
+
       const bossPills = bosses.map(b => {
-        const isSel  = activeBoss && b.boss === activeBoss.boss && b.raid === activeBoss.raid;
-        const kills  = b.attempts.filter(a => a.killed).length;
-        return `<button class="sub-tab-btn ${isSel ? 'active' : ''}" data-pboss="${b.boss}" data-praid="${b.raid}" style="display:flex;align-items:center;gap:0.35rem">
+        const isSel = state.activeBoss && b.boss === state.activeBoss.boss && b.raid === state.activeBoss.raid;
+        const kills = b.attempts.filter(a => a.killed).length;
+        return `<button class="sub-tab-btn ${isSel ? 'active' : ''}" data-pboss="${b.boss}" data-praid="${b.raid}" style="display:inline-flex;align-items:center;gap:0.35rem">
           <span class="raid-badge ${b.raid.toLowerCase()}" style="font-size:0.62rem">${b.raid}</span>
           ${b.boss}
           <span style="font-size:0.7rem;color:${kills ? '#7dce82' : '#e07070'}">${kills ? '✓' : '✗'}</span>
         </button>`;
       }).join('');
 
-      // Attempt pills
-      let attemptPills = '';
-      if (activeBoss) {
-        let wipeCount = 0;
-        attemptPills = activeBoss.attempts.map((a, i) => {
-          const label = a.killed ? 'Kill' : `Wipe ${++wipeCount}`;
-          return `<button class="sub-tab-btn ${i === activeAIdx ? 'active' : ''}" data-paidx="${i}">${label} <span class="td-dim" style="font-size:0.72rem">${fmtMs(a.durationMs)}</span></button>`;
-        }).join('');
+      let wipeCount = 0;
+      const attemptPills = state.activeBoss ? state.activeBoss.attempts.map((a, i) => {
+        const label = a.killed ? 'Kill' : `Wipe ${++wipeCount}`;
+        return `<button class="sub-tab-btn ${i === state.activeAIdx ? 'active' : ''}" data-paidx="${i}">${label} <span class="td-dim" style="font-size:0.72rem">${fmtMs(a.durationMs)}</span></button>`;
+      }).join('') : '';
+
+      const subTabsHtml = SUBTABS.map(t =>
+        `<button class="sub-tab-btn ${t.key === state.activeSub ? 'active' : ''}" data-perfsub="${t.key}">${t.label}</button>`
+      ).join('');
+
+      const attempt = state.activeBoss?.attempts[state.activeAIdx];
+      let subContent = '<p class="td-dim">Sin datos.</p>';
+      if (attempt) {
+        if (state.activeSub === 'jugadores') {
+          subContent = renderPorJugador(attempt, playerClasses);
+        } else if (state.activeSub === 'debuffs') {
+          subContent = renderAurasTable(attempt.bossDebuffs ?? [], 'Sin debuffs de boss para este intento.', 'Debuff en Boss');
+        } else if (state.activeSub === 'buffs') {
+          subContent = renderAurasTable(attempt.playerBuffs ?? [], 'Sin buffs para este intento.', 'Buff');
+        }
       }
 
-      const attempt = activeBoss?.attempts[activeAIdx];
-
-      const body = document.getElementById('perf-body');
-      body.innerHTML = `
+      container.innerHTML = `
         <div style="margin-bottom:1rem">
           <div style="font-size:0.72rem;color:#666;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.5rem">Boss</div>
           <div style="display:flex;flex-wrap:wrap;gap:0.3rem" id="perf-boss-pills">${bossPills}</div>
         </div>
-        ${activeBoss ? `
+        ${state.activeBoss ? `
         <div style="margin-bottom:1.5rem">
           <div style="font-size:0.72rem;color:#666;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.5rem">Intento</div>
           <div style="display:flex;flex-wrap:wrap;gap:0.3rem" id="perf-attempt-pills">${attemptPills}</div>
         </div>
-        <div id="perf-sub-area" style="border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:1rem 1.25rem">
-          ${attempt ? renderAttemptContent(attempt, activeSub, playerClasses) : '<p class="td-dim">Sin datos.</p>'}
+        <div style="border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:1rem 1.25rem">
+          <div class="sub-nav" style="padding:0;margin:0 0 1.25rem;border-bottom:1px solid rgba(255,255,255,0.08);flex-wrap:wrap;display:flex" id="perf-sub-tabs">${subTabsHtml}</div>
+          <div id="perf-sub-content">${subContent}</div>
         </div>` : ''}
       `;
 
-      document.getElementById('perf-boss-pills')?.addEventListener('click', e => {
+      container.querySelector('#perf-boss-pills')?.addEventListener('click', e => {
         const btn = e.target.closest('[data-pboss]');
         if (!btn) return;
-        activeBoss = bosses.find(b => b.boss === btn.dataset.pboss && b.raid === btn.dataset.praid);
-        if (activeBoss) {
-          const li = activeBoss.attempts.map((a, i) => a.killed ? i : -1).filter(i => i !== -1);
-          activeAIdx = li.length ? li[li.length - 1] : activeBoss.attempts.length - 1;
+        state.activeBoss = bosses.find(b => b.boss === btn.dataset.pboss && b.raid === btn.dataset.praid);
+        if (state.activeBoss) {
+          const kills = state.activeBoss.attempts.map((a, i) => a.killed ? i : -1).filter(i => i !== -1);
+          state.activeAIdx = kills.length ? kills[kills.length - 1] : state.activeBoss.attempts.length - 1;
         }
         render();
       });
-
-      document.getElementById('perf-attempt-pills')?.addEventListener('click', e => {
+      container.querySelector('#perf-attempt-pills')?.addEventListener('click', e => {
         const btn = e.target.closest('[data-paidx]');
         if (!btn) return;
-        activeAIdx = +btn.dataset.paidx;
+        state.activeAIdx = +btn.dataset.paidx;
         render();
       });
-
-      document.getElementById('perf-subtabs')?.addEventListener('click', e => {
-        const btn = e.target.closest('[data-perfSub]');
+      container.querySelector('#perf-sub-tabs')?.addEventListener('click', e => {
+        const btn = e.target.closest('[data-perfsub]');
         if (!btn) return;
-        activeSub = btn.dataset.perfsub;
+        state.activeSub = btn.dataset.perfsub;
         render();
       });
-
-      if (typeof $WowheadPower !== 'undefined') $WowheadPower.refreshLinks();
     }
 
     render();
+    return container;
+  }
+
+  // ── Main ────────────────────────────────────────────────────────────────────
+
+  let activeMode = 'semana';
+
+  function renderView(sd) {
+    const hEntry = historial.find(e => e.semana === sd.semana);
+    const playerClasses = hEntry?.playerClasses ?? {};
+    const bodyEl = document.getElementById('perf-body');
+    if (activeMode === 'semana') {
+      bodyEl.innerHTML = renderSemanaResumen(sd, playerClasses);
+    } else {
+      bodyEl.innerHTML = '';
+      bodyEl.appendChild(renderBossView(sd, playerClasses));
+    }
   }
 
   el.innerHTML = `
-    <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap">
+    <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem;flex-wrap:wrap">
       <span style="color:var(--text-dim);font-size:1rem;font-family:'Cinzel',serif;font-weight:600;letter-spacing:.05em">Semana</span>
       <select class="loot-select" id="perf-semana-sel" style="min-width:260px;width:auto;margin-bottom:0">
         ${semanas.map(s => `<option value="${s.semana}">${semanaLabel(s)}</option>`).join('')}
       </select>
     </div>
+    <div style="display:flex;gap:0.5rem;margin-bottom:1.5rem">
+      <button class="sub-tab-btn active" id="perf-mode-semana">Resumen de Semana</button>
+      <button class="sub-tab-btn" id="perf-mode-boss">Por Boss</button>
+    </div>
     <div id="perf-body"></div>
   `;
 
+  document.getElementById('perf-mode-semana').addEventListener('click', () => {
+    activeMode = 'semana';
+    document.getElementById('perf-mode-semana').classList.add('active');
+    document.getElementById('perf-mode-boss').classList.remove('active');
+    const sd = semanas.find(s => s.semana === document.getElementById('perf-semana-sel').value);
+    if (sd) renderView(sd);
+  });
+  document.getElementById('perf-mode-boss').addEventListener('click', () => {
+    activeMode = 'boss';
+    document.getElementById('perf-mode-boss').classList.add('active');
+    document.getElementById('perf-mode-semana').classList.remove('active');
+    const sd = semanas.find(s => s.semana === document.getElementById('perf-semana-sel').value);
+    if (sd) renderView(sd);
+  });
   document.getElementById('perf-semana-sel').addEventListener('change', e => {
     const sd = semanas.find(s => s.semana === e.target.value);
     if (sd) renderView(sd);
