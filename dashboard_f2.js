@@ -4370,12 +4370,12 @@ function renderPerformance() {
     const sz = size || 18;
     return `<img src="https://wow.zamimg.com/images/wow/icons/small/${iconFile}" alt="" style="width:${sz}px;height:${sz}px;border-radius:2px;vertical-align:middle;margin-right:0.35rem;flex-shrink:0;border:1px solid rgba(255,255,255,0.15)">`;
   }
-  function perfLink(id, name, iconFile, isItem) {
+  function perfLink(id, name, iconFile, isItem, iconSize) {
     // Para trinkets: si hay item ID conocido → item=X, si no → spell=X (evita tooltip incorrecto)
     const href = isItem
       ? (TRINKET_ITEM_IDS[id] ? `item=${TRINKET_ITEM_IDS[id]}` : `spell=${id}`)
       : `spell=${id}`;
-    return `<a href="https://www.wowhead.com/tbc/${href}" class="item-link" target="_blank" style="display:inline-flex;align-items:center;color:var(--text-bright);text-decoration:none;white-space:nowrap">${perfIcon(iconFile)}${name}</a>`;
+    return `<a href="https://www.wowhead.com/tbc/${href}" class="item-link" target="_blank" style="display:inline-flex;align-items:center;color:var(--text-bright);text-decoration:none;white-space:nowrap">${perfIcon(iconFile, iconSize)}${name}</a>`;
   }
   function uptimeColor(u) {
     return u >= 80 ? 'var(--f2-accent)' : u >= 50 ? '#f0c84a' : '#e07070';
@@ -4524,23 +4524,217 @@ function renderPerformance() {
   }
 
   // Shared table for debuffs OR buffs on boss — uptime% + bar + usos + casters
-  function renderAurasTable(auras, emptyMsg, label) {
+  function renderAurasTable(auras, emptyMsg, label, playerClasses) {
     if (!auras.length) return `<p class="td-dim" style="font-style:italic;padding:1rem 0">${emptyMsg}</p>`;
-    const rows = auras.map(d => {
+    const rows = auras.flatMap(d => {
+      // Merged tank buff (Inspir/Ancest): one row per tank
+      if (d.perTank) {
+        const tankRows = d.perTank.filter(t => t.uptime > 0);
+        if (!tankRows.length) return [];
+        const castersHtml = (d.casters ?? []).map(c =>
+          `<span style="color:var(--name)">${c.name}</span><span class="td-dim"> ×${c.count}</span>`
+        ).join('&ensp;');
+        return tankRows.map(t => {
+          const cls = playerClasses?.[t.name] ?? '';
+          const slug = cls.toLowerCase();
+          const clsImg = cls ? `<img src="https://wow.zamimg.com/images/wow/icons/medium/classicon_${slug}.jpg" style="width:13px;height:13px;border-radius:2px;vertical-align:middle;margin-right:0.2rem" alt="${cls}">` : '';
+          const buffLinks = d.iconParts
+            ? d.iconParts.map(({ id, icon }, pi) =>
+                perfLink(id, pi === 0 ? 'Inspir' : 'Ancest', icon, false)
+              ).join('<span style="color:var(--text-dim);margin:0 0.1rem">/</span>')
+            : perfLink(d.id, d.name, d.icon, false);
+          const tankSubLabel = `<div style="font-size:0.7rem;color:var(--text-dim);margin-top:0.1rem;line-height:1">${clsImg}${t.name}</div>`;
+          return `<tr>
+            <td style="white-space:nowrap;padding-top:0.2rem;padding-bottom:0.2rem"><div style="line-height:1">${buffLinks}</div>${tankSubLabel}</td>
+            ${uptimeCell(t.uptime, d.casters)}
+            <td class="td-dim">${d.uses ?? '—'} veces</td>
+            <td style="font-size:0.85rem">${castersHtml}</td>
+          </tr>`;
+        });
+      }
       const castersHtml = (d.casters ?? []).map(c =>
         `<span style="color:var(--name)">${c.name}</span><span class="td-dim"> ×${c.count}</span>`
       ).join('&ensp;');
-      return `<tr>
+      return [`<tr>
         <td style="white-space:nowrap">${perfLink(d.id, d.name, d.icon, false)}</td>
         ${uptimeCell(d.uptime, null)}
         <td class="td-dim">${d.uses} veces</td>
         <td style="font-size:0.85rem">${castersHtml}</td>
-      </tr>`;
+      </tr>`];
     }).join('');
     return `<table class="ranked-list"><thead><tr><th>${label}</th><th>Uptime</th><th></th><th>Usos</th><th>Aplicado por</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
 
-  // ── Resumen de Semana ───────────────────────────────────────────────────────
+  // ── buildMatrix (reutilizable: por semana y global) ─────────────────────────
+  // killsByBoss: [{boss, raid, kills}] ordenado SSC→TK
+  function buildMatrix(killsByBoss, getAuras, sectionLabel, playerClasses) {
+    const auraMap = new Map();
+    for (const { kills } of killsByBoss) {
+      for (const kill of kills) {
+        for (const a of (getAuras(kill) ?? [])) {
+          if (!auraMap.has(a.id)) auraMap.set(a.id, { id: a.id, name: a.name, icon: a.icon, iconParts: a.iconParts });
+        }
+      }
+    }
+    const allAuras = [...auraMap.values()];
+    if (!allAuras.length) return '';
+
+    function auraAvg(af) {
+      let sum = 0, count = 0;
+      for (const { kills } of killsByBoss) {
+        const us = kills.map(k => (getAuras(k) ?? []).find(x => x.id === af.id)?.uptime).filter(u => u != null);
+        if (us.length) { sum += Math.round(us.reduce((a, b) => a + b, 0) / us.length); count++; }
+      }
+      return count ? Math.round(sum / count) : 0;
+    }
+    allAuras.sort((a, b) => auraAvg(b) - auraAvg(a));
+
+    const AURA_SHORT = {
+      'Judgement of the Crusader': 'J. Crusader',
+      'Judgement of Wisdom':       'J. Wisdom',
+      'Judgement of Light':        'J. Light',
+      'Curse of Recklessness':     'C. Reckless',
+      'Curse of the Elements':     'C. Elements',
+      'Demoralizing Shout':        'Demo Shout',
+      'Commanding Shout':          'Comm. Shout',
+      'Vampiric Embrace':          'Vamp. Embrace',
+      'Vampiric Touch':            'Vamp. Touch',
+      'Shadow Embrace':            'Sh. Embrace',
+      'Expose Weakness':           'Exp. Weakness',
+      'Expose Armor':              'Exp. Armor',
+      'Hunter\'s Mark':            'Hunt. Mark',
+    };
+    const AURA_NOTE = {
+      'Sunder Armor':        'sust. por Exp. Armor',
+      'Faerie Fire (Feral)': 'innec. si hay Pollo',
+    };
+    const BOSS_SHORT = {
+      'Lurker':     'Lurk',
+      'Hydross':    'Hydr',
+      'Morogrim':   'Moro',
+      'Karathress': 'Kara',
+      'Leotheras':  'Leo',
+      'VoidReaver': 'Void',
+      'Solarian':   'Solar',
+      'Kaelthas':   'Kael',
+    };
+
+    const allBosses = killsByBoss;
+    const sscCount  = allBosses.filter(b => b.raid === 'SSC').length;
+    const tkCount   = allBosses.filter(b => b.raid === 'TK').length;
+    const mediaBorder = 'border-left:1px solid rgba(255,255,255,0.1);border-right:2px solid rgba(255,255,255,0.25)';
+
+    const groupHeader = (sscCount && tkCount)
+      ? `<tr><th></th><th style="${mediaBorder}"></th>` +
+        `<th colspan="${sscCount}" style="text-align:center;color:var(--text-dim);font-size:0.72rem;letter-spacing:0.06em;padding-bottom:0.1rem">SSC</th>` +
+        `<th colspan="${tkCount}" style="text-align:center;color:var(--text-dim);font-size:0.72rem;letter-spacing:0.06em;padding-bottom:0.1rem;border-left:2px solid rgba(255,255,255,0.2)">TK</th></tr>`
+      : '';
+
+    const headers = allBosses.map(({ boss, raid }, i) => {
+      const isTkFirst = raid === 'TK' && (i === 0 || allBosses[i - 1].raid === 'SSC');
+      const border = isTkFirst ? 'border-left:2px solid rgba(255,255,255,0.2);' : '';
+      return `<th style="text-align:center;${border}">${BOSS_SHORT[boss] ?? boss}</th>`;
+    }).join('');
+
+    const rows = allAuras.flatMap(af => {
+      const shortName = AURA_SHORT[af.name] ?? af.name;
+      const hasPerTank = allBosses.some(({ kills }) =>
+        kills.some(k => (getAuras(k) ?? []).find(a => a.id === af.id)?.perTank?.length)
+      );
+      if (hasPerTank) {
+        const tankNames = [...new Set(
+          allBosses.flatMap(({ kills }) =>
+            kills.flatMap(k =>
+              (getAuras(k) ?? []).find(a => a.id === af.id)?.perTank?.filter(t => t.uptime > 0).map(t => t.name) ?? []
+            )
+          )
+        )];
+        return tankNames.map((tankName) => {
+          let sumAll = 0, countAll = 0;
+          const cells = allBosses.map(({ kills, raid }, i) => {
+            const isTkFirst = raid === 'TK' && (i === 0 || allBosses[i - 1].raid === 'SSC');
+            const border = isTkFirst ? 'border-left:2px solid rgba(255,255,255,0.2);' : '';
+            const uptimes = [];
+            const casterMap = new Map();
+            for (const k of kills) {
+              const a = (getAuras(k) ?? []).find(a => a.id === af.id);
+              const pt = a?.perTank?.find(t => t.name === tankName);
+              if (pt !== undefined) {
+                uptimes.push(pt.uptime);
+                for (const c of (a.casters ?? [])) casterMap.set(c.name, (casterMap.get(c.name) ?? 0) + c.count);
+              }
+            }
+            if (!uptimes.length) return `<td class="td-dim" style="text-align:center;${border}">—</td>`;
+            const avg = Math.round(uptimes.reduce((a, b) => a + b, 0) / uptimes.length);
+            sumAll += avg; countAll++;
+            const color = uptimeColor(avg);
+            const tipData = [...casterMap.entries()].map(([n, c]) => `${n}|${c}`).join(';');
+            const tipAttr = tipData ? ` data-perf-tip="${tipData}"` : '';
+            return `<td style="text-align:center;color:${color};font-weight:600;${border}${tipData?'cursor:help':''}"${tipAttr}>${avg}%</td>`;
+          });
+          const avgAll = countAll ? Math.round(sumAll / countAll) : null;
+          const avgCell = avgAll !== null
+            ? `<td style="text-align:center;color:${uptimeColor(avgAll)};font-weight:700;border-left:1px solid rgba(255,255,255,0.1);border-right:2px solid rgba(255,255,255,0.25)">${avgAll}%</td>`
+            : '<td class="td-dim" style="text-align:center;border-left:1px solid rgba(255,255,255,0.1);border-right:2px solid rgba(255,255,255,0.25)">—</td>';
+          const labelCasterMap = new Map();
+          for (const { kills } of allBosses)
+            for (const k of kills)
+              for (const c of ((getAuras(k) ?? []).find(a => a.id === af.id)?.casters ?? []))
+                labelCasterMap.set(c.name, (labelCasterMap.get(c.name) ?? 0) + c.count);
+          const labelTipData = [...labelCasterMap.entries()].map(([n, c]) => `${n}|${c}`).join(';');
+          const cls = playerClasses?.[tankName] ?? '';
+          const slug = cls.toLowerCase();
+          const clsImg = cls ? `<img src="https://wow.zamimg.com/images/wow/icons/medium/classicon_${slug}.jpg" style="width:13px;height:13px;border-radius:2px;vertical-align:middle;margin-right:0.2rem" alt="${cls}">` : '';
+          const buffLinks = af.iconParts
+            ? af.iconParts.map(({ id, icon }, pi) =>
+                perfLink(id, pi === 0 ? 'Inspir' : 'Ancest', icon, false, 16)
+              ).join('<span style="color:var(--text-dim);margin:0 0.1rem">/</span>')
+            : perfLink(af.id, shortName, af.icon, false, 16);
+          const tankSubLabel = `<div style="font-size:0.7rem;color:var(--text-dim);margin-top:0.1rem;line-height:1">${clsImg}${tankName}</div>`;
+          const labelTipAttr = labelTipData ? ` data-perf-tip="${labelTipData}" style="white-space:nowrap;padding-top:0.2rem;padding-bottom:0.2rem;cursor:help"` : ` style="white-space:nowrap;padding-top:0.2rem;padding-bottom:0.2rem"`;
+          return `<tr><td${labelTipAttr}><div style="line-height:1">${buffLinks}</div>${tankSubLabel}</td>${avgCell}${cells.join('')}</tr>`;
+        });
+      }
+
+      let sumAll = 0, countAll = 0;
+      const cells = allBosses.map(({ kills, raid }, i) => {
+        const isTkFirst = raid === 'TK' && (i === 0 || allBosses[i - 1].raid === 'SSC');
+        const border = isTkFirst ? 'border-left:2px solid rgba(255,255,255,0.2);' : '';
+        const uptimes = [];
+        const casterMap = new Map();
+        for (const kill of kills) {
+          const a = (getAuras(kill) ?? []).find(a => a.id === af.id);
+          if (a) {
+            uptimes.push(a.uptime);
+            for (const c of (a.casters ?? [])) casterMap.set(c.name, (casterMap.get(c.name) ?? 0) + c.count);
+          }
+        }
+        if (!uptimes.length) return `<td class="td-dim" style="text-align:center;${border}">—</td>`;
+        const avg = Math.round(uptimes.reduce((a, b) => a + b, 0) / uptimes.length);
+        sumAll += avg; countAll++;
+        const color = uptimeColor(avg);
+        const tipData = [...casterMap.entries()].map(([n, c]) => `${n}|${c}`).join(';');
+        const tipAttr = tipData ? ` data-perf-tip="${tipData}"` : '';
+        return `<td style="text-align:center;color:${color};font-weight:600;${border}cursor:${tipData ? 'help' : 'default'}"${tipAttr}>${avg}%</td>`;
+      });
+      const avgAll = countAll ? Math.round(sumAll / countAll) : null;
+      const avgCell = avgAll !== null
+        ? `<td style="text-align:center;color:${uptimeColor(avgAll)};font-weight:700;border-left:1px solid rgba(255,255,255,0.1);border-right:2px solid rgba(255,255,255,0.25)">${avgAll}%</td>`
+        : '<td class="td-dim" style="text-align:center;border-left:1px solid rgba(255,255,255,0.1);border-right:2px solid rgba(255,255,255,0.25)">—</td>';
+      const auraNote = AURA_NOTE[af.name];
+      const noteHtml = auraNote ? `<div style="font-size:0.68rem;color:var(--text-dim);margin-top:0.1rem;line-height:1;white-space:nowrap">${auraNote}</div>` : '';
+      return [`<tr><td style="white-space:nowrap">${perfLink(af.id, shortName, af.icon, false, 16)}${noteHtml}</td>${avgCell}${cells.join('')}</tr>`];
+    });
+
+    return `<div style="overflow-x:auto;margin-bottom:1.5rem">
+      <table class="ranked-list perf-matrix">
+        <thead>${groupHeader}<tr><th>${sectionLabel}</th><th style="text-align:center;${mediaBorder}">Media</th>${headers}</tr></thead>
+        <tbody>${rows.join('')}</tbody>
+      </table>
+    </div>`;
+  }
+
+  // ── Resumen de Semana (matrices debuff/buff) ─────────────────────────────────
   function renderSemanaResumen(sd, playerClasses) {
     const bosses = mergeBosses(sd);
     const killsByBoss = bosses.map(b => ({
@@ -4550,71 +4744,30 @@ function renderPerformance() {
 
     if (!killsByBoss.length) return '<p class="td-dim" style="font-style:italic;padding:1rem 0">Sin kills esta semana.</p>';
 
-    // Builds an uptime matrix HTML for a given aura source (debuffs or buffs)
-    function buildMatrix(getAuras, sectionLabel) {
-      const auraMap = new Map();
-      for (const { kills } of killsByBoss) {
-        for (const kill of kills) {
-          for (const a of (getAuras(kill) ?? [])) {
-            if (!auraMap.has(a.id)) auraMap.set(a.id, { id: a.id, name: a.name, icon: a.icon });
-          }
-        }
-      }
-      const allAuras = [...auraMap.values()];
-      if (!allAuras.length) return '';
+    const debuffMatrix = buildMatrix(killsByBoss, k => k.bossDebuffs, 'Debuff en Boss', playerClasses);
+    const buffMatrix   = buildMatrix(killsByBoss, k => k.playerBuffs,  'Buff', playerClasses);
 
-      // Split by raid
-      const sscBosses = killsByBoss.filter(b => b.raid === 'SSC');
-      const tkBosses  = killsByBoss.filter(b => b.raid === 'TK');
+    const sections = [];
+    if (debuffMatrix) sections.push(`<div style="margin-bottom:2rem">
+      <div style="font-size:0.78rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.7rem">Uptime de Debuffs en Boss (media de kills)</div>
+      ${debuffMatrix}
+    </div>`);
+    if (buffMatrix) sections.push(`<div style="margin-bottom:2rem">
+      <div style="font-size:0.78rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.7rem">Uptime de Buffs de Raid (media de kills)</div>
+      ${buffMatrix}
+    </div>`);
+    return sections.join('') || '<p class="td-dim" style="font-style:italic;padding:1rem 0">Sin datos esta semana.</p>';
+  }
 
-      function buildTable(bossGroup, raidLabel) {
-        if (!bossGroup.length) return '';
-        const headers = bossGroup.map(({ boss }) => `<th style="text-align:center">${boss}</th>`).join('');
-        const rows = allAuras.map(af => {
-          let sumAll = 0, countAll = 0;
-          const cells = bossGroup.map(({ kills }) => {
-            const uptimes = [];
-            const casterMap = new Map();
-            for (const kill of kills) {
-              const a = (getAuras(kill) ?? []).find(a => a.id === af.id);
-              if (a) {
-                uptimes.push(a.uptime);
-                for (const c of (a.casters ?? [])) casterMap.set(c.name, (casterMap.get(c.name) ?? 0) + c.count);
-              }
-            }
-            if (!uptimes.length) return '<td class="td-dim" style="text-align:center">—</td>';
-            const avg = Math.round(uptimes.reduce((a, b) => a + b, 0) / uptimes.length);
-            sumAll += avg; countAll++;
-            const color = uptimeColor(avg);
-            const tipData = [...casterMap.entries()].map(([n,c]) => `${n}|${c}`).join(';');
-            const tipAttr = tipData ? ` data-perf-tip="${tipData}"` : '';
-            return `<td style="text-align:center;color:${color};font-weight:600;cursor:${tipData ? 'help' : 'default'}"${tipAttr}>${avg}%</td>`;
-          });
-          const avgAll = countAll ? Math.round(sumAll / countAll) : null;
-          const avgCell = avgAll !== null
-            ? `<td style="text-align:center;color:${uptimeColor(avgAll)};font-weight:700;border-left:1px solid rgba(255,255,255,0.1)">${avgAll}%</td>`
-            : '<td class="td-dim" style="text-align:center;border-left:1px solid rgba(255,255,255,0.1)">—</td>';
-          return `<tr><td style="white-space:nowrap">${perfLink(af.id, af.name, af.icon, false)}</td>${cells.join('')}${avgCell}</tr>`;
-        });
-        return `<div style="margin-bottom:0.5rem;font-size:0.75rem;color:var(--text-dim);font-weight:600;letter-spacing:0.06em">${raidLabel}</div>
-          <div style="overflow-x:auto;margin-bottom:1.5rem">
-            <table class="ranked-list">
-              <thead><tr><th>${sectionLabel}</th>${headers}<th style="text-align:center;border-left:1px solid rgba(255,255,255,0.1)">Media</th></tr></thead>
-              <tbody>${rows.join('')}</tbody>
-            </table>
-          </div>`;
-      }
+  // ── Resumen por Jugador (por semana) ────────────────────────────────────────
+  function renderJugadoresResumen(sd, playerClasses) {
+    const bosses = mergeBosses(sd);
+    const killsByBoss = bosses.map(b => ({
+      boss: b.boss, raid: b.raid,
+      kills: b.attempts.filter(a => a.killed),
+    })).filter(b => b.kills.length);
+    if (!killsByBoss.length) return '<p class="td-dim" style="font-style:italic;padding:1rem 0">Sin kills esta semana.</p>';
 
-      const sscHtml = buildTable(sscBosses, 'SSC');
-      const tkHtml  = buildTable(tkBosses,  'TK');
-      if (!sscHtml && !tkHtml) return '';
-      return sscHtml + tkHtml;
-    }
-
-    const debuffMatrix = buildMatrix(k => k.bossDebuffs, 'Debuff en Boss');
-    const buffMatrix   = buildMatrix(k => k.playerBuffs,  'Buff');
-
-    // Per-player summary aggregated across all kills
     const playerSummary = new Map();
     function ensurePlayer(name) {
       if (!playerSummary.has(name)) playerSummary.set(name, { debuffs: new Map(), cooldowns: new Map(), trinkets: new Map() });
@@ -4644,13 +4797,11 @@ function renderPerformance() {
         }
       }
     }
-
     const sortedPlayers = sortByClass(
       [...playerSummary.entries()].map(([name, data]) => ({ name, ...data })),
       playerClasses
     );
-
-    const playerRows = sortedPlayers.map(({ name, debuffs, cooldowns, trinkets }) => {
+    return sortedPlayers.map(({ name, debuffs, cooldowns, trinkets }) => {
       const cls = playerClasses[name] ?? '';
       const debuffChips = [...debuffs.values()].map(d => {
         const avg = Math.round(d.uptimes.reduce((a, b) => a + b, 0) / d.uptimes.length);
@@ -4685,28 +4836,53 @@ function renderPerformance() {
           ${!hasAny ? '<span class="td-dim" style="font-size:0.82rem;font-style:italic">Sin habilidades registradas</span>' : ''}
         </div>
       </div>`;
-    }).join('');
+    }).join('') || '<p class="td-dim" style="font-style:italic;padding:1rem 0">Sin datos de jugadores.</p>';
+  }
+
+  // ── Resumen Global ───────────────────────────────────────────────────────────
+  function renderGlobalResumen() {
+    const hEntry = historial.slice().sort((a, b) => b.semana.localeCompare(a.semana))[0];
+    const playerClasses = hEntry?.playerClasses ?? {};
+
+    const globalBossMap = new Map();
+    for (const sd of semanas) {
+      for (const b of (sd.bosses ?? [])) {
+        const key = `${b.boss}|${b.raid}`;
+        if (!globalBossMap.has(key)) globalBossMap.set(key, { boss: b.boss, raid: b.raid, kills: [] });
+        for (const a of (b.attempts ?? [])) {
+          if (a.killed) globalBossMap.get(key).kills.push(a);
+        }
+      }
+    }
+    const globalKillsByBoss = [...globalBossMap.values()]
+      .sort((a, b) => {
+        if (a.raid !== b.raid) return a.raid === 'SSC' ? -1 : 1;
+        const order = a.raid === 'SSC' ? SSC_BOSSES : TK_BOSSES;
+        return order.indexOf(a.boss) - order.indexOf(b.boss);
+      })
+      .filter(b => b.kills.length);
+
+    if (!globalKillsByBoss.length) return '<p class="td-dim" style="font-style:italic;padding:1rem 0">Sin kills registradas.</p>';
+
+    const debuffMatrix = buildMatrix(globalKillsByBoss, k => k.bossDebuffs, 'Debuff en Boss', playerClasses);
+    const buffMatrix   = buildMatrix(globalKillsByBoss, k => k.playerBuffs,  'Buff', playerClasses);
 
     const sections = [];
     if (debuffMatrix) sections.push(`<div style="margin-bottom:2rem">
-      <div style="font-size:0.78rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.7rem">Uptime de Debuffs en Boss (media de kills)</div>
+      <div style="font-size:0.78rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.7rem">Uptime de Debuffs en Boss (media global de kills)</div>
       ${debuffMatrix}
     </div>`);
     if (buffMatrix) sections.push(`<div style="margin-bottom:2rem">
-      <div style="font-size:0.78rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.7rem">Uptime de Buffs de Raid (media de kills)</div>
+      <div style="font-size:0.78rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.7rem">Uptime de Buffs de Raid (media global de kills)</div>
       ${buffMatrix}
     </div>`);
-    sections.push(`<div style="margin-bottom:2rem">
-      <div style="font-size:0.78rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.7rem">Resumen por Jugador (acumulado de kills)</div>
-      ${playerRows || '<p class="td-dim" style="font-style:italic;padding:1rem 0">Sin datos de jugadores.</p>'}
-    </div>`);
-    return sections.join('');
+    return sections.join('') || '<p class="td-dim" style="font-style:italic;padding:1rem 0">Sin datos.</p>';
   }
 
   // ── Por Boss view ───────────────────────────────────────────────────────────
   function renderBossView(sd, playerClasses) {
     const bosses = mergeBosses(sd);
-    const state = { activeBoss: bosses[0] ?? null, activeAIdx: 0, activeSub: 'jugadores' };
+    const state = { activeBoss: bosses[0] ?? null, activeAIdx: 0, activeSub: 'debuffs' };
     if (state.activeBoss) {
       const kills = state.activeBoss.attempts.map((a, i) => a.killed ? i : -1).filter(i => i !== -1);
       state.activeAIdx = kills.length ? kills[kills.length - 1] : state.activeBoss.attempts.length - 1;
@@ -4716,9 +4892,9 @@ function renderPerformance() {
 
     function render() {
       const SUBTABS = [
-        { key: 'jugadores', label: 'Por Jugador' },
         { key: 'debuffs',   label: 'Debuffs en Boss' },
         { key: 'buffs',     label: 'Buffs' },
+        { key: 'jugadores', label: 'Por Jugador' },
       ];
 
       const bossPills = bosses.map(b => {
@@ -4749,7 +4925,7 @@ function renderPerformance() {
         } else if (state.activeSub === 'debuffs') {
           subContent = renderAurasTable(attempt.bossDebuffs ?? [], 'Sin debuffs de boss para este intento.', 'Debuff en Boss');
         } else if (state.activeSub === 'buffs') {
-          subContent = renderAurasTable(attempt.playerBuffs ?? [], 'Sin buffs para este intento.', 'Buff');
+          subContent = renderAurasTable(attempt.playerBuffs ?? [], 'Sin buffs para este intento.', 'Buff', playerClasses);
         }
       }
 
@@ -4799,7 +4975,8 @@ function renderPerformance() {
 
   // ── Main ────────────────────────────────────────────────────────────────────
 
-  let activeMode = 'semana';
+  let activeTopMode = 'global'; // 'global' | 'semana'
+  let activeMode    = 'semana'; // 'semana' | 'jugadores' | 'boss'
 
   function renderView(sd) {
     const hEntry = historial.find(e => e.semana === sd.semana);
@@ -4807,6 +4984,8 @@ function renderPerformance() {
     const bodyEl = document.getElementById('perf-body');
     if (activeMode === 'semana') {
       bodyEl.innerHTML = renderSemanaResumen(sd, playerClasses);
+    } else if (activeMode === 'jugadores') {
+      bodyEl.innerHTML = renderJugadoresResumen(sd, playerClasses);
     } else {
       bodyEl.innerHTML = '';
       bodyEl.appendChild(renderBossView(sd, playerClasses));
@@ -4814,22 +4993,63 @@ function renderPerformance() {
   }
 
   el.innerHTML = `
-    <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem;flex-wrap:wrap">
-      <span style="color:var(--text-dim);font-size:1rem;font-family:'Cinzel',serif;font-weight:600;letter-spacing:.05em">Semana</span>
-      <select class="loot-select" id="perf-semana-sel" style="min-width:260px;width:auto;margin-bottom:0">
-        ${semanas.map(s => `<option value="${s.semana}">${semanaLabel(s)}</option>`).join('')}
-      </select>
+    <div style="display:flex;align-items:stretch;border-bottom:1px solid rgba(255,255,255,0.1);margin-bottom:1.5rem">
+      <button class="sub-tab-btn active" id="perf-top-global" style="font-family:'Cinzel',serif;font-size:0.93rem;font-weight:600;letter-spacing:.06em;padding:.55rem 1.5rem;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility">Resumen General</button>
+      <button class="sub-tab-btn" id="perf-top-semana" style="font-family:'Cinzel',serif;font-size:0.93rem;font-weight:600;letter-spacing:.06em;padding:.55rem 1.5rem;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility">Por Semana</button>
     </div>
-    <div style="display:flex;gap:0.5rem;margin-bottom:1.5rem">
-      <button class="sub-tab-btn active" id="perf-mode-semana">Resumen de Semana</button>
-      <button class="sub-tab-btn" id="perf-mode-boss">Por Boss</button>
+    <div id="perf-global-section">
+      <div id="perf-global-body"></div>
     </div>
-    <div id="perf-body"></div>
+    <div id="perf-semana-section" style="display:none">
+      <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem;flex-wrap:wrap">
+        <span style="color:var(--text-dim);font-size:1rem;font-family:'Cinzel',serif;font-weight:600;letter-spacing:.05em">Semana</span>
+        <select class="loot-select" id="perf-semana-sel" style="min-width:260px;width:auto;margin-bottom:0">
+          ${semanas.map(s => `<option value="${s.semana}">${semanaLabel(s)}</option>`).join('')}
+        </select>
+      </div>
+      <div style="display:flex;align-items:stretch;border-bottom:1px solid rgba(255,255,255,0.1);margin-bottom:1.5rem">
+        <button class="sub-tab-btn active" id="perf-mode-semana" style="font-family:'Cinzel',serif;font-size:0.93rem;font-weight:600;letter-spacing:.06em;padding:.55rem 1.5rem;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility">📊 Resumen de Semana</button>
+        <button class="sub-tab-btn" id="perf-mode-jugadores" style="font-family:'Cinzel',serif;font-size:0.93rem;font-weight:600;letter-spacing:.06em;padding:.55rem 1.5rem;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility">👤 Resumen por Jugador</button>
+        <button class="sub-tab-btn" id="perf-mode-boss" style="font-family:'Cinzel',serif;font-size:0.93rem;font-weight:600;letter-spacing:.06em;padding:.55rem 1.5rem;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility">⚔️ Por Boss</button>
+      </div>
+      <div id="perf-body"></div>
+    </div>
   `;
 
+  // Render global resumen immediately
+  document.getElementById('perf-global-body').innerHTML = renderGlobalResumen();
+
+  // Top-level nav
+  document.getElementById('perf-top-global').addEventListener('click', () => {
+    activeTopMode = 'global';
+    document.getElementById('perf-top-global').classList.add('active');
+    document.getElementById('perf-top-semana').classList.remove('active');
+    document.getElementById('perf-global-section').style.display = '';
+    document.getElementById('perf-semana-section').style.display = 'none';
+  });
+  document.getElementById('perf-top-semana').addEventListener('click', () => {
+    activeTopMode = 'semana';
+    document.getElementById('perf-top-semana').classList.add('active');
+    document.getElementById('perf-top-global').classList.remove('active');
+    document.getElementById('perf-global-section').style.display = 'none';
+    document.getElementById('perf-semana-section').style.display = '';
+    const sd = semanas.find(s => s.semana === document.getElementById('perf-semana-sel').value) ?? semanas[0];
+    if (sd) renderView(sd);
+  });
+
+  // Mode buttons (within Por Semana)
   document.getElementById('perf-mode-semana').addEventListener('click', () => {
     activeMode = 'semana';
     document.getElementById('perf-mode-semana').classList.add('active');
+    document.getElementById('perf-mode-jugadores').classList.remove('active');
+    document.getElementById('perf-mode-boss').classList.remove('active');
+    const sd = semanas.find(s => s.semana === document.getElementById('perf-semana-sel').value);
+    if (sd) renderView(sd);
+  });
+  document.getElementById('perf-mode-jugadores').addEventListener('click', () => {
+    activeMode = 'jugadores';
+    document.getElementById('perf-mode-jugadores').classList.add('active');
+    document.getElementById('perf-mode-semana').classList.remove('active');
     document.getElementById('perf-mode-boss').classList.remove('active');
     const sd = semanas.find(s => s.semana === document.getElementById('perf-semana-sel').value);
     if (sd) renderView(sd);
@@ -4838,6 +5058,7 @@ function renderPerformance() {
     activeMode = 'boss';
     document.getElementById('perf-mode-boss').classList.add('active');
     document.getElementById('perf-mode-semana').classList.remove('active');
+    document.getElementById('perf-mode-jugadores').classList.remove('active');
     const sd = semanas.find(s => s.semana === document.getElementById('perf-semana-sel').value);
     if (sd) renderView(sd);
   });
@@ -4845,8 +5066,6 @@ function renderPerformance() {
     const sd = semanas.find(s => s.semana === e.target.value);
     if (sd) renderView(sd);
   });
-
-  renderView(semanas[0]);
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
