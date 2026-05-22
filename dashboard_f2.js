@@ -4045,6 +4045,40 @@ function renderCLAView(cla, playerSpecs = {}, activeSub = 'consumibles') {
       <tbody>${resumenRows}</tbody>
     </table>`;
 
+  // ── INGENIERÍA ────────────────────────────────────────────────────────────────
+  // Construir lista de items usados en esta raid (columnas dinámicas)
+  const engiItemsUsed = [];
+  {
+    const seen = new Set();
+    for (const [, j] of entries) {
+      for (const name of Object.keys(j.engiUsadas ?? {})) {
+        if (!seen.has(name)) { seen.add(name); engiItemsUsed.push(name); }
+      }
+    }
+  }
+  const engiHtml = engiItemsUsed.length === 0
+    ? `<p style="color:var(--text-dim);font-style:italic;margin-top:1rem">Sin datos de ingeniería para esta raid. Se registrará en el próximo report.</p>`
+    : `<div style="overflow-x:auto">
+    <table class="ranked-list" style="min-width:max-content">
+      <thead><tr>
+        <th style="white-space:nowrap">Jugador</th>
+        ${engiItemsUsed.map(item => `<th style="text-align:right;white-space:nowrap;font-size:.78rem">${item}</th>`).join('')}
+      </tr></thead>
+      <tbody>
+        ${entries.map(([name, j]) => {
+          const clsColor = CLASS_COLOR[j.clase] ?? 'var(--text-bright)';
+          const cells = engiItemsUsed.map(item => {
+            const e = (j.engiUsadas ?? {})[item];
+            if (!e) return `<td style="text-align:right"><span class="td-dim">—</span></td>`;
+            const dmgStr = e.damage > 0 ? ` <span style="color:var(--text-dim);font-size:.8rem">(${fmtDmg(e.damage)})</span>` : '';
+            return `<td style="text-align:right;white-space:nowrap;font-family:'Cinzel',serif;font-size:.85rem;font-weight:600;color:#f59e42">${e.count}${dmgStr}</td>`;
+          }).join('');
+          return `<tr><td><span class="player-link clickable-player" data-player="${name}" style="color:${clsColor};white-space:nowrap">${name}</span></td>${cells}</tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  </div>`;
+
   el.innerHTML = `
     <div id="sub-nav-cla" style="display:flex;gap:0;border-bottom:1px solid rgba(255,255,255,0.1);margin-bottom:1.5rem">
       <button class="cla-sub-pill ${activeSub === 'resumen' ? 'active' : ''}" data-clasub="resumen">
@@ -4059,10 +4093,15 @@ function renderCLAView(cla, playerSpecs = {}, activeSub = 'consumibles') {
         <span class="cla-sub-icon">🛡️</span>
         <span class="cla-sub-label">Equipo</span>
       </button>
+      <button class="cla-sub-pill ${activeSub === 'ingenieria' ? 'active' : ''}" data-clasub="ingenieria">
+        <span class="cla-sub-icon">💣</span>
+        <span class="cla-sub-label">Ingeniería</span>
+      </button>
     </div>
     <div class="sub-tab-content ${activeSub === 'resumen' ? 'active' : ''}" id="clasub-resumen">${resumenHtml}</div>
     <div class="sub-tab-content ${activeSub === 'consumibles' ? 'active' : ''}" id="clasub-consumibles">${consumHtml}</div>
-    <div class="sub-tab-content ${activeSub === 'equipo' ? 'active' : ''}" id="clasub-equipo">${equipoHtml}</div>`;
+    <div class="sub-tab-content ${activeSub === 'equipo' ? 'active' : ''}" id="clasub-equipo">${equipoHtml}</div>
+    <div class="sub-tab-content ${activeSub === 'ingenieria' ? 'active' : ''}" id="clasub-ingenieria">${engiHtml}</div>`;
 
   // Sub-tab switching
   document.getElementById('sub-nav-cla').addEventListener('click', e => {
