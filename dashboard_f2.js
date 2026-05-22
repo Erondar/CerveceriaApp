@@ -4198,6 +4198,36 @@ function renderCLAGlobal(raids) {
       d.count++;
     }
   }
+
+  // ── Agregado ingeniería por jugador (suma de todos los reports) ───────────
+  const engiMap = new Map(); // name → { casts, damage }
+  for (const r of raids) {
+    for (const [name, j] of Object.entries(r.cla.jugadores)) {
+      if (!j.engiUsadas) continue;
+      const casts = Object.values(j.engiUsadas).reduce((s, e) => s + (e.count  ?? 0), 0);
+      const dmg   = Object.values(j.engiUsadas).reduce((s, e) => s + (e.damage ?? 0), 0);
+      if (casts === 0) continue;
+      if (!engiMap.has(name)) engiMap.set(name, { casts: 0, damage: 0 });
+      const ed = engiMap.get(name);
+      ed.casts  += casts;
+      ed.damage += dmg;
+    }
+  }
+
+  // ── Agregado tambores por jugador (una vez por semana, evita duplicar) ────
+  const drumsMap    = new Map(); // name → { uses, totalRecipients }
+  const seenSemanas = new Set();
+  for (const r of raids) {
+    if (!r.drums || seenSemanas.has(r.semanaNum)) continue;
+    seenSemanas.add(r.semanaNum);
+    for (const d of r.drums) {
+      if (!drumsMap.has(d.name)) drumsMap.set(d.name, { uses: 0, totalRecipients: 0 });
+      const dd = drumsMap.get(d.name);
+      dd.uses            += d.uses;
+      dd.totalRecipients += Math.round(d.uses * d.avgPlayersBuffed);
+    }
+  }
+
   const players = [...playerMap.entries()].map(([name, d]) => ({
     name, clase: d.clase, count: d.count,
     avgPrep: Math.min(100, Math.round(d.prepSum / d.count)),
@@ -4238,12 +4268,26 @@ function renderCLAGlobal(raids) {
   // ── Tabla ─────────────────────────────────────────────────────────────────
   const tableRows = players.map(p => {
     const clsColor = CLASS_COLOR[p.clase] ?? 'var(--text-bright)';
+
+    const engi = engiMap.get(p.name);
+    const engiCell = engi
+      ? `<span style="font-family:'Cinzel',serif;font-size:.85rem;font-weight:600;color:#f59e42">${engi.casts}</span><span style="color:var(--text-dim);font-size:.78rem"> (${fmtDmg(engi.damage)})</span>`
+      : `<span style="color:var(--text-dim)">—</span>`;
+
+    const dr = drumsMap.get(p.name);
+    const drumAvg = dr && dr.uses > 0 ? (dr.totalRecipients / dr.uses).toFixed(1) : null;
+    const drumsCell = dr
+      ? `<span style="font-family:'Cinzel',serif;font-size:.85rem;font-weight:600;color:var(--f2-accent)">${dr.uses}</span><span style="color:var(--text-dim);font-size:.78rem"> (∅${drumAvg})</span>`
+      : `<span style="color:var(--text-dim)">—</span>`;
+
     return `<tr>
       <td><span class="player-link clickable-player" data-player="${p.name}" style="color:${clsColor}">${p.name}</span></td>
       <td style="text-align:center;color:var(--text-dim);font-size:0.85rem">${p.count}</td>
       <td style="text-align:center"><span style="font-family:'Cinzel',serif;font-weight:700;font-size:1rem;color:${_claColor(p.avgPrep)}">${p.avgPrep}%</span></td>
       <td>${_claBar(p.avgCons)}</td>
       <td>${p.avgGear !== null ? _claBar(p.avgGear) : '<span style="color:var(--text-dim)">—</span>'}</td>
+      <td style="white-space:nowrap">${engiCell}</td>
+      <td style="white-space:nowrap">${drumsCell}</td>
     </tr>`;
   }).join('');
 
@@ -4289,11 +4333,13 @@ function renderCLAGlobal(raids) {
     <table class="ranked-list" style="table-layout:fixed;width:100%">
       <thead>
         <tr>
-          <th style="width:20%;white-space:nowrap;overflow:hidden">Jugador</th>
-          <th style="width:8%;text-align:center;white-space:nowrap;overflow:hidden">Raids</th>
-          <th style="width:12%;text-align:center;white-space:nowrap;overflow:hidden">PREP %</th>
-          <th style="width:30%;white-space:nowrap;overflow:hidden">CONS %</th>
-          <th style="width:30%;white-space:nowrap;overflow:hidden">GEAR %</th>
+          <th style="width:18%;white-space:nowrap;overflow:hidden">Jugador</th>
+          <th style="width:6%;text-align:center;white-space:nowrap;overflow:hidden">Raids</th>
+          <th style="width:10%;text-align:center;white-space:nowrap;overflow:hidden">PREP %</th>
+          <th style="width:22%;white-space:nowrap;overflow:hidden">CONS %</th>
+          <th style="width:22%;white-space:nowrap;overflow:hidden">GEAR %</th>
+          <th style="width:12%;white-space:nowrap;overflow:hidden">💣 Ingeniería</th>
+          <th style="width:10%;white-space:nowrap;overflow:hidden">🥁 Tambores</th>
         </tr>
       </thead>
       <tbody>${tableRows}</tbody>
