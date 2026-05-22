@@ -3348,30 +3348,53 @@ function fetchLootData() {
 }
 
 function buildLootResumen() {
+  const CHAMPION_TIP = `<span style='color:#F48CBA'>Paladin</span> · <span style='color:#FFF468'>Rogue</span> · <span style='color:#0070DD'>Shaman</span>`;
+  const DEFENDER_TIP = `<span style='color:#C69B3A'>Warrior</span> · <span style='color:#FFFFFF'>Priest</span> · <span style='color:#FF7C0A'>Druid</span>`;
+  const HERO_TIP     = `<span style='color:#AAD372'>Hunter</span> · <span style='color:#3FC7EB'>Mage</span> · <span style='color:#8788EE'>Warlock</span>`;
+
   const byPlayer = new Map();
   let totDE = 0, totBank = 0, totBis = 0, totUpgrade = 0, totOffspec = 0;
+  let totChampion = 0, totDefender = 0, totHero = 0;
   lootRows.forEach(r => {
-    if (!byPlayer.has(r.nombre)) byPlayer.set(r.nombre, { bis: 0, upgrade: 0, offspec: 0, total: 0 });
+    if (!byPlayer.has(r.nombre)) byPlayer.set(r.nombre, { bis: 0, upgrade: 0, offspec: 0, total: 0, tier: 0 });
     const p = byPlayer.get(r.nombre);
+    const isTier = r.item && r.item.includes('Vanquished');
+    const tierType = isTier
+      ? (r.item.includes('Champion') ? 'Champion' : r.item.includes('Defender') ? 'Defender' : r.item.includes('Hero') ? 'Hero' : null)
+      : null;
     if      (r.response === 'BiS')     { p.bis++;     p.total++; totBis++; }
     else if (r.response === 'Upgrade') { p.upgrade++; p.total++; totUpgrade++; }
     else if (r.response === 'Off-Spec'){ p.offspec++; p.total++; totOffspec++; }
     else if (isDisenchant(r.response)) totDE++;
     else if (r.response === 'Banking') totBank++;
+    if (ASSIGNED.has(r.response) && tierType) {
+      p.tier++;
+      if (tierType === 'Champion') totChampion++;
+      else if (tierType === 'Defender') totDefender++;
+      else if (tierType === 'Hero') totHero++;
+    }
   });
   const totAssigned = totBis + totUpgrade + totOffspec;
   const rows = [...byPlayer.entries()].map(([name, s]) => ({ name, ...s })).sort((a, b) => b.bis - a.bis || b.total - a.total);
   const maxTotal = rows[0]?.total || 1;
 
+  const classMap = {};
+  for (const e of historial) Object.assign(classMap, e.playerClasses ?? {});
+
   document.getElementById('loot-resumen-inner').innerHTML = `
-    <div class="loot-stat-cards">
-      <div class="loot-stat-card"><div class="lsc-val" style="color:var(--text-bright)">${totAssigned}</div><div class="lsc-label">Repartidos</div></div>
+    <style>#loot-resumen-inner .loot-stat-card{padding:.6rem .5rem;min-width:0;flex:1}#loot-resumen-inner .lsc-val{font-size:1.5rem}</style>
+    <div class="loot-stat-cards" style="flex-wrap:nowrap">
+      <div class="loot-stat-card"><div class="lsc-val" style="color:var(--text-bright)">${totAssigned}</div><div class="lsc-label">Items</div></div>
       <div class="loot-stat-card"><div class="lsc-val">${totBis}</div><div class="lsc-label">BiS</div></div>
       <div class="loot-stat-card"><div class="lsc-val" style="color:var(--purple2)">${totUpgrade}</div><div class="lsc-label">Upgrade</div></div>
       <div class="loot-stat-card"><div class="lsc-val" style="color:#87ceeb">${totOffspec}</div><div class="lsc-label">Off-Spec</div></div>
-      <div style="width:1px;background:var(--border);margin:0 0.25rem;align-self:stretch"></div>
+      <div style="width:1px;background:var(--border);margin:0 0.25rem;align-self:stretch;flex-shrink:0"></div>
       <div class="loot-stat-card"><div class="lsc-val" style="color:var(--text-dim)">${totDE}</div><div class="lsc-label">Desenc.</div></div>
       <div class="loot-stat-card"><div class="lsc-val" style="color:var(--text-dim)">${totBank}</div><div class="lsc-label">Banking</div></div>
+      <div style="width:1px;background:var(--border);margin:0 0.25rem;align-self:stretch;flex-shrink:0"></div>
+      <div class="loot-stat-card" data-tooltip="${CHAMPION_TIP}" style="cursor:help;flex-shrink:0"><div class="lsc-val" style="color:#7eb8f7">${totChampion}</div><div class="lsc-label">Champion</div></div>
+      <div class="loot-stat-card" data-tooltip="${DEFENDER_TIP}" style="cursor:help;flex-shrink:0"><div class="lsc-val" style="color:#5dcf8a">${totDefender}</div><div class="lsc-label">Defender</div></div>
+      <div class="loot-stat-card" data-tooltip="${HERO_TIP}"     style="cursor:help;flex-shrink:0"><div class="lsc-val" style="color:#f59e42">${totHero}</div><div class="lsc-label">Hero</div></div>
     </div>
     <div class="section-title">Por Jugador</div>
     <table class="ranked-list">
@@ -3381,17 +3404,23 @@ function buildLootResumen() {
         <th style="text-align:right">Upgrade</th>
         <th style="text-align:right">Off-Spec</th>
         <th style="text-align:right">Total</th>
+        <th style="text-align:right;color:#f59e42">Tier</th>
         <th class="bar-cell"></th>
       </tr></thead>
       <tbody>
-        ${rows.map(r => `<tr>
-          <td class="player-link" style="cursor:pointer" onclick="goToLootRegistro('${r.name}')">${r.name}</td>
+        ${rows.map(r => {
+          const cls = classMap[r.name] ?? '';
+          const nameColor = cls ? (CLASS_COLOR[cls] ?? 'var(--text-bright)') : 'var(--text-bright)';
+          return `<tr>
+          <td class="player-link" style="cursor:pointer;color:${nameColor}" onclick="goToLootRegistro('${r.name}')">${r.name}</td>
           <td class="val-cell">${r.bis || '<span class="td-dim">—</span>'}</td>
           <td class="val-cell purple">${r.upgrade || '<span class="td-dim">—</span>'}</td>
           <td style="color:#87ceeb;font-family:'Cinzel',serif;font-size:.9rem;font-weight:600;text-align:right">${r.offspec || '<span class="td-dim">—</span>'}</td>
           <td style="color:var(--text-bright);font-family:'Cinzel',serif;font-size:.9rem;font-weight:600;text-align:right">${r.total || '—'}</td>
+          <td style="color:#f59e42;font-family:'Cinzel',serif;font-size:.9rem;font-weight:600;text-align:right">${r.tier || '<span class="td-dim">—</span>'}</td>
           <td class="bar-cell">${makeBar(Math.round((r.total / maxTotal) * 100))}</td>
-        </tr>`).join('')}
+        </tr>`;
+        }).join('')}
       </tbody>
     </table>
   `;
