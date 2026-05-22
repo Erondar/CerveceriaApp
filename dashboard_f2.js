@@ -4056,24 +4056,34 @@ function renderCLAView(cla, playerSpecs = {}, activeSub = 'consumibles') {
       }
     }
   }
+  const engiEntries = entries.filter(([, j]) => Object.keys(j.engiUsadas ?? {}).length > 0);
   const engiHtml = engiItemsUsed.length === 0
-    ? `<p style="color:var(--text-dim);font-style:italic;margin-top:1rem">Sin datos de ingeniería para esta raid. Se registrará en el próximo report.</p>`
+    ? `<p style="color:var(--text-dim);font-style:italic;margin-top:1rem">Nadie usó ingeniería en esta raid.</p>`
     : `<div style="overflow-x:auto">
     <table class="ranked-list" style="min-width:max-content">
       <thead><tr>
         <th style="white-space:nowrap">Jugador</th>
+        <th style="text-align:right;white-space:nowrap;font-size:.78rem">Daño total</th>
         ${engiItemsUsed.map(item => `<th style="text-align:right;white-space:nowrap;font-size:.78rem">${item}</th>`).join('')}
       </tr></thead>
       <tbody>
-        ${entries.map(([name, j]) => {
-          const clsColor = CLASS_COLOR[j.clase] ?? 'var(--text-bright)';
+        ${engiEntries.sort((a, b) => {
+          const dmg = ([, j]) => Object.values(j.engiUsadas ?? {}).reduce((s, e) => s + (e.damage ?? 0), 0);
+          return dmg(b) - dmg(a);
+        }).map(([name, j]) => {
+          const clsColor  = CLASS_COLOR[j.clase] ?? 'var(--text-bright)';
+          const totalDmg  = Object.values(j.engiUsadas ?? {}).reduce((s, e) => s + (e.damage ?? 0), 0);
           const cells = engiItemsUsed.map(item => {
             const e = (j.engiUsadas ?? {})[item];
             if (!e) return `<td style="text-align:right"><span class="td-dim">—</span></td>`;
             const dmgStr = e.damage > 0 ? ` <span style="color:var(--text-dim);font-size:.8rem">(${fmtDmg(e.damage)})</span>` : '';
             return `<td style="text-align:right;white-space:nowrap;font-family:'Cinzel',serif;font-size:.85rem;font-weight:600;color:#f59e42">${e.count}${dmgStr}</td>`;
           }).join('');
-          return `<tr><td><span class="player-link clickable-player" data-player="${name}" style="color:${clsColor};white-space:nowrap">${name}</span></td>${cells}</tr>`;
+          return `<tr>
+            <td><span class="player-link clickable-player" data-player="${name}" style="color:${clsColor};white-space:nowrap">${name}</span></td>
+            <td style="text-align:right;font-family:'Cinzel',serif;font-size:.9rem;font-weight:700;color:var(--text-bright);white-space:nowrap">${totalDmg > 0 ? fmtDmg(totalDmg) : '<span class="td-dim">—</span>'}</td>
+            ${cells}
+          </tr>`;
         }).join('')}
       </tbody>
     </table>
