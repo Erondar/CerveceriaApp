@@ -3516,6 +3516,7 @@ function renderLootPlayer(nombre) {
   const items = allPlayerRows.filter(r => ASSIGNED.has(r.response)).sort((a, b) => b.date.localeCompare(a.date));
   const counts = {};
   items.forEach(r => { counts[r.response] = (counts[r.response] || 0) + 1; });
+  const tierCount = items.filter(r => r.item && r.item.includes('Vanquished')).length;
   const chipColor = { BiS: '', Upgrade: 'purple', 'Off-Spec': 'blue' };
 
   el.innerHTML = `
@@ -3525,6 +3526,8 @@ function renderLootPlayer(nombre) {
         <div class="chip-val ${chipColor[k] || ''}">${counts[k] || 0}</div>
         <div class="chip-label">${k}</div>
       </div>`).join('')}
+      <div style="width:1px;background:var(--border);margin:0 0.1rem;align-self:stretch"></div>
+      <div class="loot-chip"><div class="chip-val" style="color:#f59e42">${tierCount || 0}</div><div class="chip-label">Tier</div></div>
     </div>
     <table class="ranked-list" id="loot-items-table">
       <thead><tr><th>Fecha</th><th>Item</th><th>Boss</th><th>Tipo</th></tr></thead>
@@ -5283,6 +5286,26 @@ document.addEventListener('DOMContentLoaded', () => {
 // ── CHANGELOG ─────────────────────────────────────────────────────────────────
 
 const CHANGELOG = [
+  {
+    fecha: '23/05/2026',
+    titulo: 'Tambores & Loot',
+    secciones: [
+      {
+        nombre: 'Preparación — Tambores',
+        items: [
+          'Nueva columna <strong>Tambores</strong> en la tabla de consumibles de CLA, tanto en <strong>Resumen General</strong> como en <strong>Por Raid</strong>: muestra los usos de Tambores de Batalla, Restauración y Gran Intelecto por jugador.',
+          'El número entre paréntesis indica la <strong>media de jugadores</strong> a los que llega el efecto del tambor.',
+        ],
+      },
+      {
+        nombre: 'Loot — Piezas de Tier',
+        items: [
+          'En <strong>Loot > Resumen</strong>, nueva columna <strong>Tier</strong> en la tabla por jugador con el total de tokens de tier recibidos.',
+          'En <strong>Loot > Registro > Por Jugador</strong>, nuevo chip <strong>Tier</strong> (en naranja) con el mismo dato para el jugador seleccionado.',
+        ],
+      },
+    ],
+  },
   {
     fecha: '22/05/2026',
     titulo: 'Ingeniería & Mejoras CLA',
