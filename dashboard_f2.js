@@ -4395,7 +4395,7 @@ function renderCLA() {
   sel.addEventListener('change', () => {
     const r = raids.find(r => r.code === sel.value);
     if (!r) return;
-    const activeSub = document.querySelector('#sub-nav-cla .sub-tab-btn.active')?.dataset.clasub ?? 'resumen';
+    const activeSub = document.querySelector('#sub-nav-cla .cla-sub-pill.active')?.dataset.clasub ?? 'resumen';
     renderCLAView(r.cla, r.playerSpecs, activeSub);
   });
 
