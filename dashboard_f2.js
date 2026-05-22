@@ -5123,6 +5123,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
 const CHANGELOG = [
   {
+    fecha: '21/05/2026',
+    titulo: 'Tab Rendimiento',
+    secciones: [
+      {
+        nombre: 'Rendimiento — nuevo tab',
+        items: [
+          'Nuevo tab <strong>Rendimiento</strong>: un vistazo completo a cómo se aplican los debuffs y buffs de boss en cada raid, y qué cooldowns y trinkets usa cada jugador.',
+          '<strong>Resumen General</strong>: tabla global con el uptime % medio de todos los debuffs y buffs en cada boss, acumulando todas las semanas.',
+          '<strong>Por Semana → Resumen</strong>: la misma tabla pero filtrando por semana concreta, mostrando el uptime % medio de los kills de esa raid.',
+          '<strong>Por Semana → Por Jugador</strong>: para cada jugador, qué debuffs aplica a lo largo de la semana (con su uptime % y nº de aplicaciones totales), y qué cooldowns de raid y trinkets activa.',
+          '<strong>Por Semana → Por Boss</strong>: detalle boss a boss e intento a intento (kill o wipe), con tres subtabs — Debuffs, Buffs y Por Jugador — donde se ve el uptime %, las aplicaciones y quién lo hace, además de los cooldowns y trinkets usados en ese intento concreto.',
+        ],
+      },
+    ],
+  },
+  {
     fecha: '20/05/2026',
     titulo: 'Combat Log Analysis & Mejoras de Preparación',
     secciones: [
