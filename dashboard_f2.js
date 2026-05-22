@@ -2076,6 +2076,92 @@ function renderLogros() {
     });
   }
 
+  // Adicto al Botón — más usos de un mismo trinket (media/semana)
+  {
+    const byPlayer = new Map();    // name → { trinketName → totalUses }
+    const perfSemsPlayer = new Map(); // name → Set of semanas with perf data
+    for (const sd of (window.__PERFORMANCE_F2__ ?? [])) {
+      for (const boss of sd.bosses) {
+        for (const att of boss.attempts) {
+          if (!att.killed) continue;
+          for (const ab of (att.castsByAbility ?? [])) {
+            if (!ab.isTrinket) continue;
+            for (const c of ab.casters) {
+              if (!byPlayer.has(c.name)) byPlayer.set(c.name, {});
+              const bt = byPlayer.get(c.name);
+              bt[ab.name] = (bt[ab.name] || 0) + c.count;
+              if (!perfSemsPlayer.has(c.name)) perfSemsPlayer.set(c.name, new Set());
+              perfSemsPlayer.get(c.name).add(sd.semana);
+            }
+          }
+        }
+      }
+    }
+    const list = [...byPlayer.entries()]
+      .filter(([n]) => eligible(n))
+      .map(([name, byTrinket]) => {
+        const [trinketName, total] = Object.entries(byTrinket).sort((a, b) => b[1] - a[1])[0];
+        const perSemVal = total / (perfSemsPlayer.get(name)?.size ?? 1);
+        return { name, trinketName, perSemVal };
+      });
+    const trinketWinners = topWinners(list, 'perSemVal');
+    if (trinketWinners.length) honors.push({
+      icon: '🔘', titulo: 'Adicto al Botón', ...mkPlayers(trinketWinners),
+      valor: trinketWinners[0].perSemVal.toFixed(1) + ' usos/sem · ' + trinketWinners[0].trinketName,
+      desc: 'Más usos de un mismo trinket (media/semana)',
+      comentario: pickRnd([
+        'Tiene el dedo tan entrenado que ya lo hace dormido. De hecho, creemos que lo hace dormido.',
+        'El médico le dijo que tenía el síndrome del túnel carpiano. Él dijo que era un precio justo.',
+        'No sabe qué hace el trinket exactamente, pero sabe que hay que darle cuanto antes y cuanto más mejor.',
+        'Sus compañeros usan los cooldowns con criterio. Él los usa con ansiedad.',
+        'Ha pulsado ese botón más veces esta semana que "Aceptar" en los términos y condiciones de su vida.',
+      ]),
+    });
+  }
+
+  // El Tatuador — mayor tiempo de debuff manual en una semana (récord)
+  {
+    const DEBUFF_EXCLUDE = new Set([33200, 32391, 34501]); // Misery, Shadow Embrace, Expose Weakness
+    // Para cada semana: player → debuff → { debuffMs, fightMs }
+    let bestRecord = null; // { name, debuffName, ms, pct }
+    for (const sd of (window.__PERFORMANCE_F2__ ?? [])) {
+      const byPlayer = new Map();
+      for (const boss of sd.bosses) {
+        for (const att of boss.attempts) {
+          if (!att.killed) continue;
+          for (const d of (att.bossDebuffs ?? [])) {
+            if (DEBUFF_EXCLUDE.has(d.id)) continue;
+            if (d.casters.length !== 1) continue;
+            const name = d.casters[0].name;
+            if (!byPlayer.has(name)) byPlayer.set(name, {});
+            const pd = byPlayer.get(name);
+            if (!pd[d.name]) pd[d.name] = { debuffMs: 0, fightMs: 0 };
+            pd[d.name].debuffMs += (d.uptime / 100) * att.durationMs;
+            pd[d.name].fightMs  += att.durationMs;
+          }
+        }
+      }
+      for (const [name, debuffs] of byPlayer.entries()) {
+        if (!eligible(name)) continue;
+        const [debuffName, { debuffMs, fightMs }] = Object.entries(debuffs).sort((a, b) => b[1].debuffMs - a[1].debuffMs)[0];
+        const pct = Math.round((debuffMs / fightMs) * 100);
+        if (!bestRecord || debuffMs > bestRecord.ms) bestRecord = { name, debuffName, ms: debuffMs, pct };
+      }
+    }
+    if (bestRecord) honors.push({
+      icon: '🖊️', titulo: 'El Tatuador', jugador: bestRecord.name,
+      valor: bestRecord.pct + '% uptime · ' + bestRecord.debuffName,
+      desc: 'Mayor uptime de debuff manual en una semana (excluye debuffs que se aplican solos)',
+      comentario: pickRnd([
+        'El boss ha intentado quitárselo con agua, jabón y exfoliante. Sigue ahí.',
+        'Algunos debuffs caducan. El suyo es más bien… permanente.',
+        'Ha marcado más bosses que un perro en un parque nuevo.',
+        'El boss ya asumió que es parte de su identidad.',
+        'No necesita reaplicarlo. El boss ya sabe lo que le espera.',
+      ]),
+    });
+  }
+
   TITULOS_F2 = [
     ...shames.map(t => ({ ...t, tipo: 'shame' })),
     ...honors.map(t => ({ ...t, tipo: 'honor' })),
