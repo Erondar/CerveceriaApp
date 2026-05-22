@@ -4271,13 +4271,13 @@ function renderCLAGlobal(raids) {
 
     const engi = engiMap.get(p.name);
     const engiCell = engi
-      ? `<span style="font-family:'Cinzel',serif;font-size:.85rem;font-weight:600;color:#f59e42">${engi.casts}</span><span style="color:var(--text-dim);font-size:.78rem"> (${fmtDmg(engi.damage)})</span>`
+      ? `<span style="font-family:'Cinzel',serif;font-size:.85rem;font-weight:600;color:#f59e42">${engi.casts}</span> <span style="color:var(--text-dim);font-size:.78rem">(${fmtDmg(engi.damage)})</span>`
       : `<span style="color:var(--text-dim)">—</span>`;
 
     const dr = drumsMap.get(p.name);
     const drumAvg = dr && dr.uses > 0 ? (dr.totalRecipients / dr.uses).toFixed(1) : null;
     const drumsCell = dr
-      ? `<span style="font-family:'Cinzel',serif;font-size:.85rem;font-weight:600;color:var(--f2-accent)">${dr.uses}</span><span style="color:var(--text-dim);font-size:.78rem"> (∅${drumAvg})</span>`
+      ? `<span style="font-family:'Cinzel',serif;font-size:.85rem;font-weight:600;color:var(--f2-accent)">${dr.uses}</span> <span style="color:var(--text-dim);font-size:.78rem">(∅${drumAvg})</span>`
       : `<span style="color:var(--text-dim)">—</span>`;
 
     return `<tr>
@@ -4333,13 +4333,13 @@ function renderCLAGlobal(raids) {
     <table class="ranked-list" style="table-layout:fixed;width:100%">
       <thead>
         <tr>
-          <th style="width:18%;white-space:nowrap;overflow:hidden">Jugador</th>
-          <th style="width:6%;text-align:center;white-space:nowrap;overflow:hidden">Raids</th>
-          <th style="width:10%;text-align:center;white-space:nowrap;overflow:hidden">PREP %</th>
-          <th style="width:22%;white-space:nowrap;overflow:hidden">CONS %</th>
-          <th style="width:22%;white-space:nowrap;overflow:hidden">GEAR %</th>
-          <th style="width:12%;white-space:nowrap;overflow:hidden">💣 Ingeniería</th>
-          <th style="width:10%;white-space:nowrap;overflow:hidden">🥁 Tambores</th>
+          <th style="width:18%;white-space:nowrap">Jugador</th>
+          <th style="width:6%;text-align:center;white-space:nowrap">Raids</th>
+          <th style="width:10%;text-align:center;white-space:nowrap">PREP %</th>
+          <th style="width:22%;white-space:nowrap">CONS %</th>
+          <th style="width:22%;white-space:nowrap">GEAR %</th>
+          <th style="width:12%;white-space:nowrap">Ingeniería</th>
+          <th style="width:10%;white-space:nowrap">Tambores</th>
         </tr>
       </thead>
       <tbody>${tableRows}</tbody>
