@@ -4773,15 +4773,14 @@ function renderPerformance() {
       if (!playerSummary.has(name)) playerSummary.set(name, { debuffs: new Map(), cooldowns: new Map(), trinkets: new Map() });
       return playerSummary.get(name);
     }
+    // Recopilar kills por debuff para calcular uptime promedio sobre TODOS los bosses,
+    // contando 0% en kills donde el jugador no aplicó el debuff
+    const debuffKillsMap = new Map(); // id → [{uptime, name, icon, casterMap}]
     for (const { kills } of killsByBoss) {
       for (const kill of kills) {
         for (const d of (kill.bossDebuffs ?? [])) {
-          for (const c of (d.casters ?? [])) {
-            const p = ensurePlayer(c.name);
-            if (!p.debuffs.has(d.id)) p.debuffs.set(d.id, { id: d.id, name: d.name, icon: d.icon, uptimes: [], uses: 0 });
-            const e = p.debuffs.get(d.id);
-            e.uptimes.push(d.uptime); e.uses += c.count;
-          }
+          if (!debuffKillsMap.has(d.id)) debuffKillsMap.set(d.id, []);
+          debuffKillsMap.get(d.id).push({ uptime: d.uptime, durationMs: kill.durationMs, name: d.name, icon: d.icon, casterMap: new Map((d.casters ?? []).map(c => [c.name, c.count])) });
         }
         for (const ab of (kill.castsByAbility ?? [])) {
           for (const c of (ab.casters ?? [])) {
@@ -4797,6 +4796,26 @@ function renderPerformance() {
         }
       }
     }
+    // Construir debuffs por jugador: uptime atribuido proporcionalmente por casts
+    // attributed_ms = (player_casts / total_casts) × (uptime% × durationMs) por kill
+    // uptimePct = sum(attributed_ms) / sum(durationMs de todos los kills con ese debuff)
+    for (const [abilId, killDataArr] of debuffKillsMap) {
+      const first = killDataArr[0];
+      const totalMs = killDataArr.reduce((s, kd) => s + kd.durationMs, 0);
+      const allCasters = new Set(killDataArr.flatMap(kd => [...kd.casterMap.keys()]));
+      for (const name of allCasters) {
+        const p = ensurePlayer(name);
+        if (!p.debuffs.has(abilId)) p.debuffs.set(abilId, { id: abilId, name: first.name, icon: first.icon, uptimePct: 0, uses: 0 });
+        const e = p.debuffs.get(abilId);
+        const attributedMs = killDataArr.reduce((s, kd) => {
+          const totalCasts = [...kd.casterMap.values()].reduce((a, b) => a + b, 0);
+          const playerCasts = kd.casterMap.get(name) ?? 0;
+          return s + (totalCasts > 0 ? playerCasts / totalCasts * (kd.uptime / 100 * kd.durationMs) : 0);
+        }, 0);
+        e.uptimePct = Math.round(attributedMs / totalMs * 100);
+        e.uses += killDataArr.reduce((s, kd) => s + (kd.casterMap.get(name) ?? 0), 0);
+      }
+    }
     const sortedPlayers = sortByClass(
       [...playerSummary.entries()].map(([name, data]) => ({ name, ...data })),
       playerClasses
@@ -4804,10 +4823,9 @@ function renderPerformance() {
     return sortedPlayers.map(({ name, debuffs, cooldowns, trinkets }) => {
       const cls = playerClasses[name] ?? '';
       const debuffChips = [...debuffs.values()].map(d => {
-        const avg = Math.round(d.uptimes.reduce((a, b) => a + b, 0) / d.uptimes.length);
         return `<span style="display:inline-flex;align-items:center;gap:0.25rem;background:rgba(224,112,112,0.08);border:1px solid rgba(224,112,112,0.25);border-radius:3px;padding:0.1rem 0.45rem;font-size:0.8rem">
           ${perfLink(d.id, d.name, d.icon, false)}
-          <span style="color:${uptimeColor(avg)};font-size:0.78rem">${avg}%</span>
+          <span style="color:${uptimeColor(d.uptimePct)};font-size:0.78rem">${d.uptimePct}%</span>
           <span class="td-dim" style="font-size:0.75rem">×${d.uses}</span>
         </span>`;
       }).join('');
