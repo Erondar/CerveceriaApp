@@ -3713,7 +3713,7 @@ function _effectiveArma(j, playerSpecs) {
   return { val: j.consumibles.arma, tooltip: '' };
 }
 
-function renderCLAView(cla, playerSpecs = {}, activeSub = 'consumibles') {
+function renderCLAView(cla, playerSpecs = {}, activeSub = 'consumibles', drums = null) {
   const el = document.getElementById('cla-view');
   if (!cla) { el.innerHTML = '<p style="color:var(--text-dim);font-style:italic">Sin datos CLA para esta semana.</p>'; return; }
 
@@ -4089,6 +4089,38 @@ function renderCLAView(cla, playerSpecs = {}, activeSub = 'consumibles') {
     </table>
   </div>`;
 
+  // ── TAMBORES ────────────────────────────────────────────────────────────────
+  let tamboresHtml;
+  if (!drums || drums.length === 0) {
+    tamboresHtml = `<p style="color:var(--text-dim);font-style:italic;margin:2rem 0">No hay datos de Tambores para esta semana.</p>`;
+  } else {
+    const maxUses = Math.max(...drums.map(d => d.uses));
+    const drumRows = drums.map((d, i) => {
+      const cls      = cla?.jugadores?.[d.name]?.clase ?? historial.find(e => e.playerClasses?.[d.name])?.playerClasses?.[d.name] ?? '';
+      const clsColor = CLASS_COLOR[cls] ?? 'var(--text-bright)';
+      const pct      = maxUses > 0 ? Math.round(d.uses / maxUses * 100) : 0;
+      return `<tr>
+        <td style="font-size:0.8rem;color:#777;text-align:center;width:2rem">${i + 1}</td>
+        <td><span class="player-link" data-name="${d.name}" style="color:${clsColor}">${d.name}</span></td>
+        <td class="val-cell">${d.uses}</td>
+        <td class="bar-cell"><div class="bar-wrap"><div class="bar-fill" style="width:${pct}%"></div></div></td>
+        <td class="val-cell" style="color:var(--f2-accent)">${d.avgPlayersBuffed.toFixed(1)}</td>
+      </tr>`;
+    }).join('');
+    tamboresHtml = `
+      <p style="font-size:0.82rem;color:var(--text-dim);margin-bottom:1rem">Usos de Drums of Battle (35476) durante la semana. La media incluye todos los combates.</p>
+      <table class="ranked-list">
+        <thead><tr>
+          <th style="width:2rem">#</th>
+          <th>Jugador</th>
+          <th style="text-align:right">Usos</th>
+          <th style="width:32%"></th>
+          <th style="text-align:right">Media buffados</th>
+        </tr></thead>
+        <tbody>${drumRows}</tbody>
+      </table>`;
+  }
+
   el.innerHTML = `
     <div id="sub-nav-cla" style="display:flex;gap:0;border-bottom:1px solid rgba(255,255,255,0.1);margin-bottom:1.5rem">
       <button class="cla-sub-pill ${activeSub === 'resumen' ? 'active' : ''}" data-clasub="resumen">
@@ -4107,11 +4139,16 @@ function renderCLAView(cla, playerSpecs = {}, activeSub = 'consumibles') {
         <span class="cla-sub-icon">💣</span>
         <span class="cla-sub-label">Ingeniería</span>
       </button>
+      <button class="cla-sub-pill ${activeSub === 'tambores' ? 'active' : ''}" data-clasub="tambores">
+        <span class="cla-sub-icon">🥁</span>
+        <span class="cla-sub-label">Tambores</span>
+      </button>
     </div>
     <div class="sub-tab-content ${activeSub === 'resumen' ? 'active' : ''}" id="clasub-resumen">${resumenHtml}</div>
     <div class="sub-tab-content ${activeSub === 'consumibles' ? 'active' : ''}" id="clasub-consumibles">${consumHtml}</div>
     <div class="sub-tab-content ${activeSub === 'equipo' ? 'active' : ''}" id="clasub-equipo">${equipoHtml}</div>
-    <div class="sub-tab-content ${activeSub === 'ingenieria' ? 'active' : ''}" id="clasub-ingenieria">${engiHtml}</div>`;
+    <div class="sub-tab-content ${activeSub === 'ingenieria' ? 'active' : ''}" id="clasub-ingenieria">${engiHtml}</div>
+    <div class="sub-tab-content ${activeSub === 'tambores' ? 'active' : ''}" id="clasub-tambores">${tamboresHtml}</div>`;
 
   // Sub-tab switching
   document.getElementById('sub-nav-cla').addEventListener('click', e => {
@@ -4129,7 +4166,7 @@ function renderCLAView(cla, playerSpecs = {}, activeSub = 'consumibles') {
       const col = th.dataset.sort;
       if (_claSort.consum.col === col) _claSort.consum.dir *= -1;
       else _claSort.consum = { col, dir: -1 };
-      renderCLAView(cla, playerSpecs, 'consumibles');
+      renderCLAView(cla, playerSpecs, 'consumibles', drums);
     });
   });
   document.querySelectorAll('#clasub-equipo th[data-sort]').forEach(th => {
@@ -4138,7 +4175,7 @@ function renderCLAView(cla, playerSpecs = {}, activeSub = 'consumibles') {
       const col = th.dataset.sort;
       if (_claSort.equipo.col === col) _claSort.equipo.dir *= -1;
       else _claSort.equipo = { col, dir: -1 };
-      renderCLAView(cla, playerSpecs, 'equipo');
+      renderCLAView(cla, playerSpecs, 'equipo', drums);
     });
   });
 
@@ -4280,7 +4317,7 @@ function renderCLA() {
       if (!cla) continue;
       const claFecha = cla.fecha ?? entry.fecha;
       const instance = cla.instance ?? null;
-      raids.push({ code, cla, fecha: claFecha, semanaNum: entry.semanaNum, playerSpecs: entry.playerSpecs ?? {}, instance });
+      raids.push({ code, cla, fecha: claFecha, semanaNum: entry.semanaNum, playerSpecs: entry.playerSpecs ?? {}, instance, drums: entry.drums ?? null });
     }
   }
   raids.sort((a, b) => b.fecha.localeCompare(a.fecha));
@@ -4387,7 +4424,7 @@ function renderCLA() {
     document.getElementById('clamain-general').classList.remove('active');
     document.getElementById('clamain-porraid').classList.add('active');
     const r = raids[0];
-    renderCLAView(r.cla, r.playerSpecs, sub);
+    renderCLAView(r.cla, r.playerSpecs, sub, r.drums);
   });
 
   // Raid selector
@@ -4396,10 +4433,10 @@ function renderCLA() {
     const r = raids.find(r => r.code === sel.value);
     if (!r) return;
     const activeSub = document.querySelector('#sub-nav-cla .cla-sub-pill.active')?.dataset.clasub ?? 'resumen';
-    renderCLAView(r.cla, r.playerSpecs, activeSub);
+    renderCLAView(r.cla, r.playerSpecs, activeSub, r.drums);
   });
 
-  renderCLAView(raids[0].cla, raids[0].playerSpecs, 'resumen');
+  renderCLAView(raids[0].cla, raids[0].playerSpecs, 'resumen', raids[0].drums);
 }
 
 // ── PERFORMANCE ───────────────────────────────────────────────────────────────
