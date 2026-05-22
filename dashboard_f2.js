@@ -5201,6 +5201,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
 const CHANGELOG = [
   {
+    fecha: '22/05/2026',
+    titulo: 'Ingeniería & Mejoras CLA',
+    secciones: [
+      {
+        nombre: 'Preparación — nueva pestaña Ingeniería',
+        items: [
+          'Nueva pestaña <strong>💣 Ingeniería</strong> en el tab CLA > Por Raid: muestra los consumibles de ingeniería usados por cada jugador durante toda la raid (trash incluido).',
+          'Columna de <strong>daño total</strong> al inicio, ordenada de mayor a menor. Cada item muestra el nº de usos y el daño entre paréntesis si aplica.',
+          'Solo aparecen los jugadores que usaron al menos un item de ingeniería.',
+          'Columnas dinámicas: solo se muestran los items que alguien usó en esa raid concreta.',
+        ],
+      },
+      {
+        nombre: 'Fixes CLA',
+        items: [
+          'Al cambiar de día en el selector de Por Raid, la pestaña activa (Resumen, Consumibles, Equipo, Ingeniería) se mantiene correctamente.',
+        ],
+      },
+    ],
+  },
+  {
     fecha: '21/05/2026',
     titulo: 'Tab Rendimiento',
     secciones: [
