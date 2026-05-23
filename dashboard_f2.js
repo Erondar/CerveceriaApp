@@ -2342,9 +2342,21 @@ function updateWclLinks(entries) {
   if (!span) return;
   const linkStyle = 'font-size:.82rem;color:var(--text-dim);text-decoration:none;border:1px solid var(--border2);border-radius:5px;padding:.3rem .7rem;transition:color .15s,border-color .15s';
   const hover = `onmouseover="this.style.color='var(--text-bright)';this.style.borderColor='var(--gold)'" onmouseout="this.style.color='var(--text-dim)';this.style.borderColor='var(--border2)'"`;
-  const reportCodes = (entries[0]?.reports ?? [entries[0]?.report]).filter(Boolean);
-  span.innerHTML = reportCodes.map((code, i) =>
-    `<a href="https://www.warcraftlogs.com/reports/${code}" target="_blank" rel="noopener" style="${linkStyle}" ${hover}>${reportCodes.length === 1 ? 'Ver en WarcraftLogs ↗' : `Sesión ${i + 1} ↗`}</a>`
+  const links = [];
+  for (const entry of entries) {
+    const codes = (entry.reports ?? [entry.report]).filter(Boolean);
+    for (const code of codes) {
+      const meta = entry.claReports?.[code];
+      let label = null;
+      if (meta?.fecha && meta?.instance) {
+        const [, m, d] = meta.fecha.split('-');
+        label = d && m ? `${d}/${m} ${meta.instance}` : meta.instance;
+      }
+      links.push({ code, label });
+    }
+  }
+  span.innerHTML = links.map(({ code, label }, i) =>
+    `<a href="https://www.warcraftlogs.com/reports/${code}" target="_blank" rel="noopener" style="${linkStyle}" ${hover}>${links.length === 1 ? 'Ver en WarcraftLogs ↗' : label ? `${label} ↗` : `Sesión ${i + 1} ↗`}</a>`
   ).join('');
 }
 
@@ -2780,7 +2792,7 @@ function renderSemanaView(semana) {
   `;
 
   el.innerHTML = `
-    <div class="section-title" style="font-size:1.3rem;margin-bottom:1.5rem">Semana ${semana.semanaNum} — ${fmtDate(semana.semana)}</div>
+    <div class="section-title" style="font-size:1.3rem;margin-bottom:1.5rem">Semana ${semana.semanaNum}</div>
     ${notasHtml}
     ${statsHtml}
     ${bossHtml}
@@ -4657,8 +4669,10 @@ function renderPerformance() {
       const cell = e.target.closest('[data-perf-tip]');
       if (!cell) return;
       box.innerHTML = cell.dataset.perfTip.split(';').map(s => {
-        const i = s.lastIndexOf('|');
-        return `<div class="tip-row"><span class="tip-name">${s.slice(0,i)}</span><span class="tip-count">×${s.slice(i+1)}</span></div>`;
+        const parts = s.split('|');
+        const name = parts[0], count = parts[1], cls = parts[2] ?? '';
+        const color = CLASS_COLORS[cls] ?? 'var(--text-bright)';
+        return `<div class="tip-row"><span class="tip-name" style="color:${color}">${name}</span><span class="tip-count">×${count}</span></div>`;
       }).join('');
       box.style.display = 'block';
     });
@@ -4676,10 +4690,10 @@ function renderPerformance() {
   }
 
   // Uptime % bar + value cell con data-perf-tip para el tooltip
-  function uptimeCell(u, casters) {
+  function uptimeCell(u, casters, playerClasses) {
     const color = uptimeColor(u);
     const tipData = casters && casters.length
-      ? casters.map(c => `${c.name}|${c.count}`).join(';')
+      ? casters.map(c => `${c.name}|${c.count}|${playerClasses?.[c.name] ?? ''}`).join(';')
       : '';
     const tipAttr = tipData ? ` data-perf-tip="${tipData}"` : '';
     return `<td class="val-cell" style="color:${color};${tipData ? 'cursor:help' : ''}"${tipAttr}>${u}%</td>
@@ -4796,7 +4810,7 @@ function renderPerformance() {
           const tankSubLabel = `<div style="font-size:0.7rem;color:var(--text-dim);margin-top:0.1rem;line-height:1">${clsImg}${t.name}</div>`;
           return `<tr>
             <td style="white-space:nowrap;padding-top:0.2rem;padding-bottom:0.2rem"><div style="line-height:1">${buffLinks}</div>${tankSubLabel}</td>
-            ${uptimeCell(t.uptime, d.casters)}
+            ${uptimeCell(t.uptime, d.casters, playerClasses)}
             <td class="td-dim">${d.uses ?? '—'} veces</td>
             <td style="font-size:0.85rem">${castersHtml}</td>
           </tr>`;
@@ -4830,12 +4844,13 @@ function renderPerformance() {
     if (!allAuras.length) return '';
 
     function auraAvg(af) {
-      let sum = 0, count = 0;
-      for (const { kills } of killsByBoss) {
-        const us = kills.map(k => (getAuras(k) ?? []).find(x => x.id === af.id)?.uptime).filter(u => u != null);
-        if (us.length) { sum += Math.round(us.reduce((a, b) => a + b, 0) / us.length); count++; }
-      }
-      return count ? Math.round(sum / count) : 0;
+      let debuffMs = 0, totalMs = 0;
+      for (const { kills } of killsByBoss)
+        for (const k of kills) {
+          const a = (getAuras(k) ?? []).find(x => x.id === af.id);
+          if (a && k.durationMs) { debuffMs += (a.uptime / 100) * k.durationMs; totalMs += k.durationMs; }
+        }
+      return totalMs ? Math.round(debuffMs / totalMs * 100) : 0;
     }
     allAuras.sort((a, b) => auraAvg(b) - auraAvg(a));
 
@@ -4900,29 +4915,30 @@ function renderPerformance() {
           )
         )];
         return tankNames.map((tankName) => {
-          let sumAll = 0, countAll = 0;
+          let debuffMsAll = 0, totalMsAll = 0;
           const cells = allBosses.map(({ kills, raid }, i) => {
             const isTkFirst = raid === 'TK' && (i === 0 || allBosses[i - 1].raid === 'SSC');
             const border = isTkFirst ? 'border-left:2px solid rgba(255,255,255,0.2);' : '';
-            const uptimes = [];
+            let debuffMs = 0, totalMs = 0;
             const casterMap = new Map();
             for (const k of kills) {
               const a = (getAuras(k) ?? []).find(a => a.id === af.id);
               const pt = a?.perTank?.find(t => t.name === tankName);
-              if (pt !== undefined) {
-                uptimes.push(pt.uptime);
+              if (pt !== undefined && k.durationMs) {
+                debuffMs += (pt.uptime / 100) * k.durationMs;
+                totalMs += k.durationMs;
                 for (const c of (a.casters ?? [])) casterMap.set(c.name, (casterMap.get(c.name) ?? 0) + c.count);
               }
             }
-            if (!uptimes.length) return `<td class="td-dim" style="text-align:center;${border}">—</td>`;
-            const avg = Math.round(uptimes.reduce((a, b) => a + b, 0) / uptimes.length);
-            sumAll += avg; countAll++;
+            if (!totalMs) return `<td class="td-dim" style="text-align:center;${border}">—</td>`;
+            const avg = Math.round(debuffMs / totalMs * 100);
+            debuffMsAll += debuffMs; totalMsAll += totalMs;
             const color = uptimeColor(avg);
-            const tipData = [...casterMap.entries()].map(([n, c]) => `${n}|${c}`).join(';');
+            const tipData = [...casterMap.entries()].map(([n, c]) => `${n}|${c}|${playerClasses?.[n] ?? ''}`).join(';');
             const tipAttr = tipData ? ` data-perf-tip="${tipData}"` : '';
             return `<td style="text-align:center;color:${color};font-weight:600;${border}${tipData?'cursor:help':''}"${tipAttr}>${avg}%</td>`;
           });
-          const avgAll = countAll ? Math.round(sumAll / countAll) : null;
+          const avgAll = totalMsAll ? Math.round(debuffMsAll / totalMsAll * 100) : null;
           const avgCell = avgAll !== null
             ? `<td style="text-align:center;color:${uptimeColor(avgAll)};font-weight:700;border-left:1px solid rgba(255,255,255,0.1);border-right:2px solid rgba(255,255,255,0.25)">${avgAll}%</td>`
             : '<td class="td-dim" style="text-align:center;border-left:1px solid rgba(255,255,255,0.1);border-right:2px solid rgba(255,255,255,0.25)">—</td>';
@@ -4931,7 +4947,7 @@ function renderPerformance() {
             for (const k of kills)
               for (const c of ((getAuras(k) ?? []).find(a => a.id === af.id)?.casters ?? []))
                 labelCasterMap.set(c.name, (labelCasterMap.get(c.name) ?? 0) + c.count);
-          const labelTipData = [...labelCasterMap.entries()].map(([n, c]) => `${n}|${c}`).join(';');
+          const labelTipData = [...labelCasterMap.entries()].map(([n, c]) => `${n}|${c}|${playerClasses?.[n] ?? ''}`).join(';');
           const cls = playerClasses?.[tankName] ?? '';
           const slug = cls.toLowerCase();
           const clsImg = cls ? `<img src="https://wow.zamimg.com/images/wow/icons/medium/classicon_${slug}.jpg" style="width:13px;height:13px;border-radius:2px;vertical-align:middle;margin-right:0.2rem" alt="${cls}">` : '';
@@ -4946,28 +4962,29 @@ function renderPerformance() {
         });
       }
 
-      let sumAll = 0, countAll = 0;
+      let debuffMsAll = 0, totalMsAll = 0;
       const cells = allBosses.map(({ kills, raid }, i) => {
         const isTkFirst = raid === 'TK' && (i === 0 || allBosses[i - 1].raid === 'SSC');
         const border = isTkFirst ? 'border-left:2px solid rgba(255,255,255,0.2);' : '';
-        const uptimes = [];
+        let debuffMs = 0, totalMs = 0;
         const casterMap = new Map();
         for (const kill of kills) {
           const a = (getAuras(kill) ?? []).find(a => a.id === af.id);
-          if (a) {
-            uptimes.push(a.uptime);
+          if (a && kill.durationMs) {
+            debuffMs += (a.uptime / 100) * kill.durationMs;
+            totalMs += kill.durationMs;
             for (const c of (a.casters ?? [])) casterMap.set(c.name, (casterMap.get(c.name) ?? 0) + c.count);
           }
         }
-        if (!uptimes.length) return `<td class="td-dim" style="text-align:center;${border}">—</td>`;
-        const avg = Math.round(uptimes.reduce((a, b) => a + b, 0) / uptimes.length);
-        sumAll += avg; countAll++;
+        if (!totalMs) return `<td class="td-dim" style="text-align:center;${border}">—</td>`;
+        const avg = Math.round(debuffMs / totalMs * 100);
+        debuffMsAll += debuffMs; totalMsAll += totalMs;
         const color = uptimeColor(avg);
-        const tipData = [...casterMap.entries()].map(([n, c]) => `${n}|${c}`).join(';');
+        const tipData = [...casterMap.entries()].map(([n, c]) => `${n}|${c}|${playerClasses?.[n] ?? ''}`).join(';');
         const tipAttr = tipData ? ` data-perf-tip="${tipData}"` : '';
         return `<td style="text-align:center;color:${color};font-weight:600;${border}cursor:${tipData ? 'help' : 'default'}"${tipAttr}>${avg}%</td>`;
       });
-      const avgAll = countAll ? Math.round(sumAll / countAll) : null;
+      const avgAll = totalMsAll ? Math.round(debuffMsAll / totalMsAll * 100) : null;
       const avgCell = avgAll !== null
         ? `<td style="text-align:center;color:${uptimeColor(avgAll)};font-weight:700;border-left:1px solid rgba(255,255,255,0.1);border-right:2px solid rgba(255,255,255,0.25)">${avgAll}%</td>`
         : '<td class="td-dim" style="text-align:center;border-left:1px solid rgba(255,255,255,0.1);border-right:2px solid rgba(255,255,255,0.25)">—</td>';
