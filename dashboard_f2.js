@@ -4102,7 +4102,11 @@ function renderCLAView(cla, playerSpecs = {}, activeSub = 'consumibles', drums =
     return (b[1].gearStats?.gearPrepPct ?? b[1].gearScore ?? 0) - (a[1].gearStats?.gearPrepPct ?? a[1].gearScore ?? 0);
   });
   const avgOverall    = resumenSorted.length
-    ? Math.round(resumenSorted.reduce((s, [, j]) => s + _calcOverall(j), 0) / resumenSorted.length)
+    ? Math.round(resumenSorted.reduce((s, [, j]) => {
+        const cons = (j.consumiblesScore ?? 0) + (j.scrollBonus ?? 0);
+        const gear = j.gearStats?.gearPrepPct ?? j.gearScore ?? null;
+        return s + Math.min(100, gear !== null ? (cons + gear) / 2 : cons);
+      }, 0) / resumenSorted.length)
     : 0;
 
   const resumenRows = resumenSorted.map(([name, j]) => {
