@@ -4323,9 +4323,10 @@ function renderCLAGlobal(raids) {
   const drumsMap    = new Map(); // name → { uses, totalRecipients }
   const seenSemanas = new Set();
   for (const r of raids) {
-    if (!r.drums || seenSemanas.has(r.semanaNum)) continue;
+    const weekDrums = r.drumsWeek ?? r.drums; // drumsWeek = agregado de semana; fallback para entradas antiguas
+    if (!weekDrums || seenSemanas.has(r.semanaNum)) continue;
     seenSemanas.add(r.semanaNum);
-    for (const d of r.drums) {
+    for (const d of weekDrums) {
       if (!drumsMap.has(d.name)) drumsMap.set(d.name, { uses: 0, totalRecipients: 0 });
       const dd = drumsMap.get(d.name);
       dd.uses            += d.uses;
@@ -4468,7 +4469,7 @@ function renderCLA() {
       if (!cla) continue;
       const claFecha = cla.fecha ?? entry.fecha;
       const instance = cla.instance ?? null;
-      raids.push({ code, cla, fecha: claFecha, semanaNum: entry.semanaNum, playerSpecs: entry.playerSpecs ?? {}, instance, drums: entry.drums ?? null });
+      raids.push({ code, cla, fecha: claFecha, semanaNum: entry.semanaNum, playerSpecs: entry.playerSpecs ?? {}, instance, drums: entry.drumsReports?.[code] ?? null, drumsWeek: entry.drums ?? null });
     }
   }
   raids.sort((a, b) => b.fecha.localeCompare(a.fecha));
