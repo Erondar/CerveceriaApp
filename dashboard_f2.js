@@ -4501,7 +4501,7 @@ function renderCLAWeekView(semanaRaids) {
   }).join('');
 
   const numRaids = semanaRaids.length;
-  return `
+  const badges = `
     <div class="stats-grid" style="margin-bottom:1.5rem;grid-template-columns:repeat(3,1fr)">
       <div class="stat-card" style="text-align:center;border-color:${guildColor};box-shadow:0 0 8px ${guildColor}33">
         <div class="stat-label" style="color:var(--gold);font-size:0.82rem;font-weight:700;letter-spacing:0.06em">PREP % MEDIA GUILD</div>
@@ -4518,7 +4518,8 @@ function renderCLAWeekView(semanaRaids) {
         <div class="stat-value" style="color:#e07070;font-size:1.4rem">${worstPrep}%</div>
         <div style="margin-top:.4rem;font-size:.85rem">${nameSpans(worstList)}</div>
       </div>
-    </div>
+    </div>`;
+  const table = `
     <table class="ranked-list" style="table-layout:fixed;width:100%;margin-bottom:1.5rem">
       <thead>
         <tr>
@@ -4531,6 +4532,7 @@ function renderCLAWeekView(semanaRaids) {
       </thead>
       <tbody>${tableRows}</tbody>
     </table>`;
+  return { badges, table };
 }
 
 function renderCLA() {
@@ -4659,16 +4661,17 @@ function renderCLA() {
       <div id="cla-view"></div>
     </div>
     <div class="sub-tab-content" id="clamain-porsemana">
-      <div class="prog-chart" style="margin-bottom:1.5rem">
-        <div class="prog-chart-title">Evolución del PREP % medio por semana</div>
-        ${weekChart}
-      </div>
       <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap">
         <span style="color:var(--text-dim);font-size:1rem;font-family:'Cinzel',serif;font-weight:600;letter-spacing:.05em;align-self:center">Semana</span>
         <select class="loot-select" id="cla-week-sel" style="min-width:200px;width:auto;margin-bottom:0">${weekOptions}</select>
         <div id="cla-week-raids" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center"></div>
       </div>
-      <div id="cla-week-view"></div>
+      <div id="cla-week-badges"></div>
+      <div class="prog-chart" style="margin-bottom:1.5rem">
+        <div class="prog-chart-title">Evolución del PREP % medio por semana</div>
+        ${weekChart}
+      </div>
+      <div id="cla-week-table"></div>
     </div>`;
 
   // Top-level tab switching
@@ -4721,8 +4724,10 @@ function renderCLA() {
   function renderWeekView(semanaNum) {
     const s = semanas.find(s => s.num === semanaNum);
     if (!s) return;
-    document.getElementById('cla-week-view').innerHTML = renderCLAWeekView(s.raids);
-    attachPlayerClicks('#cla-week-view');
+    const { badges, table } = renderCLAWeekView(s.raids);
+    document.getElementById('cla-week-badges').innerHTML = badges;
+    document.getElementById('cla-week-table').innerHTML = table;
+    attachPlayerClicks('#cla-week-badges');
     document.getElementById('cla-week-raids').innerHTML = [...s.raids]
       .sort((a, b) => a.fecha.localeCompare(b.fecha))
       .map(r => `<button class="cla-raid-link" data-raidcode="${r.code}" style="background:none;border:1px solid rgba(255,255,255,0.12);border-radius:4px;padding:.35rem .9rem;cursor:pointer;color:var(--text-bright);font-size:.85rem;font-family:'Cinzel',serif;letter-spacing:.04em;transition:border-color .15s" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.12)'">${r.instance ?? 'Raid'} · ${fmtDate(r.fecha)} →</button>`)
