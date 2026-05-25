@@ -4452,6 +4452,87 @@ function renderCLAGlobal(raids) {
     </table>`;
 }
 
+function renderCLAWeekView(semanaRaids) {
+  const playerMap = new Map();
+  for (const r of semanaRaids) {
+    for (const [name, j] of Object.entries(r.cla.jugadores)) {
+      if (!playerMap.has(name)) playerMap.set(name, { clase: j.clase, prepSum: 0, consSum: 0, gearSum: 0, gearCount: 0, count: 0 });
+      const d    = playerMap.get(name);
+      const cons = (j.consumiblesScore ?? 0) + (j.scrollBonus ?? 0);
+      const gear = j.gearStats?.gearPrepPct ?? j.gearScore ?? null;
+      const prep = Math.min(100, Math.round(gear !== null ? (cons + gear) / 2 : cons));
+      d.prepSum += prep;
+      d.consSum += cons;
+      if (gear !== null) { d.gearSum += gear; d.gearCount++; }
+      d.count++;
+    }
+  }
+
+  const players = [...playerMap.entries()].map(([name, d]) => ({
+    name, clase: d.clase, count: d.count,
+    avgPrep: Math.min(100, Math.round(d.prepSum / d.count)),
+    avgCons: Math.round(d.consSum / d.count),
+    avgGear: d.gearCount > 0 ? Math.round(d.gearSum / d.gearCount) : null,
+  })).sort((a, b) => {
+    const pd = b.avgPrep - a.avgPrep; if (pd !== 0) return pd;
+    const cd = b.avgCons - a.avgCons; if (cd !== 0) return cd;
+    return (b.avgGear ?? 0) - (a.avgGear ?? 0);
+  });
+
+  const guildAvg  = players.length ? Math.round(players.reduce((s, p) => s + p.avgPrep, 0) / players.length) : 0;
+  const bestPrep  = players[0]?.avgPrep ?? 0;
+  const worstPrep = players[players.length - 1]?.avgPrep ?? 0;
+  const bestList  = players.filter(p => p.avgPrep === bestPrep);
+  const worstList = players.filter(p => p.avgPrep === worstPrep);
+  const guildColor = _claColor(guildAvg);
+  const nameSpans  = ps => ps.map(p =>
+    `<span class="clickable-player" data-player="${p.name}" style="color:${CLASS_COLOR[p.clase] ?? 'var(--text-bright)'};cursor:pointer">${p.name}</span>`
+  ).join(', ');
+
+  const tableRows = players.map(p => {
+    const clsColor = CLASS_COLOR[p.clase] ?? 'var(--text-bright)';
+    return `<tr>
+      <td><span class="player-link clickable-player" data-player="${p.name}" style="color:${clsColor}">${p.name}</span></td>
+      <td style="text-align:center;color:var(--text-dim);font-size:0.85rem">${p.count}</td>
+      <td style="text-align:center"><span style="font-family:'Cinzel',serif;font-weight:700;font-size:1rem;color:${_claColor(p.avgPrep)}">${p.avgPrep}%</span></td>
+      <td>${_claBar(p.avgCons)}</td>
+      <td>${p.avgGear !== null ? _claBar(p.avgGear) : '<span style="color:var(--text-dim)">—</span>'}</td>
+    </tr>`;
+  }).join('');
+
+  const numRaids = semanaRaids.length;
+  return `
+    <div class="stats-grid" style="margin-bottom:1.5rem;grid-template-columns:repeat(3,1fr)">
+      <div class="stat-card" style="text-align:center;border-color:${guildColor};box-shadow:0 0 8px ${guildColor}33">
+        <div class="stat-label" style="color:var(--gold);font-size:0.82rem;font-weight:700;letter-spacing:0.06em">PREP % MEDIA GUILD</div>
+        <div class="stat-value" style="color:${guildColor};font-size:2rem">${guildAvg}%</div>
+        <div style="font-size:.78rem;color:var(--text-dim);margin-top:.3rem">media de ${numRaids} raid${numRaids > 1 ? 's' : ''}</div>
+      </div>
+      <div class="stat-card" style="text-align:center">
+        <div class="stat-label" style="color:#aaa">Mejor preparado</div>
+        <div class="stat-value" style="color:#7dce82;font-size:1.4rem">${bestPrep}%</div>
+        <div style="margin-top:.4rem;font-size:.85rem">${nameSpans(bestList)}</div>
+      </div>
+      <div class="stat-card" style="text-align:center">
+        <div class="stat-label" style="color:#aaa">Peor preparado</div>
+        <div class="stat-value" style="color:#e07070;font-size:1.4rem">${worstPrep}%</div>
+        <div style="margin-top:.4rem;font-size:.85rem">${nameSpans(worstList)}</div>
+      </div>
+    </div>
+    <table class="ranked-list" style="table-layout:fixed;width:100%;margin-bottom:1.5rem">
+      <thead>
+        <tr>
+          <th style="width:20%">Jugador</th>
+          <th style="width:8%;text-align:center">Raids</th>
+          <th style="width:12%;text-align:center">PREP %</th>
+          <th style="width:27%">CONS %</th>
+          <th style="width:27%">GEAR %</th>
+        </tr>
+      </thead>
+      <tbody>${tableRows}</tbody>
+    </table>`;
+}
+
 function renderCLA() {
   const el = document.getElementById('tab-cla');
   if (!historial.length) {
@@ -4488,10 +4569,41 @@ function renderCLA() {
     `<option value="${r.code}">S${r.semanaNum} · ${fmtDate(r.fecha)}${r.instance ? ' · ' + r.instance : ''}</option>`
   ).join('');
 
+  // Agrupar raids por semana
+  const semanaMap = new Map();
+  for (const r of raids) {
+    if (!semanaMap.has(r.semanaNum)) semanaMap.set(r.semanaNum, []);
+    semanaMap.get(r.semanaNum).push(r);
+  }
+  const semanas = [...semanaMap.entries()]
+    .sort(([a], [b]) => b - a)
+    .map(([num, rs]) => ({ num, raids: rs.sort((a, b) => a.fecha.localeCompare(b.fecha)) }));
+  const weekOptions = semanas.map(s => {
+    const latest = [...s.raids].sort((a, b) => b.fecha.localeCompare(a.fecha))[0];
+    return `<option value="${s.num}">S${s.num} · ${fmtDate(latest.fecha)}${s.raids.length > 1 ? ' · ' + s.raids.length + ' raids' : ''}</option>`;
+  }).join('');
+
+  // Gráfica evolutiva semanal
+  const semanasCron = [...semanas].reverse();
+  const weekChartLabels = semanasCron.map(s => `S${s.num}`);
+  const weekChartValues = semanasCron.map(s => {
+    const vals = [];
+    for (const r of s.raids) {
+      for (const j of Object.values(r.cla.jugadores)) {
+        const cons = (j.consumiblesScore ?? 0) + (j.scrollBonus ?? 0);
+        const gear = j.gearStats?.gearPrepPct ?? j.gearScore ?? null;
+        vals.push(Math.min(100, gear !== null ? (cons + gear) / 2 : cons));
+      }
+    }
+    return vals.length ? Math.round(vals.reduce((a, v) => a + v, 0) / vals.length) : null;
+  });
+  const weekChart = drawLineChart(weekChartLabels, [{ label: 'PREP % media', color: '#7dce82', values: weekChartValues }], v => Math.round(v) + '%', 100);
+
   el.innerHTML = `
     <div style="display:flex;align-items:stretch;border-bottom:1px solid rgba(255,255,255,0.1);margin-bottom:1.5rem">
       <div id="sub-nav-cla-main" style="display:flex;gap:0;flex:1">
         <button class="sub-tab-btn active" data-clamain="general" style="font-family:'Cinzel',serif;font-size:0.93rem;font-weight:600;letter-spacing:.06em;padding:.55rem 1.5rem;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility">Resumen General</button>
+        <button class="sub-tab-btn" data-clamain="porsemana" style="font-family:'Cinzel',serif;font-size:0.93rem;font-weight:600;letter-spacing:.06em;padding:.55rem 1.5rem;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility">Por Semana</button>
         <button class="sub-tab-btn" data-clamain="porraid" style="font-family:'Cinzel',serif;font-size:0.93rem;font-weight:600;letter-spacing:.06em;padding:.55rem 1.5rem;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility">Por Raid</button>
       </div>
       <button id="cla-calc-btn" class="sub-tab-btn" style="margin-left:auto;border-left:1px solid rgba(255,255,255,0.08);border-bottom-color:transparent;-webkit-font-smoothing:antialiased">ℹ️ Cálculos</button>
@@ -4545,6 +4657,18 @@ function renderCLA() {
         </span>
       </div>
       <div id="cla-view"></div>
+    </div>
+    <div class="sub-tab-content" id="clamain-porsemana">
+      <div class="prog-chart" style="margin-bottom:1.5rem">
+        <div class="prog-chart-title">Evolución del PREP % medio por semana</div>
+        ${weekChart}
+      </div>
+      <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap">
+        <span style="color:var(--text-dim);font-size:1rem;font-family:'Cinzel',serif;font-weight:600;letter-spacing:.05em;align-self:center">Semana</span>
+        <select class="loot-select" id="cla-week-sel" style="min-width:200px;width:auto;margin-bottom:0">${weekOptions}</select>
+        <div id="cla-week-raids" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center"></div>
+      </div>
+      <div id="cla-week-view"></div>
     </div>`;
 
   // Top-level tab switching
@@ -4554,6 +4678,7 @@ function renderCLA() {
     document.querySelectorAll('#sub-nav-cla-main .sub-tab-btn').forEach(b => b.classList.toggle('active', b === btn));
     const main = btn.dataset.clamain;
     document.getElementById('clamain-general').classList.toggle('active', main === 'general');
+    document.getElementById('clamain-porsemana').classList.toggle('active', main === 'porsemana');
     document.getElementById('clamain-porraid').classList.toggle('active', main === 'porraid');
   });
 
@@ -4574,6 +4699,7 @@ function renderCLA() {
     const sub = card.dataset.goto;
     document.querySelectorAll('#sub-nav-cla-main .sub-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.clamain === 'porraid'));
     document.getElementById('clamain-general').classList.remove('active');
+    document.getElementById('clamain-porsemana').classList.remove('active');
     document.getElementById('clamain-porraid').classList.add('active');
     const r = raids[0];
     renderCLAView(r.cla, r.playerSpecs, sub, r.drums);
@@ -4589,6 +4715,37 @@ function renderCLA() {
   });
 
   renderCLAView(raids[0].cla, raids[0].playerSpecs, 'resumen', raids[0].drums);
+
+  // Week selector
+  const weekSel = document.getElementById('cla-week-sel');
+  function renderWeekView(semanaNum) {
+    const s = semanas.find(s => s.num === semanaNum);
+    if (!s) return;
+    document.getElementById('cla-week-view').innerHTML = renderCLAWeekView(s.raids);
+    attachPlayerClicks('#cla-week-view');
+    document.getElementById('cla-week-raids').innerHTML = [...s.raids]
+      .sort((a, b) => a.fecha.localeCompare(b.fecha))
+      .map(r => `<button class="cla-raid-link" data-raidcode="${r.code}" style="background:none;border:1px solid rgba(255,255,255,0.12);border-radius:4px;padding:.35rem .9rem;cursor:pointer;color:var(--text-bright);font-size:.85rem;font-family:'Cinzel',serif;letter-spacing:.04em;transition:border-color .15s" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.12)'">${r.instance ?? 'Raid'} · ${fmtDate(r.fecha)} →</button>`)
+      .join('');
+  }
+  weekSel.addEventListener('change', () => renderWeekView(parseInt(weekSel.value, 10)));
+  // Raid link clicks — delegación, se registra una sola vez
+  document.getElementById('clamain-porsemana').addEventListener('click', e => {
+    const btn = e.target.closest('.cla-raid-link');
+    if (!btn) return;
+    const code = btn.dataset.raidcode;
+    const r = raids.find(r => r.code === code);
+    if (!r) return;
+    document.querySelectorAll('#sub-nav-cla-main .sub-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.clamain === 'porraid'));
+    document.getElementById('clamain-general').classList.remove('active');
+    document.getElementById('clamain-porsemana').classList.remove('active');
+    document.getElementById('clamain-porraid').classList.add('active');
+    const raidSel = document.getElementById('cla-raid-sel');
+    raidSel.value = code;
+    renderCLAView(r.cla, r.playerSpecs, 'resumen', r.drums);
+  });
+  _attachChartTooltips(document.getElementById('clamain-porsemana'));
+  if (semanas.length) renderWeekView(semanas[0].num);
 }
 
 // ── PERFORMANCE ───────────────────────────────────────────────────────────────
