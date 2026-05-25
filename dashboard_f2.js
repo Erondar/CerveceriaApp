@@ -755,7 +755,7 @@ function progLegend(labels, colors) {
   ).join('')}</div>`;
 }
 
-function drawLineChart(xLabels, series, yFormat, yMaxOverride) {
+function drawLineChart(xLabels, series, yFormat, yMaxOverride, yMinOverride) {
   const W = 800, H = 240;
   const pad = { top: 20, right: 20, bottom: 44, left: 64 };
   const cW = W - pad.left - pad.right, cH = H - pad.top - pad.bottom;
@@ -763,7 +763,7 @@ function drawLineChart(xLabels, series, yFormat, yMaxOverride) {
   const allVals = series.flatMap(s => s.values.filter(v => v != null));
   if (!allVals.length) return '<p class="section-note">Sin datos suficientes.</p>';
   const yMax    = yMaxOverride ?? Math.max(...allVals);
-  const yBottom = yMaxOverride != null ? 0 : Math.max(0, Math.min(...allVals) * 0.8);
+  const yBottom = yMinOverride ?? (yMaxOverride != null ? 0 : Math.max(0, Math.min(...allVals) * 0.8));
   const yRange  = yMax - yBottom || 1;
   const xPos = i => pad.left + (n <= 1 ? cW / 2 : (i * cW) / (n - 1));
   const yPos = v => pad.top + cH - ((v - yBottom) / yRange) * cH;
@@ -4375,7 +4375,7 @@ function renderCLAGlobal(raids) {
     }
     return vals.length ? Math.round(vals.reduce((a, v) => a + v, 0) / vals.length) : null;
   });
-  const chartWeek = drawLineChart(weekLabels, [{ label: 'PREP % media', color: '#7dce82', values: weekValues }], v => Math.round(v) + '%', 100);
+  const chartWeek = drawLineChart(weekLabels, [{ label: 'PREP % media', color: '#7dce82', values: weekValues }], v => Math.round(v) + '%', 100, 50);
 
   // ── Gráfica por raid (orden cronológico) ──────────────────────────────────
   const raidsChron = [...raids].reverse();
@@ -4390,7 +4390,7 @@ function renderCLAGlobal(raids) {
     });
     return Math.round(vals.reduce((s, v) => s + v, 0) / vals.length);
   });
-  const chart = drawLineChart(chartLabels, [{ label: 'PREP % media', color: '#7dce82', values: chartValues }], v => Math.round(v) + '%', 100);
+  const chart = drawLineChart(chartLabels, [{ label: 'PREP % media', color: '#7dce82', values: chartValues }], v => Math.round(v) + '%', 100, 50);
 
   // ── Tabla ─────────────────────────────────────────────────────────────────
   const tableRows = players.map(p => {
