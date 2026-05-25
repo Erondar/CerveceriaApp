@@ -4889,12 +4889,13 @@ function renderPerformance() {
       'Kaelthas':   'Kael',
     };
 
-    const allBosses = killsByBoss;
-    const sscCount  = allBosses.filter(b => b.raid === 'SSC').length;
-    const tkCount   = allBosses.filter(b => b.raid === 'TK').length;
-    const mediaBorder = 'border-left:1px solid rgba(255,255,255,0.1);border-right:2px solid rgba(255,255,255,0.25)';
+    const allBosses    = killsByBoss;
+    const sscCount     = allBosses.filter(b => b.raid === 'SSC').length;
+    const tkCount      = allBosses.filter(b => b.raid === 'TK').length;
+    const hasBothRaids = sscCount > 0 && tkCount > 0;
+    const mediaBorder  = 'border-left:1px solid rgba(255,255,255,0.1);border-right:2px solid rgba(255,255,255,0.25)';
 
-    const groupHeader = (sscCount && tkCount)
+    const groupHeader = hasBothRaids
       ? `<tr><th></th><th style="${mediaBorder}"></th>` +
         `<th colspan="${sscCount}" style="text-align:center;color:var(--text-dim);font-size:0.72rem;letter-spacing:0.06em;padding-bottom:0.1rem">SSC</th>` +
         `<th colspan="${tkCount}" style="text-align:center;color:var(--text-dim);font-size:0.72rem;letter-spacing:0.06em;padding-bottom:0.1rem;border-left:2px solid rgba(255,255,255,0.2)">TK</th></tr>`
@@ -4921,6 +4922,7 @@ function renderPerformance() {
         )];
         return tankNames.map((tankName) => {
           let debuffMsAll = 0, totalMsAll = 0;
+          let sscDebuffMs = 0, sscTotalMs = 0, tkDebuffMs = 0, tkTotalMs = 0;
           const cells = allBosses.map(({ kills, raid }, i) => {
             const isTkFirst = raid === 'TK' && (i === 0 || allBosses[i - 1].raid === 'SSC');
             const border = isTkFirst ? 'border-left:2px solid rgba(255,255,255,0.2);' : '';
@@ -4938,15 +4940,28 @@ function renderPerformance() {
             if (!totalMs) return `<td class="td-dim" style="text-align:center;${border}">—</td>`;
             const avg = Math.round(debuffMs / totalMs * 100);
             debuffMsAll += debuffMs; totalMsAll += totalMs;
+            if (raid === 'SSC') { sscDebuffMs += debuffMs; sscTotalMs += totalMs; }
+            else                { tkDebuffMs  += debuffMs; tkTotalMs  += totalMs; }
             const color = uptimeColor(avg);
             const tipData = [...casterMap.entries()].map(([n, c]) => `${n}|${c}|${playerClasses?.[n] ?? ''}`).join(';');
             const tipAttr = tipData ? ` data-perf-tip="${tipData}"` : '';
             return `<td style="text-align:center;color:${color};font-weight:600;${border}${tipData?'cursor:help':''}"${tipAttr}>${avg}%</td>`;
           });
           const avgAll = totalMsAll ? Math.round(debuffMsAll / totalMsAll * 100) : null;
-          const avgCell = avgAll !== null
-            ? `<td style="text-align:center;color:${uptimeColor(avgAll)};font-weight:700;border-left:1px solid rgba(255,255,255,0.1);border-right:2px solid rgba(255,255,255,0.25)">${avgAll}%</td>`
-            : '<td class="td-dim" style="text-align:center;border-left:1px solid rgba(255,255,255,0.1);border-right:2px solid rgba(255,255,255,0.25)">—</td>';
+          let avgCell;
+          if (hasBothRaids && avgAll !== null) {
+            const sscAvg = sscTotalMs ? Math.round(sscDebuffMs / sscTotalMs * 100) : null;
+            const tkAvg  = tkTotalMs  ? Math.round(tkDebuffMs  / tkTotalMs  * 100) : null;
+            const breakdown = [
+              sscAvg !== null ? `<span style="color:var(--text-dim);font-size:0.67rem">SSC</span><span style="color:${uptimeColor(sscAvg)};font-weight:600;font-size:0.72rem;margin-left:0.1rem">${sscAvg}%</span>` : '',
+              tkAvg  !== null ? `<span style="color:var(--text-dim);font-size:0.67rem;margin-left:0.3rem">TK</span><span style="color:${uptimeColor(tkAvg)};font-weight:600;font-size:0.72rem;margin-left:0.1rem">${tkAvg}%</span>`   : '',
+            ].filter(Boolean).join('');
+            avgCell = `<td style="text-align:center;${mediaBorder};padding-top:0.2rem;padding-bottom:0.2rem"><div style="color:${uptimeColor(avgAll)};font-weight:700">${avgAll}%</div>${breakdown ? `<div style="white-space:nowrap;margin-top:0.2rem">${breakdown}</div>` : ''}</td>`;
+          } else {
+            avgCell = avgAll !== null
+              ? `<td style="text-align:center;color:${uptimeColor(avgAll)};font-weight:700;${mediaBorder}">${avgAll}%</td>`
+              : `<td class="td-dim" style="text-align:center;${mediaBorder}">—</td>`;
+          }
           const labelCasterMap = new Map();
           for (const { kills } of allBosses)
             for (const k of kills)
@@ -4968,6 +4983,7 @@ function renderPerformance() {
       }
 
       let debuffMsAll = 0, totalMsAll = 0;
+      let sscDebuffMs = 0, sscTotalMs = 0, tkDebuffMs = 0, tkTotalMs = 0;
       const cells = allBosses.map(({ kills, raid }, i) => {
         const isTkFirst = raid === 'TK' && (i === 0 || allBosses[i - 1].raid === 'SSC');
         const border = isTkFirst ? 'border-left:2px solid rgba(255,255,255,0.2);' : '';
@@ -4984,15 +5000,28 @@ function renderPerformance() {
         if (!totalMs) return `<td class="td-dim" style="text-align:center;${border}">—</td>`;
         const avg = Math.round(debuffMs / totalMs * 100);
         debuffMsAll += debuffMs; totalMsAll += totalMs;
+        if (raid === 'SSC') { sscDebuffMs += debuffMs; sscTotalMs += totalMs; }
+        else                { tkDebuffMs  += debuffMs; tkTotalMs  += totalMs; }
         const color = uptimeColor(avg);
         const tipData = [...casterMap.entries()].map(([n, c]) => `${n}|${c}|${playerClasses?.[n] ?? ''}`).join(';');
         const tipAttr = tipData ? ` data-perf-tip="${tipData}"` : '';
         return `<td style="text-align:center;color:${color};font-weight:600;${border}cursor:${tipData ? 'help' : 'default'}"${tipAttr}>${avg}%</td>`;
       });
       const avgAll = totalMsAll ? Math.round(debuffMsAll / totalMsAll * 100) : null;
-      const avgCell = avgAll !== null
-        ? `<td style="text-align:center;color:${uptimeColor(avgAll)};font-weight:700;border-left:1px solid rgba(255,255,255,0.1);border-right:2px solid rgba(255,255,255,0.25)">${avgAll}%</td>`
-        : '<td class="td-dim" style="text-align:center;border-left:1px solid rgba(255,255,255,0.1);border-right:2px solid rgba(255,255,255,0.25)">—</td>';
+      let avgCell;
+      if (hasBothRaids && avgAll !== null) {
+        const sscAvg = sscTotalMs ? Math.round(sscDebuffMs / sscTotalMs * 100) : null;
+        const tkAvg  = tkTotalMs  ? Math.round(tkDebuffMs  / tkTotalMs  * 100) : null;
+        const breakdown = [
+          sscAvg !== null ? `<span style="color:var(--text-dim);font-size:0.67rem">SSC</span><span style="color:${uptimeColor(sscAvg)};font-weight:600;font-size:0.72rem;margin-left:0.1rem">${sscAvg}%</span>` : '',
+          tkAvg  !== null ? `<span style="color:var(--text-dim);font-size:0.67rem;margin-left:0.3rem">TK</span><span style="color:${uptimeColor(tkAvg)};font-weight:600;font-size:0.72rem;margin-left:0.1rem">${tkAvg}%</span>`   : '',
+        ].filter(Boolean).join('');
+        avgCell = `<td style="text-align:center;${mediaBorder};padding-top:0.2rem;padding-bottom:0.2rem"><div style="color:${uptimeColor(avgAll)};font-weight:700">${avgAll}%</div>${breakdown ? `<div style="white-space:nowrap;margin-top:0.2rem">${breakdown}</div>` : ''}</td>`;
+      } else {
+        avgCell = avgAll !== null
+          ? `<td style="text-align:center;color:${uptimeColor(avgAll)};font-weight:700;${mediaBorder}">${avgAll}%</td>`
+          : `<td class="td-dim" style="text-align:center;${mediaBorder}">—</td>`;
+      }
       const auraNote = AURA_NOTE[af.name];
       const noteHtml = auraNote ? `<div style="font-size:0.68rem;color:var(--text-dim);margin-top:0.1rem;line-height:1;white-space:nowrap">${auraNote}</div>` : '';
       return [`<tr><td style="white-space:nowrap">${perfLink(af.id, shortName, af.icon, false, 16)}${noteHtml}</td>${avgCell}${cells.join('')}</tr>`];
