@@ -757,7 +757,7 @@ function progLegend(labels, colors) {
 
 function drawLineChart(xLabels, series, yFormat, yMaxOverride, yMinOverride) {
   const W = 800, H = 240;
-  const pad = { top: 20, right: 20, bottom: 44, left: 64 };
+  const pad = { top: 20, right: 20, bottom: 50, left: 72 };
   const cW = W - pad.left - pad.right, cH = H - pad.top - pad.bottom;
   const n = xLabels.length;
   const allVals = series.flatMap(s => s.values.filter(v => v != null));
@@ -771,11 +771,11 @@ function drawLineChart(xLabels, series, yFormat, yMaxOverride, yMinOverride) {
   for (let g = 0; g <= 4; g++) {
     const v = yBottom + (yRange * g) / 4, y = yPos(v);
     grid  += `<line x1="${pad.left}" y1="${y.toFixed(1)}" x2="${W - pad.right}" y2="${y.toFixed(1)}" stroke="#2e3550" stroke-width="1"/>`;
-    yAxis += `<text x="${pad.left - 8}" y="${(y + 4).toFixed(1)}" text-anchor="end" fill="#a0aabc" font-size="11">${yFormat(v)}</text>`;
+    yAxis += `<text x="${pad.left - 10}" y="${(y + 5).toFixed(1)}" text-anchor="end" fill="#a0aabc" font-size="14">${yFormat(v)}</text>`;
   }
   let xAxis = '';
   xLabels.forEach((l, i) => {
-    xAxis += `<text x="${xPos(i).toFixed(1)}" y="${H - pad.bottom + 16}" text-anchor="middle" fill="#a0aabc" font-size="11">${l}</text>`;
+    xAxis += `<text x="${xPos(i).toFixed(1)}" y="${H - pad.bottom + 20}" text-anchor="middle" fill="#a0aabc" font-size="14">${l}</text>`;
   });
   let svg = '';
   series.forEach(s => {
