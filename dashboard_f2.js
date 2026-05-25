@@ -4356,7 +4356,28 @@ function renderCLAGlobal(raids) {
     `<span class="clickable-player" data-player="${p.name}" style="color:${CLASS_COLOR[p.clase] ?? 'var(--text-bright)'};cursor:pointer">${p.name}</span>`
   ).join(', ');
 
-  // ── Gráfica evolutiva (orden cronológico) ─────────────────────────────────
+  // ── Gráfica por semana ────────────────────────────────────────────────────
+  const semanaMapG = new Map();
+  for (const r of raids) {
+    if (!semanaMapG.has(r.semanaNum)) semanaMapG.set(r.semanaNum, []);
+    semanaMapG.get(r.semanaNum).push(r);
+  }
+  const semanasCronG = [...semanaMapG.entries()].sort(([a], [b]) => a - b);
+  const weekLabels = semanasCronG.map(([num]) => `S${num}`);
+  const weekValues = semanasCronG.map(([, rs]) => {
+    const vals = [];
+    for (const r of rs) {
+      for (const j of Object.values(r.cla.jugadores)) {
+        const cons = (j.consumiblesScore ?? 0) + (j.scrollBonus ?? 0);
+        const gear = j.gearStats?.gearPrepPct ?? j.gearScore ?? null;
+        vals.push(Math.min(100, gear !== null ? (cons + gear) / 2 : cons));
+      }
+    }
+    return vals.length ? Math.round(vals.reduce((a, v) => a + v, 0) / vals.length) : null;
+  });
+  const chartWeek = drawLineChart(weekLabels, [{ label: 'PREP % media', color: '#7dce82', values: weekValues }], v => Math.round(v) + '%', 100);
+
+  // ── Gráfica por raid (orden cronológico) ──────────────────────────────────
   const raidsChron = [...raids].reverse();
   const chartLabels = raidsChron.map(r => { const [y,m,d] = r.fecha.split('-'); return `${d}/${m}`; });
   const chartValues = raidsChron.map(r => {
@@ -4432,9 +4453,15 @@ function renderCLAGlobal(raids) {
         <span class="cla-goto-arrow" style="color:var(--text-dim);font-size:1.1rem;flex-shrink:0;transition:color .15s">→</span>
       </button>
     </div>
-    <div class="prog-chart" style="margin-bottom:1.5rem">
-      <div class="prog-chart-title">Evolución del PREP % medio</div>
-      ${chart}
+    <div style="display:flex;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap">
+      <div class="prog-chart" style="flex:1;min-width:0">
+        <div class="prog-chart-title">Evolución por semana</div>
+        ${chartWeek}
+      </div>
+      <div class="prog-chart" style="flex:1;min-width:0">
+        <div class="prog-chart-title">Evolución por raid</div>
+        ${chart}
+      </div>
     </div>
     <table class="ranked-list" style="table-layout:fixed;width:100%">
       <thead>
@@ -4585,22 +4612,6 @@ function renderCLA() {
     return `<option value="${s.num}">S${s.num} · ${fmtDate(latest.fecha)}${s.raids.length > 1 ? ' · ' + s.raids.length + ' raids' : ''}</option>`;
   }).join('');
 
-  // Gráfica evolutiva semanal
-  const semanasCron = [...semanas].reverse();
-  const weekChartLabels = semanasCron.map(s => `S${s.num}`);
-  const weekChartValues = semanasCron.map(s => {
-    const vals = [];
-    for (const r of s.raids) {
-      for (const j of Object.values(r.cla.jugadores)) {
-        const cons = (j.consumiblesScore ?? 0) + (j.scrollBonus ?? 0);
-        const gear = j.gearStats?.gearPrepPct ?? j.gearScore ?? null;
-        vals.push(Math.min(100, gear !== null ? (cons + gear) / 2 : cons));
-      }
-    }
-    return vals.length ? Math.round(vals.reduce((a, v) => a + v, 0) / vals.length) : null;
-  });
-  const weekChart = drawLineChart(weekChartLabels, [{ label: 'PREP % media', color: '#7dce82', values: weekChartValues }], v => Math.round(v) + '%', 100);
-
   el.innerHTML = `
     <div style="display:flex;align-items:stretch;border-bottom:1px solid rgba(255,255,255,0.1);margin-bottom:1.5rem">
       <div id="sub-nav-cla-main" style="display:flex;gap:0;flex:1">
@@ -4667,10 +4678,6 @@ function renderCLA() {
         <div id="cla-week-raids" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center"></div>
       </div>
       <div id="cla-week-badges"></div>
-      <div class="prog-chart" style="margin-bottom:1.5rem">
-        <div class="prog-chart-title">Evolución del PREP % medio por semana</div>
-        ${weekChart}
-      </div>
       <div id="cla-week-table"></div>
     </div>`;
 
@@ -4749,7 +4756,6 @@ function renderCLA() {
     raidSel.value = code;
     renderCLAView(r.cla, r.playerSpecs, 'resumen', r.drums);
   });
-  _attachChartTooltips(document.getElementById('clamain-porsemana'));
   if (semanas.length) renderWeekView(semanas[0].num);
 }
 
