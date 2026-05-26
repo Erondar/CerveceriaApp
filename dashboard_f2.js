@@ -2844,6 +2844,18 @@ function renderHistorialTab() {
 
   const fmtKillMs = ms => { const s = Math.floor(ms / 1000), m = Math.floor(s / 60); return m > 0 ? `${m}m ${s % 60}s` : `${s}s`; };
 
+  const getRaidRoster = (entry, bossNames) => {
+    const players = new Set();
+    for (const b of (entry.bosses ?? [])) {
+      if (!bossNames.includes(b.boss)) continue;
+      for (const ds of (b.dpsStats ?? [])) {
+        for (const p of (ds.playerDps ?? [])) if (p.name) players.add(p.name);
+        for (const p of (ds.playerHps ?? [])) if (p.name) players.add(p.name);
+      }
+    }
+    return players.size > 0 ? [...players].sort() : (entry.roster ?? []);
+  };
+
   const timeCell = (boss, entry) => {
     const all = (entry.bosses ?? []).filter(x => x.boss === boss);
     const b = all.find(x => x.killed) ?? all[0];
@@ -2892,7 +2904,8 @@ function renderHistorialTab() {
       const raidDeathStats = badgeClass === 'ssc' ? (e.sscDeathStats ?? e.deathStats) : (e.tkDeathStats ?? e.deathStats);
       const deaths = (raidDeathStats?.deaths ?? []).reduce((s, d) => s + d.count, 0);
       const { kills, wipes, effVal, effColor, dps } = calcRaidStats(e, bossNames);
-      const rosterHtml = (e.roster ?? [])
+      const raidRoster = getRaidRoster(e, bossNames);
+      const rosterHtml = raidRoster
         .map(n => `<span class="clickable-player" data-player="${n}" style="color:${CLS_COLOR[classMap[n]] ?? 'var(--text-dim)'}">${n}</span>`)
         .join('<span style="color:var(--border2)"> · </span>');
       const raidMs = getRaidMs(e);
@@ -2914,7 +2927,7 @@ function renderHistorialTab() {
           <td colspan="${colCount}">
             <div class="raid-body-grid">
               <div class="raid-section" style="grid-column:1/-1">
-                <div class="raid-section-title">Roster (${(e.roster ?? []).length})</div>
+                <div class="raid-section-title">Roster (${raidRoster.length})</div>
                 <span style="font-size:.82rem;line-height:1.9">${rosterHtml || '<span class="td-dim">—</span>'}</span>
               </div>
             </div>
@@ -3472,6 +3485,10 @@ function buildLootResumen() {
       else if (tierType === 'Hero') totHero++;
     }
   });
+  // Include all F2 raiders even if they looted nothing
+  for (const name of getPlayers()) {
+    if (!byPlayer.has(name)) byPlayer.set(name, { bis: 0, upgrade: 0, offspec: 0, total: 0, tier: 0 });
+  }
   const totAssigned = totBis + totUpgrade + totOffspec;
   const rows = [...byPlayer.entries()].map(([name, s]) => ({ name, ...s })).sort((a, b) => b.bis - a.bis || b.total - a.total);
   const maxTotal = rows[0]?.total || 1;
