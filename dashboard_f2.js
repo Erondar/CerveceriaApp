@@ -524,14 +524,14 @@ let TITULOS_F2 = null;         // populated when renderLogros runs
 let _mimadoTituloF2 = null;    // populated when loot sheet loads
 let _pendingReportCode = null; // for navigateToPorSemana
 
-function switchTab(tab) {
+function switchTab(tab, noHash = false) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === `tab-${tab}`));
   if (!rendered.has(tab)) {
     rendered.add(tab);
     renderTab(tab);
   }
-  location.hash = tab;
+  if (!noHash) location.hash = tab;
 }
 
 function renderTab(tab) {
@@ -4690,6 +4690,7 @@ function renderCLA() {
     document.getElementById('clamain-general').classList.toggle('active', main === 'general');
     document.getElementById('clamain-porsemana').classList.toggle('active', main === 'porsemana');
     document.getElementById('clamain-porraid').classList.toggle('active', main === 'porraid');
+    if (main) location.hash = `cla:${main}`;
   });
 
   // Popup cálculos
@@ -5513,6 +5514,7 @@ function renderPerformance() {
     document.getElementById('perf-top-semana').classList.remove('active');
     document.getElementById('perf-global-section').style.display = '';
     document.getElementById('perf-semana-section').style.display = 'none';
+    location.hash = 'performance:global';
   });
   document.getElementById('perf-top-semana').addEventListener('click', () => {
     activeTopMode = 'semana';
@@ -5522,6 +5524,7 @@ function renderPerformance() {
     document.getElementById('perf-semana-section').style.display = '';
     const sd = semanas.find(s => s.semana === document.getElementById('perf-semana-sel').value) ?? semanas[0];
     if (sd) renderView(sd);
+    location.hash = 'performance:semana';
   });
 
   // Mode buttons (within Por Semana)
@@ -5573,15 +5576,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Hash-based navigation
   const VALID_TABS = new Set(['resumen','progresion','logros','por-semana','cla','performance','verguenza','mecanicas','historial','jugador','loot-resumen','loot-registro']);
-  window.addEventListener('hashchange', () => {
-    const hash = location.hash.slice(1);
-    if (VALID_TABS.has(hash)) switchTab(hash);
-  });
+
+  function activateSubTab(tab, sub) {
+    if (tab === 'cla') {
+      document.querySelectorAll('#sub-nav-cla-main .sub-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.clamain === sub));
+      document.getElementById('clamain-general').classList.toggle('active', sub === 'general');
+      document.getElementById('clamain-porsemana').classList.toggle('active', sub === 'porsemana');
+      document.getElementById('clamain-porraid').classList.toggle('active', sub === 'porraid');
+    } else if (tab === 'performance') {
+      document.getElementById(sub === 'global' ? 'perf-top-global' : 'perf-top-semana')?.click();
+    }
+  }
+
+  function navigateHash(hash) {
+    const colonIdx = hash.indexOf(':');
+    if (colonIdx === -1) {
+      if (VALID_TABS.has(hash)) switchTab(hash);
+      return;
+    }
+    const tab = hash.slice(0, colonIdx);
+    const sub = hash.slice(colonIdx + 1);
+    if (!VALID_TABS.has(tab)) return;
+    switchTab(tab, true);
+    location.hash = hash;
+    activateSubTab(tab, sub);
+  }
+
+  window.addEventListener('hashchange', () => navigateHash(location.hash.slice(1)));
 
   // Render inicial
   const initHash = location.hash.slice(1);
-  if (VALID_TABS.has(initHash)) {
-    switchTab(initHash);
+  if (initHash) {
+    navigateHash(initHash);
   } else {
     rendered.add('resumen');
     renderTab('resumen');
@@ -5591,6 +5617,24 @@ document.addEventListener('DOMContentLoaded', () => {
 // ── CHANGELOG ─────────────────────────────────────────────────────────────────
 
 const CHANGELOG = [
+  {
+    fecha: '25/05/2026',
+    titulo: 'Vista por Semana en Preparación & Gráfica de Evolución',
+    secciones: [
+      {
+        nombre: 'Preparación — Vista por Semana',
+        items: [
+          'Nueva vista <strong>Por Semana</strong> en el tab Preparación: permite seleccionar una semana concreta y ver la media de PREP % de cada jugador sobre todas las raids de esa semana, con las mismas columnas de consumibles, equipo y puntuación.',
+        ],
+      },
+      {
+        nombre: 'Resumen General — Gráfica de Evolución',
+        items: [
+          'Nueva <strong>gráfica de evolución semanal</strong> en el Resumen General: muestra cómo ha evolucionado la preparación media del grupo raid a raid a lo largo de las semanas.',
+        ],
+      },
+    ],
+  },
   {
     fecha: '23/05/2026',
     titulo: 'Tambores & Loot',
