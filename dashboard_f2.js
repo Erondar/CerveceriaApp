@@ -771,11 +771,11 @@ function drawLineChart(xLabels, series, yFormat, yMaxOverride, yMinOverride) {
   for (let g = 0; g <= 4; g++) {
     const v = yBottom + (yRange * g) / 4, y = yPos(v);
     grid  += `<line x1="${pad.left}" y1="${y.toFixed(1)}" x2="${W - pad.right}" y2="${y.toFixed(1)}" stroke="#2e3550" stroke-width="1"/>`;
-    yAxis += `<text x="${pad.left - 10}" y="${(y + 5).toFixed(1)}" text-anchor="end" fill="#a0aabc" font-size="18">${yFormat(v)}</text>`;
+    yAxis += `<text x="${pad.left - 10}" y="${(y + 5).toFixed(1)}" text-anchor="end" fill="#a0aabc" font-size="11">${yFormat(v)}</text>`;
   }
   let xAxis = '';
   xLabels.forEach((l, i) => {
-    xAxis += `<text x="${xPos(i).toFixed(1)}" y="${H - pad.bottom + 24}" text-anchor="middle" fill="#a0aabc" font-size="18">${l}</text>`;
+    xAxis += `<text x="${xPos(i).toFixed(1)}" y="${H - pad.bottom + 24}" text-anchor="middle" fill="#a0aabc" font-size="11">${l}</text>`;
   });
   let svg = '';
   series.forEach(s => {
