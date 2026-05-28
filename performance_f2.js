@@ -262,12 +262,12 @@ window.__PERFORMANCE_F2__ = [
                 "id": 25264,
                 "name": "Thunder Clap",
                 "icon": "spell_nature_thunderclap.jpg",
-                "uptime": 80,
-                "uses": 15,
+                "uptime": 78,
+                "uses": 14,
                 "casters": [
                   {
                     "name": "Radn",
-                    "count": 10
+                    "count": 9
                   }
                 ]
               }
@@ -1090,12 +1090,12 @@ window.__PERFORMANCE_F2__ = [
                 "id": 25264,
                 "name": "Thunder Clap",
                 "icon": "spell_nature_thunderclap.jpg",
-                "uptime": 91,
-                "uses": 22,
+                "uptime": 86,
+                "uses": 21,
                 "casters": [
                   {
                     "name": "Radn",
-                    "count": 9
+                    "count": 8
                   }
                 ]
               },
@@ -11559,12 +11559,12 @@ window.__PERFORMANCE_F2__ = [
                 "id": 25264,
                 "name": "Thunder Clap",
                 "icon": "spell_nature_thunderclap.jpg",
-                "uptime": 61,
-                "uses": 8,
+                "uptime": 80,
+                "uses": 10,
                 "casters": [
                   {
                     "name": "Radn",
-                    "count": 7
+                    "count": 9
                   }
                 ]
               },
@@ -12334,12 +12334,12 @@ window.__PERFORMANCE_F2__ = [
                 "id": 25264,
                 "name": "Thunder Clap",
                 "icon": "spell_nature_thunderclap.jpg",
-                "uptime": 70,
-                "uses": 8,
+                "uptime": 91,
+                "uses": 10,
                 "casters": [
                   {
                     "name": "Radn",
-                    "count": 4
+                    "count": 5
                   }
                 ]
               },
