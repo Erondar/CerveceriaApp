@@ -6008,6 +6008,7 @@ function buildBisUI() {
           <option value="">— Todas las fuentes —</option>
           <option value="RAID">RAID</option>
           ${_BIS_CAT_ORDER.filter(c => c !== 'RAID').map(c => `<option value="${c}">${c}</option>`).join('')}
+          <option value="TIER">Tier</option>
         </select>
         <label style="display:flex;align-items:center;gap:.4rem;flex-shrink:0;cursor:pointer;color:var(--text-dim);font-size:.85rem;white-space:nowrap;user-select:none">
           <input type="checkbox" id="bis-missing-only" style="cursor:pointer;accent-color:var(--gold)">
@@ -6348,7 +6349,13 @@ function _buildBisItemsHTML(slotFilter = null, nameFilter = '', lang = 'en', fro
     items = items.filter(i => _itemDisplayName(i).toLowerCase().includes(lower));
   }
   if (fromFilter) {
-    if (fromFilter === 'RAID') {
+    if (fromFilter === 'TIER') {
+      items = items.filter(i => i.itemId && (
+        _bisItemsCanonical[i.itemId]?.tokenType ||
+        TIER_TOKEN_MAP[i.itemId] ||
+        TIER_TOKEN_ITEM_IDS[i.itemId]
+      ));
+    } else if (fromFilter === 'RAID') {
       items = items.filter(i => !_bisAltSources.get(i.itemId)?.from);
     } else {
       items = items.filter(i => _bisAltSources.get(i.itemId)?.from === fromFilter);
