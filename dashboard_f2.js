@@ -523,6 +523,7 @@ const rendered = new Set();
 let TITULOS_F2 = null;         // populated when renderLogros runs
 let _mimadoTituloF2 = null;    // populated when loot sheet loads
 let _pendingReportCode = null; // for navigateToPorSemana
+let _pendingBisNav     = null; // for hash-based BiS deep-link (set before bisDataLoaded)
 
 function switchTab(tab, noHash = false) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
@@ -6028,7 +6029,11 @@ function buildBisUI() {
     });
   });
 
-  document.getElementById('bis-player-select').addEventListener('change', e => renderBisPlayer(e.target.value));
+  document.getElementById('bis-player-select').addEventListener('change', e => {
+    const player = e.target.value;
+    renderBisPlayer(player);
+    location.hash = player ? 'bis:jugador/' + encodeURIComponent(player) : 'bis:jugador';
+  });
 
   function refreshItemsTable() {
     const nameFilter    = document.getElementById('bis-items-filter')?.value || '';
@@ -6067,6 +6072,23 @@ function buildBisUI() {
   document.getElementById('bis-missing-only').addEventListener('change', refreshItemsTable);
   document.getElementById('bis-global-lang-en').addEventListener('click', () => setLang('en'));
   document.getElementById('bis-global-lang-es').addEventListener('click', () => setLang('es'));
+
+  // Actualizar hash al cambiar sub-tab manualmente
+  document.querySelectorAll('#sub-nav-bis .sub-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const sub = btn.dataset.bisSub;
+      if (sub === 'items') location.hash = 'bis:items';
+      else if (sub === 'resumen') location.hash = 'bis';
+      else if (sub === 'detalle') location.hash = 'bis:jugador';
+    });
+  });
+
+  // Aplicar navegación pendiente (deep-link via hash)
+  if (_pendingBisNav) {
+    const nav = _pendingBisNav;
+    _pendingBisNav = null;
+    _applyBisNav(nav);
+  }
 
   fetchMissingIcons('bis-items-table-all');
 }
@@ -6391,16 +6413,27 @@ function bisSwitchToDetalle(playerName) {
   document.getElementById('bis-sub-detalle')?.classList.add('active');
   const sel = document.getElementById('bis-player-select');
   if (sel) { sel.value = playerName; renderBisPlayer(playerName); }
+  location.hash = 'bis:jugador/' + encodeURIComponent(playerName);
 }
 
-function _updateBisStatBadges(catStats, altObt = 0, altTotal = 0) {
+function _applyBisNav(sub) {
+  if (sub === 'items') {
+    document.querySelectorAll('#sub-nav-bis .sub-tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('#sub-nav-bis [data-bis-sub="items"]')?.classList.add('active');
+    document.getElementById('bis-sub-resumen')?.classList.remove('active');
+    document.getElementById('bis-sub-detalle')?.classList.remove('active');
+    document.getElementById('bis-sub-items')?.classList.add('active');
+  } else if (sub.startsWith('jugador/')) {
+    bisSwitchToDetalle(decodeURIComponent(sub.slice('jugador/'.length)));
+  }
+}
+
+function _updateBisStatBadges(catStats, altObt = 0, altTotal = 0, mainObt = 0, mainTotal = 0) {
   const cards = document.getElementById('bis-player-stat-cards');
   if (!cards) return;
   if (!catStats || Object.keys(catStats).length === 0) { cards.style.display = 'none'; return; }
-  const mainObt   = Object.values(catStats).reduce((s, v) => s + v.obt,   0);
-  const mainTotal = Object.values(catStats).reduce((s, v) => s + v.total, 0);
-  const mainPct   = mainTotal > 0 ? Math.round(mainObt / mainTotal * 100) : 0;
-  const altPct    = altTotal  > 0 ? Math.round(altObt  / altTotal  * 100) : null;
+  const mainPct = mainTotal > 0 ? Math.round(mainObt / mainTotal * 100) : 0;
+  const altPct  = altTotal  > 0 ? Math.round(altObt  / altTotal  * 100) : null;
   const sep = `<div style="width:1px;background:var(--border);margin:0 .15rem;align-self:stretch;flex-shrink:0"></div>`;
   cards.innerHTML =
     _bisPctBadge(mainPct, 'Ppal', true) +
@@ -6432,10 +6465,12 @@ function renderBisPlayer(baseName) {
     const as = alt.slots[i];
     return (as && as.nameDisplay) ? as : ms;
   }) : null;
-  const catStats = _bisCatStats(_bisMergedUniqueSlots(main.slots, mergedAlt), lootName);
-  const altObt   = mergedAlt && lootName ? mergedAlt.filter(s => s?.itemId && bisObtained(lootName, s.itemId)).length : 0;
-  const altTotal = mergedAlt ? mergedAlt.filter(s => s?.itemId).length : 0;
-  _updateBisStatBadges(catStats, altObt, altTotal);
+  const catStats  = _bisCatStats(_bisMergedUniqueSlots(main.slots, mergedAlt), lootName);
+  const mainTotal = main.slots.filter(s => s.nameDisplay && s.itemId).length;
+  const mainObt   = lootName ? main.slots.filter(s => s.nameDisplay && s.itemId && bisObtained(lootName, s.itemId)).length : 0;
+  const altObt    = mergedAlt && lootName ? mergedAlt.filter(s => s?.itemId && bisObtained(lootName, s.itemId)).length : 0;
+  const altTotal  = mergedAlt ? mergedAlt.filter(s => s?.itemId).length : 0;
+  _updateBisStatBadges(catStats, altObt, altTotal, mainObt, mainTotal);
 
   const mainLabel = main.configLabel || 'Build';
   const altLabel  = alt?.configLabel || 'Alternativa';
@@ -6512,6 +6547,12 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('clamain-porraid').classList.toggle('active', sub === 'porraid');
     } else if (tab === 'performance') {
       document.getElementById(sub === 'global' ? 'perf-top-global' : 'perf-top-semana')?.click();
+    } else if (tab === 'bis') {
+      if (bisDataLoaded) {
+        _applyBisNav(sub);
+      } else {
+        _pendingBisNav = sub;
+      }
     }
   }
 
