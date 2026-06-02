@@ -727,10 +727,11 @@
     text-transform: uppercase;
     white-space: nowrap;
   }
-  .response-badge.bis     { background: rgba(240,200,74,0.12);  border: 1px solid var(--gold-dim); color: var(--gold); }
-  .response-badge.upgrade { background: rgba(138,92,184,0.15);  border: 1px solid var(--purple);   color: var(--purple2); }
-  .response-badge.offspec { background: rgba(70,130,200,0.15);  border: 1px solid #3a6a9a;         color: #87ceeb; }
-  .response-badge.other   { background: rgba(255,255,255,0.04); border: 1px solid var(--border);   color: var(--text-dim); }
+  .response-badge.bis        { background: rgba(240,200,74,0.12);  border: 1px solid var(--gold-dim); color: var(--gold); }
+  .response-badge.upgrade    { background: rgba(138,92,184,0.15);  border: 1px solid var(--purple);   color: var(--purple2); }
+  .response-badge.offspec    { background: rgba(70,130,200,0.15);  border: 1px solid #3a6a9a;         color: #87ceeb; }
+  .response-badge.profession { background: rgba(52,211,153,0.12);  border: 1px solid #047857;         color: #34d399; }
+  .response-badge.other      { background: rgba(255,255,255,0.04); border: 1px solid var(--border);   color: var(--text-dim); }
 
   .item-icon {
     width: 18px;
