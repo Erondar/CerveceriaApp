@@ -548,6 +548,7 @@ function renderTab(tab) {
     case 'performance':   renderPerformance();  break;
     case 'loot-resumen':  fetchLootData();      break;
     case 'loot-registro': fetchLootData();      break;
+    case 'bis':           fetchLootData(); if (bisDataLoaded) buildBisUI(); else fetchBisData(); break;
   }
 }
 
@@ -3361,6 +3362,7 @@ function _checkLootReady() {
   buildLootRegistroShell();
   _calcMimadoF2();
   prefetchDisenchantQualities();
+  _refreshBisIfVisible();
   if (window._pendingLootJugador) {
     const nombre = window._pendingLootJugador;
     delete window._pendingLootJugador;
@@ -3478,7 +3480,7 @@ function buildLootResumen() {
     else if (r.response === 'Off-Spec'){ p.offspec++; p.total++; totOffspec++; }
     else if (isDisenchant(r.response)) totDE++;
     else if (r.response === 'Banking') totBank++;
-    if (ASSIGNED.has(r.response) && tierType) {
+    if (r.response === 'BiS' && tierType) {
       p.tier++;
       if (tierType === 'Champion') totChampion++;
       else if (tierType === 'Defender') totDefender++;
@@ -3631,7 +3633,7 @@ function renderLootPlayer(nombre) {
   const items = allPlayerRows.filter(r => ASSIGNED.has(r.response)).sort((a, b) => b.date.localeCompare(a.date));
   const counts = {};
   items.forEach(r => { counts[r.response] = (counts[r.response] || 0) + 1; });
-  const tierCount = items.filter(r => r.item && r.item.includes('Vanquished')).length;
+  const tierCount = items.filter(r => r.response === 'BiS' && r.item && r.item.includes('Vanquished')).length;
   const chipColor = { BiS: '', Upgrade: 'purple', 'Off-Spec': 'blue' };
 
   el.innerHTML = `
@@ -5575,6 +5577,914 @@ function renderPerformance() {
   });
 }
 
+// ── BiS ───────────────────────────────────────────────────────────────────────
+
+const BIS_SHEET_URL = SHEET_BASE + 'BiS%20List&tqx=responseHandler:__bisCallback';
+const BIS_ITEMS_URL = SHEET_BASE + 'Items&tqx=responseHandler:__bisItemsCallback';
+
+// Si se lotea el item fuente, se considera obtenido cualquiera de los items destino
+// clave: itemId del BiS → { sourceId, sourceName (lowercase) del item loteado }
+const BIS_OBTAINED_VIA = {
+  30007: { sourceId: 32405, sourceName: 'verdant sphere' }, // The Darkener's Grasp
+  30015: { sourceId: 32405, sourceName: 'verdant sphere' }, // The Sun King's Talisman
+  30017: { sourceId: 32405, sourceName: 'verdant sphere' }, // Telonicus's Pendant of Mayhem
+  30018: { sourceId: 32405, sourceName: 'verdant sphere' }, // Lord Sanguinar's Claim
+};
+
+// Columnas B–R del sheet (17 slots de equipo)
+const BIS_SLOTS = [
+  'Head','Neck','Shoulders','Back','Chest','Wrists','Hands',
+  'Waist','Legs','Feet','Ring 1','Ring 2','Trinket 1','Trinket 2',
+  'Main Hand','Off-Hand','Ranged',
+];
+const BIS_SLOT_ES = {
+  'Head':'Cabeza','Neck':'Cuello','Shoulders':'Hombreras','Back':'Capa',
+  'Chest':'Pecho','Wrists':'Brazales','Hands':'Manos','Waist':'Cintura',
+  'Legs':'Piernas','Feet':'Botas','Ring 1':'Anillo 1','Ring 2':'Anillo 2',
+  'Trinket 1':'Abalorio 1','Trinket 2':'Abalorio 2',
+  'Main Hand':'Arma','Off-Hand':'Secundaria','Ranged':'Distancia / Ídolo / Tratado / Varita',
+};
+
+// Keywords para detección de tokens por nombre (EN + ES)
+const TIER_SLOT_KEYWORDS = {
+  helm:       ['helm', 'yelmo', 'casco'],
+  pauldrons:  ['pauldrons', 'hombreras', 'espaldares'],
+  chestguard: ['chestguard', 'peto', 'guardapecho', 'coraza'],
+  gloves:     ['gloves', 'guanteletes', 'guantes', 'manoplas'],
+  leggings:   ['leggings', 'grebas', 'mallas'],
+};
+const TIER_TYPE_KEYWORDS = {
+  Champion: ['champion', 'campe\u00f3n', 'campeon'],
+  Defender: ['defender', 'defensor'],
+  Hero:     ['hero', 'h\u00e9roe', 'heroe'],
+};
+// Normalización de token_slot en español (columna E del Sheets) → clave interna
+const _BIS_TOKEN_SLOT_NORM = {
+  'cabeza':    'helm',
+  'hombreras': 'pauldrons',
+  'pecho':     'chestguard',
+  'manos':     'gloves',
+  'piernas':   'leggings',
+};
+
+// T5 token item IDs → tokenType + tokenSlot (para detección por itemID, sin depender del nombre)
+// verificar IDs con los logs reales
+const TIER_TOKEN_ITEM_IDS = {
+  // HEAD  →  29752-29754
+  29752:{ tokenType:'Hero',      tokenSlot:'helm'       },
+  29753:{ tokenType:'Defender',  tokenSlot:'helm'       },
+  29754:{ tokenType:'Champion',  tokenSlot:'helm'       },
+  // SHOULDERS  →  29755-29757
+  29755:{ tokenType:'Hero',      tokenSlot:'pauldrons'  },
+  29756:{ tokenType:'Defender',  tokenSlot:'pauldrons'  },
+  29757:{ tokenType:'Champion',  tokenSlot:'pauldrons'  },
+  // CHEST  →  29759-29761
+  29759:{ tokenType:'Hero',      tokenSlot:'chestguard' },
+  29760:{ tokenType:'Defender',  tokenSlot:'chestguard' },
+  29761:{ tokenType:'Champion',  tokenSlot:'chestguard' },
+  // GLOVES  →  29762-29764
+  29762:{ tokenType:'Hero',      tokenSlot:'gloves'     },
+  29763:{ tokenType:'Defender',  tokenSlot:'gloves'     },
+  29764:{ tokenType:'Champion',  tokenSlot:'gloves'     },
+  // LEGS  →  29765-29767
+  29765:{ tokenType:'Hero',      tokenSlot:'leggings'   },
+  29766:{ tokenType:'Defender',  tokenSlot:'leggings'   },
+  29767:{ tokenType:'Champion',  tokenSlot:'leggings'   },
+};
+
+// T5: Champion → Paladin/Rogue/Shaman · Defender → Warrior/Priest/Druid · Hero → Hunter/Mage/Warlock
+// La clave es el itemId de la pieza final; el valor indica qué token + slot del loot hay que buscar.
+const TIER_TOKEN_MAP = {
+  // HEAD  →  "Helm of the Vanquished X"
+  30131:{ tokenType:'Champion', tokenSlot:'helm' },  // Crystalforge War-Helm
+  30136:{ tokenType:'Champion', tokenSlot:'helm' },  // Crystalforge Greathelm
+  30125:{ tokenType:'Champion', tokenSlot:'helm' },  // Crystalforge Faceguard
+  30146:{ tokenType:'Champion', tokenSlot:'helm' },  // Deathmantle Helm
+  30190:{ tokenType:'Champion', tokenSlot:'helm' },  // Cataclysm Helm
+  30166:{ tokenType:'Champion', tokenSlot:'helm' },  // Cataclysm Headguard
+  30120:{ tokenType:'Defender', tokenSlot:'helm' },  // Destroyer Battle-Helm
+  30115:{ tokenType:'Defender', tokenSlot:'helm' },  // Destroyer Greathelm
+  30152:{ tokenType:'Defender', tokenSlot:'helm' },  // Cowl of the Avatar
+  30228:{ tokenType:'Defender', tokenSlot:'helm' },  // Nordrassil Headdress
+  30233:{ tokenType:'Defender', tokenSlot:'helm' },  // Nordrassil Headpiece
+  30141:{ tokenType:'Hero',     tokenSlot:'helm' },  // Rift Stalker Helm
+  30206:{ tokenType:'Hero',     tokenSlot:'helm' },  // Cowl of Tirisfal
+  30212:{ tokenType:'Hero',     tokenSlot:'helm' },  // Hood of the Corruptor
+  // SHOULDERS  →  "Pauldrons of the Vanquished X"
+  30133:{ tokenType:'Champion', tokenSlot:'pauldrons' }, // Crystalforge Shoulderbraces
+  30127:{ tokenType:'Champion', tokenSlot:'pauldrons' }, // Crystalforge Shoulderguards
+  30149:{ tokenType:'Champion', tokenSlot:'pauldrons' }, // Deathmantle Shoulderpads
+  30168:{ tokenType:'Champion', tokenSlot:'pauldrons' }, // Cataclysm Shoulderguards
+  30122:{ tokenType:'Defender', tokenSlot:'pauldrons' }, // Destroyer Shoulderblades
+  30117:{ tokenType:'Defender', tokenSlot:'pauldrons' }, // Destroyer Shoulderguards
+  30154:{ tokenType:'Defender', tokenSlot:'pauldrons' }, // Mantle of the Avatar
+  30230:{ tokenType:'Defender', tokenSlot:'pauldrons' }, // Nordrassil Feral-Mantle
+  30235:{ tokenType:'Defender', tokenSlot:'pauldrons' }, // Nordrassil Wrath-Mantle
+  30143:{ tokenType:'Hero',     tokenSlot:'pauldrons' }, // Rift Stalker Mantle
+  30210:{ tokenType:'Hero',     tokenSlot:'pauldrons' }, // Mantle of Tirisfal
+  // CHEST  →  "Chestguard of the Vanquished X"
+  30129:{ tokenType:'Champion', tokenSlot:'chestguard' }, // Crystalforge Breastplate
+  30144:{ tokenType:'Champion', tokenSlot:'chestguard' }, // Deathmantle Chestguard
+  30185:{ tokenType:'Champion', tokenSlot:'chestguard' }, // Cataclysm Chestplate
+  30164:{ tokenType:'Champion', tokenSlot:'chestguard' }, // Cataclysm Chestguard
+  30118:{ tokenType:'Defender', tokenSlot:'chestguard' }, // Destroyer Breastplate
+  30113:{ tokenType:'Defender', tokenSlot:'chestguard' }, // Destroyer Chestguard
+  30150:{ tokenType:'Defender', tokenSlot:'chestguard' }, // Vestments of the Avatar
+  30222:{ tokenType:'Defender', tokenSlot:'chestguard' }, // Nordrassil Chestplate
+  30231:{ tokenType:'Defender', tokenSlot:'chestguard' }, // Nordrassil Chestpiece
+  30139:{ tokenType:'Hero',     tokenSlot:'chestguard' }, // Rift Stalker Hauberk
+  30196:{ tokenType:'Hero',     tokenSlot:'chestguard' }, // Robes of Tirisfal
+  // GLOVES  →  "Gloves of the Vanquished X"
+  30130:{ tokenType:'Champion', tokenSlot:'gloves' }, // Crystalforge Handguards (Paladin) // verificar ID
+  30145:{ tokenType:'Champion', tokenSlot:'gloves' }, // Deathmantle Handguards
+  30189:{ tokenType:'Champion', tokenSlot:'gloves' }, // Cataclysm Gauntlets
+  30119:{ tokenType:'Defender', tokenSlot:'gloves' }, // Destroyer Gauntlets
+  30151:{ tokenType:'Defender', tokenSlot:'gloves' }, // Gloves of the Avatar
+  30223:{ tokenType:'Defender', tokenSlot:'gloves' }, // Nordrassil Handgrips
+  30232:{ tokenType:'Defender', tokenSlot:'gloves' }, // Nordrassil Gauntlets
+  30140:{ tokenType:'Hero',     tokenSlot:'gloves' }, // Rift Stalker Gauntlets
+  30205:{ tokenType:'Hero',     tokenSlot:'gloves' }, // Gloves of Tirisfal
+  // LEGS  →  "Leggings of the Vanquished X"
+  30128:{ tokenType:'Champion', tokenSlot:'leggings' }, // Crystalforge Legguards (Paladin) // verificar ID
+  30148:{ tokenType:'Champion', tokenSlot:'leggings' }, // Deathmantle Legguards
+  30172:{ tokenType:'Champion', tokenSlot:'leggings' }, // Cataclysm Leggings
+  30192:{ tokenType:'Champion', tokenSlot:'leggings' }, // Cataclysm Legplates
+  30116:{ tokenType:'Defender', tokenSlot:'leggings' }, // Destroyer Legguards
+  30153:{ tokenType:'Defender', tokenSlot:'leggings' }, // Breeches of the Avatar
+  30229:{ tokenType:'Defender', tokenSlot:'leggings' }, // Nordrassil Feral-Kilt
+  30207:{ tokenType:'Hero',     tokenSlot:'leggings' }, // Leggings of Tirisfal
+  30213:{ tokenType:'Hero',     tokenSlot:'leggings' }, // Leggings of the Corruptor
+};
+
+let bisDataLoaded  = false;
+let bisList        = null;   // [{player, configs:[{rawName,configLabel,slots,filledCount}]}]
+let _bisRawRows    = null;   // almacenamiento temporal hasta que itemsMap esté listo
+let _bisItemsMap        = {};   // nombre normalizado → itemId
+let _bisItemsCanonical  = {};   // itemId → { en, es, tokenType, tokenSlot }
+let _bisAltSources      = new Map(); // itemId → { from, players: Map<playerKey, boolean> }
+let _bisLang            = 'en'; // idioma activo en la tab Items
+let _bisItemsReady = false;
+let _bisSheetReady = false;
+let _bisMissingIds = [];     // [{name, player}] items sin ID en la hoja Items
+
+function _normBisName(s) {
+  if (!s) return '';
+  return s.trim()
+    .toLowerCase()
+    .replace(/[\u2018\u2019\u201A\u201B\u2032\u0060\u00B4]/g, "'") // normalizar variantes de apóstrofe
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ');
+}
+
+function _bisIdByName(name) {
+  return _bisItemsMap[_normBisName(name)] ?? null;
+}
+
+function _bisBaseName(raw) {
+  return raw ? raw.trim().split(/[\s(]/)[0].trim() : '';
+}
+
+function _bisConfigLabel(raw, base) {
+  const m = raw.match(/\(([^)]+)\)/);
+  if (m) return m[1].trim();
+  const s = raw.slice(base.length).trim();
+  return s || null;
+}
+
+function bisObtained(lootName, itemId) {
+  if (!lootRows || !lootName || !itemId) return false;
+  const id = Number(itemId);
+  // 1. Coincidencia directa por itemID
+  if (lootRows.some(r => r.nombre === lootName && Number(r.itemID) === id && ASSIGNED.has(r.response))) return true;
+  // 2. Coincidencia por item fuente (ej: Verdant Sphere → 4 cuellos de Kael'thas)
+  const via = BIS_OBTAINED_VIA[id];
+  if (via) {
+    const sid = Number(via.sourceId);
+    if (lootRows.some(r => r.nombre === lootName && ASSIGNED.has(r.response) && (
+      (r.itemID != null && Number(r.itemID) === sid) ||
+      (r.item && r.item.toLowerCase() === via.sourceName)
+    ))) return true;
+  }
+  // 3. Fuentes alternativas (Craft, F1, Chapas, PVP, Repu, Quest)
+  const altSrc = _bisAltSources.get(id);
+  if (altSrc) {
+    const lootKey = lootName.toLowerCase();
+    if (altSrc.players.get(lootKey) === true) return true;
+    // Alias inverso: la columna I puede tener el nombre del sheet BiS en vez del nombre del loot
+    for (const [bisKey, realKey] of Object.entries(BIS_NAME_ALIAS)) {
+      if (realKey === lootKey && altSrc.players.get(bisKey) === true) return true;
+    }
+  }
+  // 4. Coincidencia por token de tier
+  // Fuente de verdad: columnas token_type/token_slot de la hoja Items (ya normalizadas al cargar)
+  // Fallback: mapas hardcodeados (TIER_TOKEN_MAP para item final → token, TIER_TOKEN_ITEM_IDS para el token mismo)
+  const canonical = _bisItemsCanonical[id];
+  const tier = (canonical?.tokenType && canonical?.tokenSlot)
+    ? { tokenType: canonical.tokenType, tokenSlot: canonical.tokenSlot }
+    : (TIER_TOKEN_MAP[id] || TIER_TOKEN_ITEM_IDS[id] || null);
+  if (!tier) return false;
+  return lootRows.some(r => {
+    if (r.nombre !== lootName || !ASSIGNED.has(r.response)) return false;
+    // Por itemID del token loteado
+    if (r.itemID != null) {
+      const tokenInfo = TIER_TOKEN_ITEM_IDS[Number(r.itemID)];
+      if (tokenInfo && tokenInfo.tokenType === tier.tokenType && tokenInfo.tokenSlot === tier.tokenSlot) return true;
+    }
+    // Por nombre del token loteado (cuando no hay itemID en el loot)
+    if (!r.item) return false;
+    const l = r.item.toLowerCase();
+    const slotKeys = TIER_SLOT_KEYWORDS[tier.tokenSlot] || [tier.tokenSlot];
+    const typeKeys = TIER_TYPE_KEYWORDS[tier.tokenType] || [tier.tokenType.toLowerCase()];
+    return slotKeys.some(sk => l.includes(sk)) && typeKeys.some(tk => l.includes(tk));
+  });
+}
+
+function _bisLootName(bisPlayer) {
+  if (!lootRows) return null;
+  const lower = bisPlayer.toLowerCase();
+  const alias = BIS_NAME_ALIAS[lower];
+  const unique = [...new Set(lootRows.map(r => r.nombre))];
+  // Si el jugador no aparece en la hoja de loot, devolver su nombre BiS como fallback.
+  // Así bisObtained puede llegar al chequeo de fuentes alternativas (from vacío = F2 otra fuente).
+  return unique.find(n => n.toLowerCase() === lower || (alias && n.toLowerCase() === alias)) ?? bisPlayer;
+}
+
+function _processBisData() {
+  if (!_bisSheetReady || !_bisItemsReady) return;
+  if (_bisRawRows) {
+    const map = new Map();
+    _bisRawRows.forEach(r => {
+      const rawBase  = _bisBaseName(r.rawName);
+      const normBase = rawBase.charAt(0).toUpperCase() + rawBase.slice(1).toLowerCase();
+      if (!map.has(normBase)) map.set(normBase, []);
+      map.get(normBase).push({ rawName: r.rawName, rawItems: r.rawItems, rawBase });
+    });
+    bisList = [...map.entries()].map(([player, cfgs]) => {
+      const processed = cfgs.map(cfg => {
+        const slots = BIS_SLOTS.map((slotName, i) => {
+          const n = cfg.rawItems[i] ?? null;
+          if (!n || n === '-') return { slotName, itemId: null, nameDisplay: null };
+          const itemId = _bisIdByName(n);
+          if (!itemId) { console.warn(`BiS: sin ID para "${n}" (${player})`); _bisMissingIds.push({ name: n, player }); }
+          return { slotName, itemId, nameDisplay: n };
+        });
+        return {
+          rawName:     cfg.rawName,
+          configLabel: _bisConfigLabel(cfg.rawName, cfg.rawBase),
+          slots,
+          filledCount: slots.filter(s => s.nameDisplay).length,
+        };
+      });
+      // Build principal = la que tiene más slots rellenos
+      processed.sort((a, b) => b.filledCount - a.filledCount);
+      return { player, configs: processed };
+    });
+    _bisRawRows = null;
+  }
+  bisDataLoaded = true;
+  if (rendered.has('bis')) buildBisUI();
+}
+
+function fetchBisData() {
+  if (bisDataLoaded || _bisSheetReady) return;
+  const el = document.getElementById('tab-bis');
+  if (el) el.innerHTML = '<div class="loot-loading">Cargando datos BiS...</div>';
+
+  window.__bisItemsCallback = function(json) {
+    delete window.__bisItemsCallback;
+    try {
+      const altSourceRows = [];
+      (json.table.rows || []).filter(r => r && r.c).forEach(row => {
+        const v = i => row.c[i]?.v ?? null;
+        // Columnas A-E: datos del item
+        const id    = v(0);
+        const en    = v(1) ? String(v(1)).trim() : '';
+        const es    = v(2) ? String(v(2)).trim() : '';
+        const ttype = v(3) ? String(v(3)).trim() : null;
+        const tslot = v(4) ? String(v(4)).trim() : null;
+        if (id) {
+          const n = Number(id);
+          if (en) _bisItemsMap[_normBisName(en)] = n;
+          if (es) _bisItemsMap[_normBisName(es)] = n;
+          if (n) _bisItemsCanonical[n] = {
+            en: en || null,
+            es: es || null,
+            tokenType: ttype || null,
+            tokenSlot: tslot ? (_BIS_TOKEN_SLOT_NORM[tslot.toLowerCase()] ?? tslot.toLowerCase()) : null,
+          };
+        }
+        // Columnas G-J: fuentes alternativas (Craft, F1, Chapas, PVP, Repu, Quest)
+        const gName   = v(6) ? String(v(6)).trim() : null;
+        const hFrom   = v(7) ? String(v(7)).trim() : null;
+        const iPlayer = v(8) ? String(v(8)).trim() : null;
+        const jHas    = v(9) ? String(v(9)).trim() : null;
+        if (gName) altSourceRows.push({ name: gName, from: hFrom || null, player: iPlayer, hasIt: jHas?.toLowerCase() === 'si' });
+      });
+      // Resolver nombres G-J a IDs (requiere _bisItemsMap ya construido)
+      altSourceRows.forEach(({ name, from, player, hasIt }) => {
+        const id = _bisItemsMap[_normBisName(name)];
+        if (!id) return;
+        if (!_bisAltSources.has(id)) _bisAltSources.set(id, { from, players: new Map() });
+        const entry = _bisAltSources.get(id);
+        if (player) entry.players.set(player.toLowerCase(), hasIt);
+      });
+    } catch(e) { console.error('BiS Items:', e); }
+    _bisItemsReady = true;
+    _processBisData();
+  };
+
+  window.__bisCallback = function(json) {
+    delete window.__bisCallback;
+    try {
+      _bisRawRows = (json.table.rows || []).filter(r => r && r.c).map(row => {
+        const v = i => row.c[i]?.v != null ? String(row.c[i].v).trim() : null;
+        const rawName = v(0);
+        if (!rawName) return null;
+        return { rawName, rawItems: BIS_SLOTS.map((_, i) => v(i + 1)) };
+      }).filter(Boolean);
+    } catch(e) { console.error('BiS List:', e); _bisRawRows = []; }
+    _bisSheetReady = true;
+    _processBisData();
+  };
+
+  const s1 = document.createElement('script');
+  s1.src = BIS_ITEMS_URL;
+  s1.onerror = () => { _bisItemsReady = true; _processBisData(); };
+  document.head.appendChild(s1);
+
+  const s2 = document.createElement('script');
+  s2.src = BIS_SHEET_URL;
+  s2.onerror = () => { _bisSheetReady = true; _processBisData(); };
+  document.head.appendChild(s2);
+}
+
+// Llamado desde _checkLootReady cuando el loot termina de cargarse
+function _refreshBisIfVisible() {
+  if (!bisDataLoaded) return;
+  const inner = document.getElementById('bis-resumen-inner');
+  if (inner) inner.innerHTML = _buildBisResumenHTML();
+  const sel = document.getElementById('bis-player-select');
+  if (sel && sel.value) renderBisPlayer(sel.value);
+  const itemsInner = document.getElementById('bis-items-inner');
+  if (itemsInner) {
+    const nameFilter  = document.getElementById('bis-items-filter')?.value || '';
+    const slotFilter  = document.getElementById('bis-slot-select')?.value || null;
+    const fromFilter  = document.getElementById('bis-from-select')?.value || null;
+    const missingOnly = document.getElementById('bis-missing-only')?.checked || false;
+    itemsInner.innerHTML = _buildBisItemsHTML(slotFilter || null, nameFilter, _bisLang, fromFilter || null, missingOnly);
+    fetchMissingIcons('bis-items-table-all');
+  }
+}
+
+function buildBisUI() {
+  const el = document.getElementById('tab-bis');
+  if (!el || !bisList) return;
+
+  const options = [...bisList].sort((a, b) => a.player.localeCompare(b.player)).map(g => {
+    const dn = _bisDisplayName(g.player);
+    return `<option value="${g.player}">${dn}</option>`;
+  }).join('');
+
+  const _itemsTabSlots = [
+    ...BIS_SLOTS.filter(s => s !== 'Ring 2' && s !== 'Trinket 2').map(s => {
+      if (s === 'Ring 1')    return { value: 'rings',    label: 'Anillos' };
+      if (s === 'Trinket 1') return { value: 'trinkets', label: 'Abalorios' };
+      return { value: s, label: BIS_SLOT_ES[s] };
+    }),
+  ];
+  const slotOptions = _itemsTabSlots.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
+
+  const missingPanel = _bisMissingIds.length === 0 ? '' : (() => {
+    // Deduplicar por nombre de item
+    const seen = new Set();
+    const unique = _bisMissingIds.filter(m => seen.has(m.name) ? false : (seen.add(m.name), true));
+    const items = unique.map(m =>
+      `<li style="font-family:monospace;font-size:.82rem">"${m.name}" <span style="color:var(--text-dim)">(${m.player})</span></li>`
+    ).join('');
+    return `
+      <details style="margin-bottom:1rem;border:1px solid #7a4a00;border-radius:6px;padding:.5rem .75rem;background:#1a1000">
+        <summary style="cursor:pointer;color:#f0a020;font-size:.85rem;font-weight:700">
+          ⚠ ${unique.length} item${unique.length > 1 ? 's' : ''} sin ID en la hoja Items (click para ver)
+        </summary>
+        <ul style="margin:.5rem 0 0 1rem;padding:0;list-style:disc;color:var(--text-bright)">${items}</ul>
+        <p style="margin:.5rem 0 0;font-size:.75rem;color:var(--text-dim)">Añade estos items con su ItemID en la hoja "Items" del Sheets.</p>
+      </details>`;
+  })();
+
+  el.innerHTML = `
+    ${missingPanel}
+    <div class="sub-nav" id="sub-nav-bis" style="display:flex;align-items:center">
+      <button class="sub-tab-btn active" data-bis-sub="resumen">Resumen</button>
+      <button class="sub-tab-btn" data-bis-sub="detalle">Por Jugador</button>
+      <button class="sub-tab-btn" data-bis-sub="items">Items</button>
+      <div style="margin-left:auto;display:flex;border:1px solid var(--border);border-radius:4px;overflow:hidden;flex-shrink:0">
+        <button id="bis-global-lang-en" style="padding:.4rem .8rem;background:var(--gold);color:#0a0a0e;border:none;cursor:pointer;font-family:'Barlow',sans-serif;font-size:.8rem;font-weight:700;letter-spacing:.06em;transition:background .15s,color .15s">EN</button>
+        <button id="bis-global-lang-es" style="padding:.4rem .8rem;background:transparent;color:var(--text-dim);border:none;border-left:1px solid var(--border);cursor:pointer;font-family:'Barlow',sans-serif;font-size:.8rem;font-weight:600;letter-spacing:.06em;transition:background .15s,color .15s">ES</button>
+      </div>
+    </div>
+    <div class="sub-tab-content active" id="bis-sub-resumen">
+      <div id="bis-resumen-inner">${_buildBisResumenHTML()}</div>
+    </div>
+    <div class="sub-tab-content" id="bis-sub-detalle">
+      <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:1rem">
+        <select class="loot-select" id="bis-player-select" style="margin-bottom:0">
+          <option value="">— Selecciona jugador —</option>
+          ${options}
+        </select>
+        <div id="bis-player-stat-cards" style="display:none;gap:.5rem;flex-wrap:wrap"></div>
+      </div>
+      <div id="bis-player-detail"></div>
+    </div>
+    <div class="sub-tab-content" id="bis-sub-items">
+      <div style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap;margin-bottom:1.5rem">
+        <input type="text" class="search-input" id="bis-items-filter" placeholder="Filtrar por nombre de item..." style="flex:1;min-width:200px;margin-bottom:0;box-sizing:border-box;padding-top:.38rem;padding-bottom:.38rem">
+        <select class="loot-select" id="bis-slot-select" style="margin-bottom:0;flex:0 0 auto">
+          <option value="">— Todos los slots —</option>
+          ${slotOptions}
+        </select>
+        <select class="loot-select" id="bis-from-select" style="margin-bottom:0;flex:0 0 210px;min-width:0">
+          <option value="">— Todas las fuentes —</option>
+          <option value="RAID">RAID</option>
+          ${_BIS_CAT_ORDER.filter(c => c !== 'RAID').map(c => `<option value="${c}">${c}</option>`).join('')}
+        </select>
+        <label style="display:flex;align-items:center;gap:.4rem;flex-shrink:0;cursor:pointer;color:var(--text-dim);font-size:.85rem;white-space:nowrap;user-select:none">
+          <input type="checkbox" id="bis-missing-only" style="cursor:pointer;accent-color:var(--gold)">
+          Faltan
+        </label>
+      </div>
+      <div id="bis-items-inner">${_buildBisItemsHTML(null, '', 'en')}</div>
+    </div>
+  `;
+
+  document.querySelectorAll('#sub-nav-bis .sub-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#sub-nav-bis .sub-tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const sub = btn.dataset.bisSub;
+      document.getElementById('bis-sub-resumen').classList.toggle('active', sub === 'resumen');
+      document.getElementById('bis-sub-detalle').classList.toggle('active', sub === 'detalle');
+      document.getElementById('bis-sub-items').classList.toggle('active', sub === 'items');
+    });
+  });
+
+  document.getElementById('bis-player-select').addEventListener('change', e => renderBisPlayer(e.target.value));
+
+  function refreshItemsTable() {
+    const nameFilter    = document.getElementById('bis-items-filter')?.value || '';
+    const slotFilter    = document.getElementById('bis-slot-select')?.value || null;
+    const fromFilter    = document.getElementById('bis-from-select')?.value || null;
+    const missingOnly   = document.getElementById('bis-missing-only')?.checked || false;
+    const inner = document.getElementById('bis-items-inner');
+    if (inner) {
+      inner.innerHTML = _buildBisItemsHTML(slotFilter || null, nameFilter, _bisLang, fromFilter || null, missingOnly);
+      fetchMissingIcons('bis-items-table-all');
+    }
+  }
+
+  function setLang(lang) {
+    _bisLang = lang; // actualiza el scope de módulo
+    const activeStyle   = `padding:.4rem .8rem;background:var(--gold);color:#0a0a0e;border:none;cursor:pointer;font-family:'Barlow',sans-serif;font-size:.8rem;font-weight:700;letter-spacing:.06em;transition:background .15s,color .15s`;
+    const inactiveStyle = `padding:.4rem .8rem;background:transparent;color:var(--text-dim);border:none;cursor:pointer;font-family:'Barlow',sans-serif;font-size:.8rem;font-weight:600;letter-spacing:.06em;transition:background .15s,color .15s`;
+    // Actualizar selector global de idioma
+    const enBtn = document.getElementById('bis-global-lang-en');
+    const esBtn = document.getElementById('bis-global-lang-es');
+    if (enBtn) { enBtn.style.cssText = lang === 'en' ? activeStyle : inactiveStyle; enBtn.textContent = 'EN'; }
+    if (esBtn) { esBtn.style.cssText = (lang === 'es' ? activeStyle : inactiveStyle) + ';border-left:1px solid var(--border)'; esBtn.textContent = 'ES'; }
+    refreshItemsTable();
+    // Re-renderizar jugador seleccionado si hay uno
+    const selPj = document.getElementById('bis-player-select');
+    if (selPj?.value) renderBisPlayer(selPj.value);
+  }
+
+  let _bisFilterDebounce = null;
+  document.getElementById('bis-items-filter').addEventListener('input', () => {
+    clearTimeout(_bisFilterDebounce);
+    _bisFilterDebounce = setTimeout(refreshItemsTable, 220);
+  });
+  document.getElementById('bis-slot-select').addEventListener('change', refreshItemsTable);
+  document.getElementById('bis-from-select').addEventListener('change', refreshItemsTable);
+  document.getElementById('bis-missing-only').addEventListener('change', refreshItemsTable);
+  document.getElementById('bis-global-lang-en').addEventListener('click', () => setLang('en'));
+  document.getElementById('bis-global-lang-es').addEventListener('click', () => setLang('es'));
+
+  fetchMissingIcons('bis-items-table-all');
+}
+
+function _buildBisResumenHTML() {
+  const hasAlt = bisList.some(g => g.configs.length > 1);
+
+  const rows = bisList.map(group => {
+    const main      = group.configs[0];
+    const alt       = group.configs[1] ?? null;
+    const mainTotal = main.slots.filter(s => s.nameDisplay).length;
+    // Build secundaria: slot del alt si tiene item, si no cae al slot del principal
+    const mergedAlt = alt ? main.slots.map((ms, i) => {
+      const as = alt.slots[i];
+      return (as && as.nameDisplay) ? as : ms;
+    }) : null;
+    const altTotal  = mergedAlt ? mergedAlt.filter(s => s.nameDisplay).length : 0;
+    const lootName  = lootLoaded ? _bisLootName(group.player) : null;
+    let mainObt = 0, altObt = 0;
+    if (lootName) {
+      main.slots.forEach(s => { if (s.nameDisplay && s.itemId && bisObtained(lootName, s.itemId)) mainObt++; });
+      if (mergedAlt) mergedAlt.forEach(s => { if (s.nameDisplay && s.itemId && bisObtained(lootName, s.itemId)) altObt++; });
+    }
+    const catStats = _bisCatStats(_bisMergedUniqueSlots(main.slots, mergedAlt), lootLoaded ? lootName : null);
+    return { group, main, alt, mergedAlt, mainTotal, altTotal, lootName, mainObt, altObt, catStats };
+  }).sort((a, b) => {
+    if (!lootLoaded) return a.group.player.localeCompare(b.group.player);
+    const pctA = a.mainTotal > 0 ? a.mainObt / a.mainTotal : 0;
+    const pctB = b.mainTotal > 0 ? b.mainObt / b.mainTotal : 0;
+    return pctB - pctA || a.group.player.localeCompare(b.group.player);
+  });
+
+  const note = !lootLoaded
+    ? `<p style="color:var(--text-dim);font-size:.85rem;margin-bottom:1.5rem;font-style:italic">Abre la pestaña Loot para cargar el estado de obtención.</p>`
+    : '';
+
+  let totalCard = '';
+  if (lootLoaded) {
+    const guildCat = {};
+    let guildMainObt = 0, guildMainTotal = 0, guildAltObt = 0, guildAltTotal = 0;
+    const hasAnyAlt = rows.some(r => r.mergedAlt);
+    rows.forEach(r => {
+      guildMainObt   += r.mainObt;   guildMainTotal += r.mainTotal;
+      guildAltObt    += r.altObt;    guildAltTotal  += r.altTotal;
+      Object.entries(r.catStats).forEach(([cat, { obt, total }]) => {
+        if (!guildCat[cat]) guildCat[cat] = { obt: 0, total: 0 };
+        guildCat[cat].obt   += obt;
+        guildCat[cat].total += total;
+      });
+    });
+    if (guildMainTotal > 0) {
+      const mainPct = Math.round(guildMainObt / guildMainTotal * 100);
+      const altPct  = hasAnyAlt && guildAltTotal > 0 ? Math.round(guildAltObt / guildAltTotal * 100) : null;
+      totalCard = `<div class="loot-stat-cards" style="margin-bottom:2rem;flex-wrap:nowrap">
+        ${_bisPctBadge(mainPct, 'Ppal')}
+        ${altPct !== null ? _bisPctBadge(altPct, 'Sec') : ''}
+        ${Object.keys(guildCat).length ? `<div style="width:1px;background:var(--border);margin:0 .25rem;align-self:stretch;flex-shrink:0"></div>` : ''}
+        ${_bisCatBadgesHTML(guildCat)}
+      </div>`;
+    }
+  }
+
+  const cards = rows.map(({ group, main, alt, mergedAlt, mainTotal, altTotal, lootName, mainObt, altObt }, i) => {
+    const dispName  = _bisDisplayName(group.player);
+    const clsColor  = _bisClassColor(group.player);
+    const mainPct   = mainTotal > 0 && lootLoaded ? Math.round(mainObt / mainTotal * 100) : null;
+    const altPct    = altTotal  > 0 && lootLoaded ? Math.round(altObt  / altTotal  * 100) : null;
+    const buildBar = (obt, total, pct, label) => {
+      if (!lootLoaded) return `
+        <div style="margin-top:.35rem">
+          <div style="font-size:.7rem;color:#666;margin-bottom:.25rem;text-transform:uppercase;letter-spacing:.05em">${label}</div>
+          <div style="font-size:.8rem;color:var(--text-dim)">${total} slots</div>
+        </div>`;
+      const barColor = pct >= 80 ? 'linear-gradient(90deg,#2a6e2a,#72e87e)' : pct >= 50 ? 'linear-gradient(90deg,var(--gold-dim),var(--gold))' : 'linear-gradient(90deg,#5a3a1a,#c07828)';
+      return `
+        <div style="margin-top:.5rem">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.3rem">
+            <span style="font-size:.7rem;color:#777;text-transform:uppercase;letter-spacing:.05em">${label}</span>
+            <span style="font-size:.72rem;color:#999">${obt}&thinsp;/&thinsp;${total}</span>
+          </div>
+          <div style="height:10px;background:rgba(255,255,255,.07);border-radius:5px;overflow:hidden">
+            <div style="height:100%;width:${pct}%;background:${barColor};border-radius:5px;transition:width .6s ease"></div>
+          </div>
+        </div>`;
+    };
+
+    return `
+      <div style="display:grid;grid-template-columns:1fr auto;align-items:center;gap:1rem;padding:1rem 1.1rem;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;margin-bottom:.6rem;transition:border-color .2s;cursor:pointer" onclick="bisSwitchToDetalle('${group.player}')" onmouseover="this.style.borderColor='rgba(255,255,255,.14)'" onmouseout="this.style.borderColor='rgba(255,255,255,.07)'">
+        <div>
+          <span class="player-link" style="color:${clsColor};font-size:1.05rem">${dispName}</span>
+          ${buildBar(mainObt, mainTotal, mainPct, hasAlt ? (main.configLabel || 'Principal') : 'Progreso')}
+          ${mergedAlt ? buildBar(altObt, altTotal, altPct, alt?.configLabel || 'Secundaria') : ''}
+        </div>
+        ${lootLoaded && mainPct !== null ? `
+        <div style="text-align:right;min-width:3.5rem">
+          <div style="font-family:'Cinzel',serif;font-size:1.6rem;font-weight:700;color:${mainPct >= 80 ? '#72e87e' : mainPct >= 50 ? 'var(--gold)' : '#c07828'};line-height:1">${mainPct}%</div>
+        </div>` : ''}
+      </div>`;
+  }).join('');
+
+  return `
+    ${note}
+    ${totalCard}
+    <div>${cards}</div>
+  `;
+}
+
+const _BIS_FROM_COLORS = {
+  Craft:  { bg: '#160d2b', color: '#c084fc', border: '#7c3aed' },
+  F1:     { bg: '#0d1e35', color: '#60a5fa', border: '#1d4ed8' },
+  Chapas: { bg: '#1f1200', color: '#fbbf24', border: '#b45309' },
+  PVP:    { bg: '#1f0a0a', color: '#f87171', border: '#b91c1c' },
+  Repu:   { bg: '#071f12', color: '#34d399', border: '#047857' },
+  Quest:  { bg: '#1c1800', color: '#facc15', border: '#a16207' },
+};
+function _bisFromBadge(from) {
+  if (!from) return '';
+  const c = _BIS_FROM_COLORS[from] || { bg: '#111', color: '#aaa', border: '#444' };
+  return `<span style="display:inline-block;background:${c.bg};color:${c.color};border:1px solid ${c.border};border-radius:4px;padding:0 5px;font-size:.68rem;font-weight:700;letter-spacing:.04em;vertical-align:middle;margin-left:5px">${from}</span>`;
+}
+
+const _BIS_CAT_ORDER = ['RAID', 'F1', 'Craft', 'Chapas', 'PVP', 'Repu', 'Quest'];
+
+// Slots únicos de ambas builds (por itemId), para los badges de categoría
+function _bisMergedUniqueSlots(mainSlots, mergedAlt) {
+  const seen = new Set();
+  const result = [];
+  for (const s of [...mainSlots, ...(mergedAlt || [])]) {
+    if (!s.nameDisplay || !s.itemId || seen.has(s.itemId)) continue;
+    seen.add(s.itemId);
+    result.push(s);
+  }
+  return result;
+}
+
+// Calcula stats por categoría (RAID / Craft / F1 / etc.) para un conjunto de slots
+function _bisCatStats(slots, lootName) {
+  const stats = {};
+  slots.forEach(s => {
+    if (!s.nameDisplay || !s.itemId) return;
+    const cat = _bisAltSources.get(s.itemId)?.from || 'RAID';
+    if (!stats[cat]) stats[cat] = { obt: 0, total: 0 };
+    stats[cat].total++;
+    if (lootName && bisObtained(lootName, s.itemId)) stats[cat].obt++;
+  });
+  return stats;
+}
+
+// Badge de porcentaje (Principal / Secundaria)
+function _bisPctBadge(pct, label, compact = false) {
+  const color = pct >= 80 ? '#72e87e' : pct >= 50 ? 'var(--gold)' : '#c07828';
+  if (compact) {
+    return `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:6px;padding:.35rem .7rem;text-align:center;flex-shrink:0">
+      <div style="font-family:'Cinzel',serif;font-size:1rem;font-weight:700;color:${color};line-height:1.3">${pct}%</div>
+      <div style="font-size:.68rem;color:var(--text-dim);letter-spacing:.04em;text-transform:uppercase;margin-top:.1rem">${label}</div>
+    </div>`;
+  }
+  return `<div class="loot-stat-card" style="flex:1;min-width:0">
+    <div style="font-family:'Cinzel',serif;font-size:1.1rem;font-weight:700;color:${color};line-height:1.2">${pct}%</div>
+    <div class="lsc-label">${label}</div>
+  </div>`;
+}
+
+// Badges X/Y por categoría, sin porcentaje. compact=true para versión reducida (por jugador)
+function _bisCatBadgesHTML(catStats, compact = false) {
+  return _BIS_CAT_ORDER.filter(cat => catStats[cat]).map(cat => {
+    const { obt, total } = catStats[cat];
+    const color = cat === 'RAID' ? 'var(--gold)' : (_BIS_FROM_COLORS[cat]?.color || '#aaa');
+    if (compact) {
+      return `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:6px;padding:.35rem .7rem;text-align:center;flex-shrink:0">
+        <div style="font-family:'Cinzel',serif;font-size:.95rem;font-weight:700;color:${color};line-height:1.3">${obt}/${total}</div>
+        <div style="font-size:.68rem;color:var(--text-dim);letter-spacing:.04em;text-transform:uppercase;margin-top:.1rem">${cat}</div>
+      </div>`;
+    }
+    return `<div class="loot-stat-card" style="flex:1;min-width:0">
+      <div style="font-family:'Cinzel',serif;font-size:1rem;font-weight:700;color:${color};line-height:1.2">${obt}/${total}</div>
+      <div class="lsc-label">${cat}</div>
+    </div>`;
+  }).join('');
+}
+
+function _bisCanonicalName(itemId, lang) {
+  const c = itemId ? _bisItemsCanonical[itemId] : null;
+  if (!c) return null;
+  return lang === 'es' ? (c.es || c.en || null) : (c.en || c.es || null);
+}
+
+function _bisSlotLabel(slotName) {
+  if (slotName === 'Ring 1'    || slotName === 'Ring 2')    return 'Anillos';
+  if (slotName === 'Trinket 1' || slotName === 'Trinket 2') return 'Abalorios';
+  return BIS_SLOT_ES[slotName] || slotName;
+}
+
+// Jugadores que aún no aparecen en historial (nuevos, inactivos, etc.)
+const BIS_CLASS_OVERRIDE = {
+  'bellion':  'Warrior',
+  'rotisima': 'Shaman',
+};
+
+// Alias de nombre: clave = nombre en el sheet BiS (normalizado), valor = nombre real (loot/historial)
+// El alias se usa también como nombre de display
+const BIS_NAME_ALIAS = {
+  'rotisima': 'rotï',
+};
+function _bisDisplayName(player) {
+  const real = BIS_NAME_ALIAS[player.toLowerCase()] || player;
+  return real.charAt(0).toUpperCase() + real.slice(1).toLowerCase();
+}
+
+function _bisClassColor(playerKey) {
+  const lower = playerKey.toLowerCase();
+  const override = BIS_CLASS_OVERRIDE[lower];
+  if (override) return CLASS_COLOR[override] ?? 'var(--text-bright)';
+  for (const e of historial) {
+    const classes = e.playerClasses ?? {};
+    const match = Object.keys(classes).find(k => k.toLowerCase() === lower);
+    if (match) return CLASS_COLOR[classes[match]] ?? 'var(--text-bright)';
+  }
+  return 'var(--text-bright)';
+}
+
+
+function _buildBisItemsHTML(slotFilter = null, nameFilter = '', lang = 'en', fromFilter = null, missingOnly = false) {
+  if (!bisList) return '';
+
+  const itemMap = new Map();
+  bisList.forEach(bisGroup => {
+    bisGroup.configs.forEach(cfg => {
+      cfg.slots.forEach(slot => {
+        if (!slot.nameDisplay || !slot.itemId) return;
+        if (slotFilter) {
+          if (slotFilter === 'rings'    && slot.slotName !== 'Ring 1'    && slot.slotName !== 'Ring 2')    return;
+          if (slotFilter === 'trinkets' && slot.slotName !== 'Trinket 1' && slot.slotName !== 'Trinket 2') return;
+          if (slotFilter !== 'rings' && slotFilter !== 'trinkets' && slot.slotName !== slotFilter) return;
+        }
+        const key = slot.itemId;
+        if (!itemMap.has(key)) {
+          itemMap.set(key, { itemId: slot.itemId, nameDisplay: slot.nameDisplay, slotName: slot.slotName, players: [] });
+        }
+        const entry = itemMap.get(key);
+        if (!entry.players.find(p => p.player === bisGroup.player)) {
+          const lootName = lootLoaded ? _bisLootName(bisGroup.player) : null;
+          const obtained = lootName ? bisObtained(lootName, slot.itemId) : false;
+          const dispName = _bisDisplayName(bisGroup.player);
+          entry.players.push({ player: bisGroup.player, dispName, obtained });
+        }
+      });
+    });
+  });
+
+  const _itemDisplayName = (i) => _bisCanonicalName(i.itemId, lang) || i.nameDisplay;
+  const _itemSortPos = (i) => BIS_SLOTS.indexOf(i.slotName);
+
+  let items = [...itemMap.values()];
+  if (nameFilter) {
+    const lower = nameFilter.toLowerCase();
+    items = items.filter(i => _itemDisplayName(i).toLowerCase().includes(lower));
+  }
+  if (fromFilter) {
+    if (fromFilter === 'RAID') {
+      items = items.filter(i => !_bisAltSources.get(i.itemId)?.from);
+    } else {
+      items = items.filter(i => _bisAltSources.get(i.itemId)?.from === fromFilter);
+    }
+  }
+  if (missingOnly) {
+    items = items.filter(i => i.players.some(p => !p.obtained));
+  }
+  items.sort((a, b) => {
+    const si = _itemSortPos(a) - _itemSortPos(b);
+    return si !== 0 ? si : (a.itemId ?? 0) - (b.itemId ?? 0);
+  });
+
+  if (!items.length) {
+    return '<p style="color:var(--text-dim);text-align:center;padding:2rem;font-style:italic">No se encontraron items.</p>';
+  }
+
+  const lootNote = !lootLoaded
+    ? `<p style="color:var(--text-dim);font-size:.85rem;margin-bottom:1rem;font-style:italic">Abre la pestaña Loot para ver quién ya tiene cada item.</p>`
+    : '';
+
+  const tbody = items.map(item => {
+    const nameDisplay = _itemDisplayName(item);
+    const icon = item.itemId ? itemIcon(item.itemId) : '';
+    const fromVal = item.itemId ? (_bisAltSources.get(item.itemId)?.from || null) : null;
+    const link = item.itemId
+      ? `<a class="item-link" href="https://www.wowhead.com/tbc/item=${item.itemId}" target="_blank">${icon}${nameDisplay}</a>`
+      : `<span style="color:var(--text-dim)">${nameDisplay}</span>`;
+    const slotLabel = _bisSlotLabel(item.slotName);
+    const playersHTML = [...item.players].sort((a, b) => a.obtained - b.obtained).map(p => {
+      const clrColor = _bisClassColor(p.player);
+      return p.obtained
+        ? `<span style="background:#1c4a20;color:#72e87e;border:1px solid #3a8c42;border-left:3px solid ${clrColor};border-radius:4px;padding:.1rem .5rem;font-size:.78rem;font-weight:600;display:inline-block;margin:.1rem .15rem" title="Ya obtenido">✓ ${p.dispName}</span>`
+        : `<span style="background:rgba(255,255,255,.05);color:${clrColor};border:1px solid var(--border);border-left:3px solid ${clrColor};border-radius:4px;padding:.1rem .5rem;font-size:.78rem;display:inline-block;margin:.1rem .15rem">${p.dispName}</span>`;
+    }).join('');
+    return `<tr>
+      <td style="color:var(--text-dim);font-size:.82rem;white-space:nowrap">${slotLabel}</td>
+      <td>${link}</td>
+      <td style="white-space:nowrap">${fromVal ? _bisFromBadge(fromVal) : ''}</td>
+      <td style="line-height:1.9">${playersHTML}</td>
+    </tr>`;
+  }).join('');
+
+  return `
+    ${lootNote}
+    <table class="ranked-list" id="bis-items-table-all">
+      <thead><tr>
+        <th style="width:105px">Slot</th>
+        <th>Item</th>
+        <th style="width:80px">Fuente</th>
+        <th>Jugadores BiS</th>
+      </tr></thead>
+      <tbody>${tbody}</tbody>
+    </table>`;
+}
+
+function bisSwitchToDetalle(playerName) {
+  document.querySelectorAll('#sub-nav-bis .sub-tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector('#sub-nav-bis [data-bis-sub="detalle"]')?.classList.add('active');
+  document.getElementById('bis-sub-resumen')?.classList.remove('active');
+  document.getElementById('bis-sub-items')?.classList.remove('active');
+  document.getElementById('bis-sub-detalle')?.classList.add('active');
+  const sel = document.getElementById('bis-player-select');
+  if (sel) { sel.value = playerName; renderBisPlayer(playerName); }
+}
+
+function _updateBisStatBadges(catStats, altObt = 0, altTotal = 0) {
+  const cards = document.getElementById('bis-player-stat-cards');
+  if (!cards) return;
+  if (!catStats || Object.keys(catStats).length === 0) { cards.style.display = 'none'; return; }
+  const mainObt   = Object.values(catStats).reduce((s, v) => s + v.obt,   0);
+  const mainTotal = Object.values(catStats).reduce((s, v) => s + v.total, 0);
+  const mainPct   = mainTotal > 0 ? Math.round(mainObt / mainTotal * 100) : 0;
+  const altPct    = altTotal  > 0 ? Math.round(altObt  / altTotal  * 100) : null;
+  const sep = `<div style="width:1px;background:var(--border);margin:0 .15rem;align-self:stretch;flex-shrink:0"></div>`;
+  cards.innerHTML =
+    _bisPctBadge(mainPct, 'Ppal', true) +
+    (altPct !== null ? _bisPctBadge(altPct, 'Sec', true) : '') +
+    sep +
+    _bisCatBadgesHTML(catStats, true);
+  cards.style.display = 'flex';
+}
+
+function renderBisPlayer(baseName) {
+  const el = document.getElementById('bis-player-detail');
+  if (!el) return;
+  if (!baseName) {
+    el.innerHTML = '';
+    const cards = document.getElementById('bis-player-stat-cards');
+    if (cards) cards.style.display = 'none';
+    return;
+  }
+
+  const group = bisList.find(g => g.player === baseName);
+  if (!group) { el.innerHTML = '<div class="loot-loading">Jugador no encontrado.</div>'; return; }
+
+  const lootName = lootLoaded ? _bisLootName(baseName) : null;
+  const main = group.configs[0];
+  const alt  = group.configs[1] ?? null;
+
+  // Stat badges: % Principal, % Secundaria + X/Y por categoría
+  const mergedAlt = alt ? main.slots.map((ms, i) => {
+    const as = alt.slots[i];
+    return (as && as.nameDisplay) ? as : ms;
+  }) : null;
+  const catStats = _bisCatStats(_bisMergedUniqueSlots(main.slots, mergedAlt), lootName);
+  const altObt   = mergedAlt && lootName ? mergedAlt.filter(s => s?.itemId && bisObtained(lootName, s.itemId)).length : 0;
+  const altTotal = mergedAlt ? mergedAlt.filter(s => s?.itemId).length : 0;
+  _updateBisStatBadges(catStats, altObt, altTotal);
+
+  const mainLabel = main.configLabel || 'Build';
+  const altLabel  = alt?.configLabel || 'Alternativa';
+
+  const itemCell = (slot, lootN) => {
+    if (!slot?.nameDisplay) return '<span class="td-dim">—</span>';
+    const { itemId, nameDisplay } = slot;
+    const displayName = (itemId && _bisCanonicalName(itemId, _bisLang)) || nameDisplay;
+    const icon = itemId ? itemIcon(itemId) : '';
+    const fromBadge = itemId ? _bisFromBadge(_bisAltSources.get(itemId)?.from) : '';
+    const obtained  = lootN && itemId ? bisObtained(lootN, itemId) : false;
+    const checkmark = obtained ? ' <span style="color:#72e87e;font-weight:800;font-size:.95rem;vertical-align:middle">✓</span>' : '';
+    const link = itemId
+      ? `<a class="item-link" href="https://www.wowhead.com/tbc/item=${itemId}" target="_blank" style="color:${obtained ? '#72e87e' : '#a0a0b0'}">${icon}${displayName}</a>${fromBadge}${checkmark}`
+      : `<span style="color:var(--text-dim)">${displayName}</span>`;
+    return link;
+  };
+
+  const tableRows = BIS_SLOTS.map((slotName, i) => {
+    const ms = main.slots[i];
+    const as = alt?.slots[i] ?? null;
+    return `<tr>
+      <td style="color:var(--text-dim);font-size:.82rem;white-space:nowrap">${BIS_SLOT_ES[slotName]}</td>
+      <td>${itemCell(ms, lootName)}</td>
+      ${alt ? `<td>${as?.nameDisplay ? itemCell(as, lootName) : ''}</td>` : ''}
+    </tr>`;
+  }).join('');
+
+  const lootNote = !lootLoaded
+    ? `<p style="color:var(--text-dim);font-size:.82rem;margin-bottom:.75rem;font-style:italic">Abre Loot para ver el estado de obtención.</p>`
+    : !lootName
+    ? `<p style="color:var(--text-dim);font-size:.82rem;margin-bottom:.75rem;font-style:italic">${baseName} no encontrado en el registro de loot.</p>`
+    : '';
+
+  el.innerHTML = `
+    ${lootNote}
+    <table class="ranked-list" id="bis-items-table">
+      <thead><tr>
+        <th style="width:105px">Slot</th>
+        <th>${mainLabel}</th>
+        ${alt ? `<th>${altLabel}</th>` : ''}
+      </tr></thead>
+      <tbody>${tableRows}</tbody>
+    </table>
+  `;
+
+  fetchMissingIcons('bis-items-table');
+}
+
 // ── INIT ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   buildCitaDelDia();
@@ -5592,7 +6502,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupJugador();
 
   // Hash-based navigation
-  const VALID_TABS = new Set(['resumen','progresion','logros','por-semana','cla','performance','verguenza','mecanicas','historial','jugador','loot-resumen','loot-registro']);
+  const VALID_TABS = new Set(['resumen','progresion','logros','por-semana','cla','performance','verguenza','mecanicas','historial','jugador','loot-resumen','loot-registro','bis']);
 
   function activateSubTab(tab, sub) {
     if (tab === 'cla') {
