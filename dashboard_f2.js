@@ -3467,7 +3467,7 @@ function buildLootResumen() {
   const HERO_TIP     = `<span style='color:#AAD372'>Hunter</span> · <span style='color:#3FC7EB'>Mage</span> · <span style='color:#8788EE'>Warlock</span>`;
 
   const byPlayer = new Map();
-  let totDE = 0, totBank = 0, totBis = 0, totUpgrade = 0, totOffspec = 0;
+  let totDE = 0, totBank = 0, totProf = 0, totBis = 0, totUpgrade = 0, totOffspec = 0;
   let totChampion = 0, totDefender = 0, totHero = 0;
   lootRows.forEach(r => {
     if (!byPlayer.has(r.nombre)) byPlayer.set(r.nombre, { bis: 0, upgrade: 0, offspec: 0, total: 0, tier: 0 });
@@ -3480,7 +3480,8 @@ function buildLootResumen() {
     else if (r.response === 'Upgrade') { p.upgrade++; p.total++; totUpgrade++; }
     else if (r.response === 'Off-Spec'){ p.offspec++; p.total++; totOffspec++; }
     else if (isDisenchant(r.response)) totDE++;
-    else if (r.response === 'Banking') totBank++;
+    else if (r.response === 'Banking')    totBank++;
+    else if (r.response === 'Profession') totProf++;
     if (r.response === 'BiS' && tierType) {
       p.tier++;
       if (tierType === 'Champion') totChampion++;
@@ -3499,6 +3500,29 @@ function buildLootResumen() {
   const classMap = {};
   for (const e of historial) Object.assign(classMap, e.playerClasses ?? {});
 
+  const profRows = lootRows.filter(r => r.response === 'Profession').sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  const profTableSection = profRows.length ? `
+    <div class="section-title" style="color:#34d399;margin-top:2rem">Recetas de Profesión</div>
+    <table class="ranked-list" id="loot-resumen-prof-table">
+      <thead><tr><th>Jugador</th><th>Item</th><th>Boss</th><th>Fecha</th></tr></thead>
+      <tbody>${profRows.map(r => {
+        const cls = classMap[r.nombre] ?? '';
+        const nameColor = cls ? (CLASS_COLOR[cls] ?? 'var(--text-bright)') : 'var(--text-bright)';
+        return `<tr>
+          <td class="player-link" style="cursor:pointer;color:${nameColor}" onclick="goToLootRegistro('${r.nombre}')">${r.nombre}</td>
+          <td style="white-space:nowrap">${r.itemID
+            ? `<a class="item-link" href="https://www.wowhead.com/tbc/item=${r.itemID}" target="_blank">${itemIcon(r.itemID)}${stripBrackets(r.item)}</a>`
+            : stripBrackets(r.item)}</td>
+          <td class="td-dim" style="font-size:.85rem">${r.boss === 'Unknown' ? 'Trash' : r.boss || '—'}</td>
+          <td class="td-gold" style="white-space:nowrap">${
+            r.raidDate && r.normalizedInstance
+              ? `<span style="cursor:pointer" onclick="goToLootRaid('${r.normalizedInstance}','${r.raidDate}')">${fmtDate(r.raidDate)}</span>`
+              : r.date ? fmtDate(r.date) : '—'
+          }</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>` : '';
+
   document.getElementById('loot-resumen-inner').innerHTML = `
     <style>#loot-resumen-inner .loot-stat-card{padding:.6rem .5rem;min-width:0;flex:1}#loot-resumen-inner .lsc-val{font-size:1.5rem}</style>
     <div class="loot-stat-cards" style="flex-wrap:nowrap">
@@ -3509,6 +3533,7 @@ function buildLootResumen() {
       <div style="width:1px;background:var(--border);margin:0 0.25rem;align-self:stretch;flex-shrink:0"></div>
       <div class="loot-stat-card"><div class="lsc-val" style="color:var(--text-dim)">${totDE}</div><div class="lsc-label">Desenc.</div></div>
       <div class="loot-stat-card"><div class="lsc-val" style="color:var(--text-dim)">${totBank}</div><div class="lsc-label">Banking</div></div>
+      <div class="loot-stat-card"><div class="lsc-val" style="color:#34d399">${totProf}</div><div class="lsc-label">Profession</div></div>
       <div style="width:1px;background:var(--border);margin:0 0.25rem;align-self:stretch;flex-shrink:0"></div>
       <div class="loot-stat-card" data-tooltip="${CHAMPION_TIP}" style="cursor:help;flex-shrink:0"><div class="lsc-val" style="color:#7eb8f7">${totChampion}</div><div class="lsc-label">Champion</div></div>
       <div class="loot-stat-card" data-tooltip="${DEFENDER_TIP}" style="cursor:help;flex-shrink:0"><div class="lsc-val" style="color:#5dcf8a">${totDefender}</div><div class="lsc-label">Defender</div></div>
@@ -3541,7 +3566,9 @@ function buildLootResumen() {
         }).join('')}
       </tbody>
     </table>
+    ${profTableSection}
   `;
+  if (profRows.length) fetchMissingIcons('loot-resumen-prof-table');
 }
 
 function buildLootRegistroShell() {
@@ -3632,10 +3659,30 @@ function renderLootPlayer(nombre) {
     return;
   }
   const items = allPlayerRows.filter(r => ASSIGNED.has(r.response)).sort((a, b) => b.date.localeCompare(a.date));
+  const profItems = allPlayerRows.filter(r => r.response === 'Profession').sort((a, b) => b.date.localeCompare(a.date));
   const counts = {};
   items.forEach(r => { counts[r.response] = (counts[r.response] || 0) + 1; });
   const tierCount = items.filter(r => r.response === 'BiS' && r.item && r.item.includes('Vanquished')).length;
   const chipColor = { BiS: '', Upgrade: 'purple', 'Off-Spec': 'blue' };
+
+  const profSection = profItems.length ? `
+    <h4 style="margin:1.5rem 0 0.5rem;color:#34d399;font-size:.85rem;letter-spacing:.05em">RECETAS DE PROFESIÓN</h4>
+    <table class="ranked-list" id="loot-items-prof-table">
+      <thead><tr><th>Fecha</th><th>Item</th><th>Boss</th></tr></thead>
+      <tbody>
+        ${profItems.map(r => `<tr>
+          <td class="td-gold" style="white-space:nowrap">${
+            r.raidDate && r.normalizedInstance
+              ? `<span style="cursor:pointer" onclick="goToLootRaid('${r.normalizedInstance}','${r.raidDate}')">${fmtDate(r.raidDate)}</span>`
+              : r.date ? fmtDate(r.date) : '—'
+          }</td>
+          <td style="white-space:nowrap">${r.itemID
+            ? `<a class="item-link" href="https://www.wowhead.com/tbc/item=${r.itemID}" target="_blank">${itemIcon(r.itemID)}${stripBrackets(r.item)}</a>`
+            : stripBrackets(r.item)}</td>
+          <td class="td-dim" style="font-size:.85rem">${r.boss === 'Unknown' ? 'Trash' : r.boss || '—'}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>` : '';
 
   el.innerHTML = `
     <div class="loot-chips">
@@ -3646,6 +3693,7 @@ function renderLootPlayer(nombre) {
       </div>`).join('')}
       <div style="width:1px;background:var(--border);margin:0 0.1rem;align-self:stretch"></div>
       <div class="loot-chip"><div class="chip-val" style="color:#f59e42">${tierCount || 0}</div><div class="chip-label">Tier</div></div>
+      ${profItems.length ? `<div style="width:1px;background:var(--border);margin:0 0.1rem;align-self:stretch"></div><div class="loot-chip"><div class="chip-val" style="color:#34d399">${profItems.length}</div><div class="chip-label">Profession</div></div>` : ''}
     </div>
     <table class="ranked-list" id="loot-items-table">
       <thead><tr><th>Fecha</th><th>Item</th><th>Boss</th><th>Tipo</th></tr></thead>
@@ -3664,6 +3712,7 @@ function renderLootPlayer(nombre) {
         </tr>`).join('')}
       </tbody>
     </table>
+    ${profSection}
   `;
   fetchMissingIcons();
 }
@@ -3685,9 +3734,22 @@ function renderLootRaid(raidKey) {
 
   const counts = {};
   items.forEach(r => { counts[r.response] = (counts[r.response] || 0) + 1; });
-  const totDE   = allRaidRows.filter(r => isDisenchant(r.response)).length;
-  const totBank = allRaidRows.filter(r => r.response === 'Banking').length;
+  const totDE    = allRaidRows.filter(r => isDisenchant(r.response)).length;
+  const totBank  = allRaidRows.filter(r => r.response === 'Banking').length;
+  const profItems = allRaidRows.filter(r => r.response === 'Profession').sort((a, b) => normTime(a.timeMinutes) - normTime(b.timeMinutes));
+  const totProf  = profItems.length;
   const chipColor = { BiS: '', Upgrade: 'purple', 'Off-Spec': 'blue' };
+
+  const profSection = profItems.length ? `
+    <h4 style="margin:1.2rem 0 0.5rem;color:#34d399;font-size:.85rem;letter-spacing:.05em">RECETAS DE PROFESIÓN</h4>
+    <table class="ranked-list" id="loot-raid-prof-table">
+      <thead><tr><th>Item</th><th>Jugador</th><th>Boss</th></tr></thead>
+      <tbody>${profItems.map(r => `<tr>
+        <td style="white-space:nowrap">${r.itemID ? `<a class="item-link" href="https://www.wowhead.com/tbc/item=${r.itemID}" target="_blank">${itemIcon(r.itemID)}${stripBrackets(r.item)}</a>` : stripBrackets(r.item)}</td>
+        <td class="player-link" style="cursor:pointer" onclick="goToLootJugador('${r.nombre}')">${r.nombre}</td>
+        <td class="td-dim" style="font-size:.85rem">${r.boss === 'Unknown' ? 'Trash' : r.boss || '—'}</td>
+      </tr>`).join('')}</tbody>
+    </table>` : '';
 
   const deSection = deItems.length
     ? `<h4 style="margin:1.2rem 0 0.5rem;color:var(--purple2);font-size:.85rem;letter-spacing:.05em">DESENCANTADOS ÉPICOS+</h4>
@@ -3711,6 +3773,7 @@ function renderLootRaid(raidKey) {
       <div style="width:1px;background:var(--border);margin:0 0.1rem;align-self:stretch"></div>
       <div class="loot-chip"><div class="chip-val dim">${totDE}</div><div class="chip-label">Desenc.</div></div>
       <div class="loot-chip"><div class="chip-val dim">${totBank}</div><div class="chip-label">Banking</div></div>
+      ${totProf > 0 ? `<div class="loot-chip"><div class="chip-val" style="color:#34d399">${totProf}</div><div class="chip-label">Profession</div></div>` : ''}
     </div>
     <table class="ranked-list" id="loot-raid-table">
       <thead><tr><th>Item</th><th>Jugador</th><th>Boss</th><th>Tipo</th></tr></thead>
@@ -3722,9 +3785,11 @@ function renderLootRaid(raidKey) {
       </tr>`).join('')}</tbody>
     </table>
     ${deSection}
+    ${profSection}
   `;
   fetchMissingIcons('loot-raid-table');
   if (deItems.length) fetchMissingIcons('loot-raid-de-table');
+  if (profItems.length) fetchMissingIcons('loot-raid-prof-table');
 }
 
 function goToLootJugador(nombre) {
@@ -3776,7 +3841,7 @@ function goToLootRaid(normalizedInstance, raidDate) {
 
 function lootBadge(resp) {
   if (!resp) return '<span class="response-badge other">—</span>';
-  const cls = resp === 'BiS' ? 'bis' : resp === 'Upgrade' ? 'upgrade' : resp === 'Off-Spec' ? 'offspec' : 'other';
+  const cls = resp === 'BiS' ? 'bis' : resp === 'Upgrade' ? 'upgrade' : resp === 'Off-Spec' ? 'offspec' : resp === 'Profession' ? 'profession' : 'other';
   return `<span class="response-badge ${cls}">${resp}</span>`;
 }
 
