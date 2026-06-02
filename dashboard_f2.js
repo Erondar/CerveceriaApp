@@ -6348,14 +6348,110 @@ function _buildBisItemsHTML(slotFilter = null, nameFilter = '', lang = 'en', fro
     const lower = nameFilter.toLowerCase();
     items = items.filter(i => _itemDisplayName(i).toLowerCase().includes(lower));
   }
+  if (fromFilter === 'TIER') {
+    // Mapa inverso: "TokenType-tokenSlot" → itemId del token
+    // Primero intentar extraer los IDs reales de lootRows (más fiable que los hardcodeados)
+    const tokenReverseMap = {};
+    if (lootRows) {
+      for (const r of lootRows) {
+        if (!r.item || !r.itemID) continue;
+        const l = r.item.toLowerCase();
+        for (const [tokenType, typeKeys] of Object.entries(TIER_TYPE_KEYWORDS)) {
+          if (!typeKeys.some(tk => l.includes(tk))) continue;
+          for (const [tokenSlot, slotKeys] of Object.entries(TIER_SLOT_KEYWORDS)) {
+            const key = `${tokenType}-${tokenSlot}`;
+            if (tokenReverseMap[key]) continue;
+            if (slotKeys.some(sk => l.includes(sk))) {
+              tokenReverseMap[key] = Number(r.itemID);
+            }
+          }
+        }
+      }
+    }
+    // Fallback a los IDs hardcodeados
+    for (const [id, {tokenType, tokenSlot}] of Object.entries(TIER_TOKEN_ITEM_IDS)) {
+      const key = `${tokenType}-${tokenSlot}`;
+      if (!tokenReverseMap[key]) tokenReverseMap[key] = Number(id);
+    }
+    // Mapa BIS_SLOTS (slot filter) → clave interna tokenSlot
+    const bisSlotToTier = { Head:'helm', Shoulders:'pauldrons', Chest:'chestguard', Hands:'gloves', Legs:'leggings' };
+    const slotOrder  = ['helm','pauldrons','chestguard','gloves','leggings'];
+    const typeOrder  = ['Champion','Defender','Hero'];
+    const slotLabels = { helm:'Cabeza', pauldrons:'Hombreras', chestguard:'Pecho', gloves:'Manos', leggings:'Piernas' };
+    const slotNames  = { helm:'Helm', pauldrons:'Pauldrons', chestguard:'Chestguard', gloves:'Gloves', leggings:'Leggings' };
+    const typeColors = { Champion:'#fbbf24', Defender:'#60a5fa', Hero:'#a78bfa' };
+
+    const tokenMap = new Map();
+    bisList.forEach(bisGroup => {
+      bisGroup.configs.forEach(cfg => {
+        cfg.slots.forEach(slot => {
+          if (!slot.nameDisplay || !slot.itemId) return;
+          const canonical = _bisItemsCanonical[slot.itemId];
+          const tier = (canonical?.tokenType && canonical?.tokenSlot)
+            ? { tokenType: canonical.tokenType, tokenSlot: canonical.tokenSlot }
+            : (TIER_TOKEN_MAP[slot.itemId] || TIER_TOKEN_ITEM_IDS[slot.itemId] || null);
+          if (!tier) return;
+          const key = `${tier.tokenType}-${tier.tokenSlot}`;
+          if (!tokenMap.has(key)) tokenMap.set(key, { tokenType: tier.tokenType, tokenSlot: tier.tokenSlot, tokenItemId: tokenReverseMap[key] || null, players: [] });
+          const entry = tokenMap.get(key);
+          if (!entry.players.find(p => p.player === bisGroup.player)) {
+            const lootName = lootLoaded ? _bisLootName(bisGroup.player) : null;
+            const obtained = lootName ? bisObtained(lootName, slot.itemId) : false;
+            entry.players.push({ player: bisGroup.player, dispName: _bisDisplayName(bisGroup.player), obtained });
+          }
+        });
+      });
+    });
+
+    let tokenItems = [...tokenMap.values()].sort((a, b) => {
+      const si = slotOrder.indexOf(a.tokenSlot) - slotOrder.indexOf(b.tokenSlot);
+      return si !== 0 ? si : typeOrder.indexOf(a.tokenType) - typeOrder.indexOf(b.tokenType);
+    });
+    if (slotFilter) {
+      const tierSlotFilter = bisSlotToTier[slotFilter];
+      if (tierSlotFilter) tokenItems = tokenItems.filter(t => t.tokenSlot === tierSlotFilter);
+      else tokenItems = []; // slot sin tier (anillos, neck, etc.)
+    }
+    if (missingOnly) tokenItems = tokenItems.filter(t => t.players.some(p => !p.obtained));
+    if (!tokenItems.length) return '<p style="color:var(--text-dim);text-align:center;padding:2rem;font-style:italic">No se encontraron items.</p>';
+
+    const lootNote = !lootLoaded ? `<p style="color:var(--text-dim);font-size:.85rem;margin-bottom:1rem;font-style:italic">Abre la pestaña Loot para ver quién ya tiene cada item.</p>` : '';
+    const TIER_CLASSES = {
+      Champion: ['Paladin', 'Rogue',  'Shaman'],
+      Defender: ['Warrior', 'Priest', 'Druid'],
+      Hero:     ['Hunter',  'Mage',   'Warlock'],
+    };
+    const tbody = tokenItems.map(token => {
+      const fullName    = `${slotNames[token.tokenSlot] || token.tokenSlot} of the Vanquished ${token.tokenType}`;
+      const icon        = token.tokenItemId ? itemIcon(token.tokenItemId) : '';
+      const classBadges = `<div style="margin-top:.2rem;font-size:.75rem">${
+        (TIER_CLASSES[token.tokenType] || []).map((cls, i, arr) =>
+          `<span style="color:${CLASS_COLOR[cls] || 'var(--text-bright)'}">${CLASS_ES[cls] || cls}</span>${i < arr.length - 1 ? ' <span style="color:var(--text-dim)">·</span> ' : ''}`
+        ).join('')
+      }</div>`;
+      const link     = token.tokenItemId
+        ? `<a class="item-link" href="https://www.wowhead.com/tbc/item=${token.tokenItemId}" target="_blank">${icon}${fullName}</a>${classBadges}`
+        : `<span>${fullName}</span>${classBadges}`;
+      const playersHTML = [...token.players].sort((a, b) => a.obtained - b.obtained).map(p => {
+        const clr = _bisClassColor(p.player);
+        return p.obtained
+          ? `<span style="background:#1c4a20;color:#72e87e;border:1px solid #3a8c42;border-left:3px solid ${clr};border-radius:4px;padding:.1rem .5rem;font-size:.78rem;font-weight:600;display:inline-block;margin:.1rem .15rem" title="Ya obtenido">✓ ${p.dispName}</span>`
+          : `<span style="background:rgba(255,255,255,.05);color:${clr};border:1px solid var(--border);border-left:3px solid ${clr};border-radius:4px;padding:.1rem .5rem;font-size:.78rem;display:inline-block;margin:.1rem .15rem">${p.dispName}</span>`;
+      }).join('');
+      return `<tr>
+        <td style="color:var(--text-dim);font-size:.82rem;white-space:nowrap">${slotLabels[token.tokenSlot] || token.tokenSlot}</td>
+        <td>${link}</td>
+        <td></td>
+        <td style="line-height:1.9">${playersHTML}</td>
+      </tr>`;
+    }).join('');
+    return `${lootNote}<table class="ranked-list" id="bis-items-table-all"><thead><tr>
+      <th style="width:105px">Slot</th><th>Token</th><th style="width:80px"></th><th>Jugadores BiS</th>
+    </tr></thead><tbody>${tbody}</tbody></table>`;
+  }
+
   if (fromFilter) {
-    if (fromFilter === 'TIER') {
-      items = items.filter(i => i.itemId && (
-        _bisItemsCanonical[i.itemId]?.tokenType ||
-        TIER_TOKEN_MAP[i.itemId] ||
-        TIER_TOKEN_ITEM_IDS[i.itemId]
-      ));
-    } else if (fromFilter === 'RAID') {
+    if (fromFilter === 'RAID') {
       items = items.filter(i => !_bisAltSources.get(i.itemId)?.from);
     } else {
       items = items.filter(i => _bisAltSources.get(i.itemId)?.from === fromFilter);
