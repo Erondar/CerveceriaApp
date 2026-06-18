@@ -3069,18 +3069,45 @@ function renderJugador(name) {
         for (const p of m.players) if (p.name === name) avoid += p.total;
     totalDeaths += d; totalAvoid += avoid; totalInts += int; totalDisp += dis;
 
-    // Vergüenza de esta raid
+    // Vergüenza de esta raid — misma fórmula que "por semana"
     const participants = new Set(e.roster ?? []);
     const n = participants.size;
     let shameScore = null;
     if (n > 1) {
-      const pct = (list) => { const idx = list.findIndex(x => x.name === name); return idx === -1 ? 0 : (n - 1 - idx) / (n - 1); };
+      const raidPctOf = (sorted, getValue, tgtName) => {
+        const entry = sorted.find(x => x.name === tgtName);
+        if (!entry) return 0;
+        const targetVal = getValue(entry);
+        if (targetVal <= 0) return 0;
+        let first = sorted.findIndex(x => getValue(x) === targetVal);
+        let last = first;
+        while (last + 1 < sorted.length && getValue(sorted[last + 1]) === targetVal) last++;
+        return (sorted.length - 1 - (first + last) / 2) / (sorted.length - 1);
+      };
       const avM = new Map();
       for (const b of (e.bosses ?? []))
         for (const m of (b.avoidableDamage ?? []))
           for (const p of m.players) avM.set(p.name, (avM.get(p.name) ?? 0) + p.total);
-      const avS = [...avM.entries()].map(([n2, t]) => ({ name: n2, total: t })).sort((a, b) => b.total - a.total);
-      shameScore = ((pct(e.deathStats?.deaths ?? []) + pct(avS)) / 2) * 100;
+      // Listas con roster completo (0s incluidos), igual que semPctOf
+      const deathsListR = [...participants].map(nm => ({ name: nm, count: (e.deathStats?.deaths ?? []).find(x => x.name === nm)?.count ?? 0 })).sort((a, b) => b.count - a.count);
+      const avoidListR  = [...participants].map(nm => ({ name: nm, total: avM.get(nm) ?? 0 })).sort((a, b) => b.total - a.total);
+      // Mecánicas especiales de esta raid
+      const demM = new Map(), wrM = new Map(), scM = new Map();
+      for (const b of (e.bosses ?? [])) {
+        if (b.boss === 'Leotheras') for (const d of (b.innerDemons        ?? [])) demM.set(d.name, (demM.get(d.name) ?? 0) + d.mcCount);
+        if (b.boss === 'Solarian')  for (const d of (b.wrathOfAstromancer ?? [])) wrM.set(d.name,  (wrM.get(d.name)  ?? 0) + d.damageToAllies);
+        if (b.boss === 'Vashj')     for (const d of (b.staticCharges      ?? [])) scM.set(d.name,  (scM.get(d.name)  ?? 0) + d.damageToAllies);
+      }
+      const buildL = map => [...participants].map(nm => ({ name: nm, v: map.get(nm) ?? 0 })).sort((a, b) => b.v - a.v);
+      const starListsR = [];
+      if (demM.size > 0) starListsR.push(buildL(demM));
+      if (wrM.size  > 0) starListsR.push(buildL(wrM));
+      if (scM.size  > 0) starListsR.push(buildL(scM));
+      const TERMS = starListsR.length > 0 ? 3 : 2;
+      const dPct = raidPctOf(deathsListR, x => x.count, name);
+      const aPct = raidPctOf(avoidListR,  x => x.total, name);
+      const sPct = starListsR.length > 0 ? starListsR.reduce((sum, l) => sum + raidPctOf(l, x => x.v, name), 0) / starListsR.length : 0;
+      shameScore = ((dPct + aPct + (TERMS === 3 ? sPct : 0)) / TERMS) * 100;
     }
 
     // Media DPS/HPS global de la raid
