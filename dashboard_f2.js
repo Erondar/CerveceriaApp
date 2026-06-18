@@ -1075,14 +1075,15 @@ function renderMecanicas() {
   const raidCountMap = new Map();
   for (const e of historial) {
     const codes = e.reports ?? (e.report ? [e.report] : []);
-    const hasCla = codes.some(c => e.claReports?.[c]);
-    if (hasCla) {
-      for (const code of codes)
-        for (const name of Object.keys(e.claReports?.[code]?.jugadores ?? {}))
+    for (const code of codes) {
+      const jugs = e.claReports?.[code]?.jugadores;
+      if (jugs) {
+        for (const name of Object.keys(jugs))
           raidCountMap.set(name, (raidCountMap.get(name) ?? 0) + 1);
-    } else {
-      for (const name of (e.roster ?? []))
-        raidCountMap.set(name, (raidCountMap.get(name) ?? 0) + codes.length);
+      } else {
+        for (const name of (e.roster ?? []))
+          raidCountMap.set(name, (raidCountMap.get(name) ?? 0) + 1);
+      }
     }
   }
 
@@ -1144,15 +1145,15 @@ function renderVerguenza() {
   const rcMap = new Map();
   for (const e of historial) {
     const codes = e.reports ?? (e.report ? [e.report] : []);
-    const hasCla = codes.some(c => e.claReports?.[c]);
-    if (hasCla) {
-      for (const code of codes) {
-        for (const name of Object.keys(e.claReports?.[code]?.jugadores ?? {}))
+    for (const code of codes) {
+      const jugs = e.claReports?.[code]?.jugadores;
+      if (jugs) {
+        for (const name of Object.keys(jugs))
+          rcMap.set(name, (rcMap.get(name) ?? 0) + 1);
+      } else {
+        for (const name of (e.roster ?? []))
           rcMap.set(name, (rcMap.get(name) ?? 0) + 1);
       }
-    } else {
-      for (const name of (e.roster ?? []))
-        rcMap.set(name, (rcMap.get(name) ?? 0) + codes.length);
     }
   }
 
