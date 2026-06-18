@@ -488,7 +488,8 @@ function agregarSemana(entries) {
   const bossMap = new Map();
 
   for (const e of entries) {
-    totalRaidTime += e.reportDurationMs ?? 0;
+    const ssc = e.sscDurationMs ?? 0, tk = e.tkDurationMs ?? 0;
+    totalRaidTime += (ssc + tk > 0) ? ssc + tk : (e.reportDurationMs ?? 0);
     for (const d of (e.deathStats?.deaths ?? [])) totalDeaths += d.count;
 
     for (const b of (e.bosses ?? [])) {
