@@ -3292,6 +3292,10 @@ function renderJugador(name) {
 const LOOT_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1DGpJobX1aH2Q2GRIBeXDvPZmEOAgapIvwopLoKl42Jc/gviz/tq?sheet=Data%20F2';
 const SHEET_BASE     = 'https://docs.google.com/spreadsheets/d/1DGpJobX1aH2Q2GRIBeXDvPZmEOAgapIvwopLoKl42Jc/gviz/tq?sheet=';
 const ASSIGNED       = new Set(['BiS', 'Upgrade', 'Off-Spec']);
+// Mapa de renombres de jugadores (nombre antiguo → nombre nuevo)
+const PLAYER_NAME_MAP = {
+  'Bellión': 'Pescadito',
+};
 const ICON_MAP       = {};
 const QUALITY_MAP    = {};
 
@@ -3410,8 +3414,9 @@ function fetchLootData() {
           raidDate = `${d2.getFullYear()}-${String(d2.getMonth() + 1).padStart(2, '0')}-${String(d2.getDate()).padStart(2, '0')}`;
         }
         const rawInstance = get(row, 'instance');
+        const rawNombre = get(row, 'Nombre');
         return {
-          nombre:             get(row, 'Nombre'),
+          nombre:             PLAYER_NAME_MAP[rawNombre] ?? rawNombre,
           date:               dateStr,
           timeMinutes,
           raidDate,
@@ -5965,8 +5970,9 @@ function fetchBisData() {
     try {
       _bisRawRows = (json.table.rows || []).filter(r => r && r.c).map(row => {
         const v = i => row.c[i]?.v != null ? String(row.c[i].v).trim() : null;
-        const rawName = v(0);
-        if (!rawName) return null;
+        const rawNameRaw = v(0);
+        if (!rawNameRaw) return null;
+        const rawName = PLAYER_NAME_MAP[rawNameRaw] ?? rawNameRaw;
         return { rawName, rawItems: BIS_SLOTS.map((_, i) => v(i + 1)) };
       }).filter(Boolean);
     } catch(e) { console.error('BiS List:', e); _bisRawRows = []; }
