@@ -1094,13 +1094,17 @@ function renderMecanicas() {
       .sort((a, b) => b.total - a.total);
     if (!arr.length) return '<tr><td colspan="5" class="empty-msg">Sin datos</td></tr>';
     const maxV = arr[0].total;
-    return arr.map((e, i) => `<tr>
-      <td class="rank-num">${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : String(i + 1)}</td>
-      <td><span class="clickable-player" data-player="${e.name}">${e.name}</span></td>
-      <td class="bar-cell">${makeBar(Math.round((e.total / maxV) * 100))}</td>
-      <td class="val-cell purple">${e.total}</td>
-      <td class="td-dim">${e.raids}</td>
-    </tr>`).join('');
+    return arr.map((e, i) => {
+      const cls      = historial.find(h => h.playerClasses?.[e.name])?.playerClasses?.[e.name] ?? '';
+      const clsColor = CLASS_COLOR[cls] ?? 'var(--text-bright)';
+      return `<tr>
+        <td class="rank-num">${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : String(i + 1)}</td>
+        <td><span class="clickable-player" data-player="${e.name}" style="color:${clsColor}">${e.name}</span></td>
+        <td class="bar-cell">${makeBar(Math.round((e.total / maxV) * 100))}</td>
+        <td class="val-cell purple">${e.total}</td>
+        <td class="td-dim">${e.raids}</td>
+      </tr>`;
+    }).join('');
   };
 
   document.getElementById('tab-mecanicas').innerHTML = `
@@ -6385,13 +6389,14 @@ function _bisSlotLabel(slotName) {
 
 // Jugadores que aún no aparecen en historial (nuevos, inactivos, etc.)
 const BIS_CLASS_OVERRIDE = {
-  'bellion':  'Warrior',
+  'bellión': 'Warrior',
   'rotisima': 'Shaman',
 };
 
 // Alias de nombre: clave = nombre en el sheet BiS (normalizado), valor = nombre real (loot/historial)
 // El alias se usa también como nombre de display
 const BIS_NAME_ALIAS = {
+  'bellión':  'Pescadito',
   'rotisima': 'rotï',
 };
 function _bisDisplayName(player) {
